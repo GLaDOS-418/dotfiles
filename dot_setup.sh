@@ -14,6 +14,11 @@ ln -s ~/.vimrc ~/.config/nvim/init.vim
 #installed packaged
 sudo pacman -Ss neovim
 sudo pacman -Sy texlive-most texlive-lang
-sudo yaourt -Sy biber
+yaourt -Sy biber
 sudo pacman -Sy mupdf
-sudo yaourt tree
+yaourt tree
+sudo pacman nodejs
+sudo pacman -Sy nodejs
+sudo pacman -Sy inkscape
+sudo pacman -Sy gdb
+yaourt -Sy skypeforlinux-stable-bin
