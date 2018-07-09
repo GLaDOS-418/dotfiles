@@ -11,6 +11,7 @@ SAVE_CMD="python3 ~/dotfiles/save_command.py"
 #PHANTOMJS=/home/arnob/Downloads/phantomjs-2.1.3/bin
 LIVE_LATEX_PREVIEW='~/.vim/bundle/vim-live-latex-preview/bin/'
 DOT_SETUP_FILE='~/dotfiles/dot_setup.sh'
+WGET_DL_DIR="/mnt/windows/Users/AB/Downloads/wg"
 
 ################################################################
 # EXPORT
@@ -49,8 +50,12 @@ alias v="vim "
 alias gv="gvim "
 alias vd="vimdiff "
 alias gvd="gvimdiff "
-alias wg="wget --mirror --recursive --no-parent -e robots=off --compression=auto --verbose --continue --wait=1 --random-wait --reject htm,html,dstore,db,dll --directory-prefix=/mnt/windows/Users/AB/Downloads/wg"
+alias wg="wget --mirror --recursive --no-parent -e robots=off --compression=auto --verbose --continue --wait=1 --random-wait --reject htm,html,dstore,db,dll --directory-prefix=$WGET_DL_DIR"
 alias cdw="cd /mnt/windows/Users/AB/Downloads/"
+alias tv="find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > list_tv.txt"
+alias u0="du --max-depth=0 -h"
+alias u1="du --max-depth=1 -h"
+alias l="ls -lrth"
 
 ################################################################
 # CUSTOM FUNCTIONS
@@ -60,6 +65,13 @@ function lstcmd(){
   fc -ln "$1" "$1" | sed '1s/^[[:space:]]*//' | xargs echo >> $DOT_SETUP_FILE
 }
 
+function lmed(){
+  find $1 -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > $2
+}
+
+function mp(){
+  touch $1.cpp && touch $1.in && vim $1.cpp
+}
 
 ################################################################
 ########           copied from su ~/.bashrc      ###############

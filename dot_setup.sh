@@ -17,8 +17,8 @@ sudo pacman -Sy texlive-most texlive-lang
 yaourt -Sy biber
 sudo pacman -Sy mupdf
 yaourt tree
-sudo pacman nodejs
 sudo pacman -Sy nodejs
 sudo pacman -Sy inkscape
 sudo pacman -Sy gdb
 yaourt -Sy skypeforlinux-stable-bin
+sudo pacman -Sy sqlite
