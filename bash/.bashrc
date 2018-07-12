@@ -11,7 +11,6 @@ SAVE_CMD="python3 ~/dotfiles/save_command.py"
 #PHANTOMJS=/home/arnob/Downloads/phantomjs-2.1.3/bin
 LIVE_LATEX_PREVIEW='~/.vim/bundle/vim-live-latex-preview/bin/'
 DOT_SETUP_FILE='~/dotfiles/dot_setup.sh'
-WGET_DL_DIR="/mnt/windows/Users/AB/Downloads/wg"
 
 ################################################################
 # EXPORT
@@ -27,14 +26,17 @@ export HISTFILE=~/.bash_history
 ################################################################
 # ALIAS
 ################################################################
-#alias vim="ls --color=auto"
+
+alias gp="git push"
+alias gl="git pull"
+alias st="git status"
+alias br="git branch"
+alias log="git log"
 alias emacs="emacs & &> /dev/null"
 alias suvim="sudo -E gvim"
  #remove unused packages(orphans): if none found o/p :"no targets specified"
 alias cleanpac="sudo pacman -Rns $(pacman -Qtdq)"
 alias cdp="cd /mnt/windows/projects"
-alias st="git status"
-alias br="git branch"
 alias diffhead="git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
 alias prp="pipenv run python"
 alias psh="pipenv shell"
@@ -50,12 +52,13 @@ alias v="vim "
 alias gv="gvim "
 alias vd="vimdiff "
 alias gvd="gvimdiff "
-alias wg="wget --mirror --recursive --no-parent -e robots=off --compression=auto --verbose --continue --wait=1 --random-wait --reject htm,html,dstore,db,dll --directory-prefix=$WGET_DL_DIR"
+alias wg="wget --recursive --timestamping --level=inf --no-remove-listing --convert-links --show-progress --progress=bar:force --no-parent --execute robots=off --compression=auto --verbose --continue --wait=2 --random-wait --reject htm*,dstore,db,dll --directory-prefix=wget_dl"
 alias cdw="cd /mnt/windows/Users/AB/Downloads/"
 alias tv="find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > list_tv.txt"
 alias u0="du --max-depth=0 -h"
 alias u1="du --max-depth=1 -h"
-alias l="ls -lrth"
+alias l="ls -lrth --color=auto"
+alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
 
 ################################################################
 # CUSTOM FUNCTIONS

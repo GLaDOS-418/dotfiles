@@ -22,3 +22,4 @@ sudo pacman -Sy inkscape
 sudo pacman -Sy gdb
 yaourt -Sy skypeforlinux-stable-bin
 sudo pacman -Sy sqlite
+yaourt global
