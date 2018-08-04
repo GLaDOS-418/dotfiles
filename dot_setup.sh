@@ -6,10 +6,8 @@
 
 #installed packages
 #creating links to configs
-ln -s dotfiles/vim/.vimrc ~/.vimrc
 ln -s dotfiles/bash/.bashrc ~/.bashrc
 ln -s dotfiles/bash/.bash_profile ~/.bash_profile
-ln -s ~/.vimrc ~/.config/nvim/init.vim
 
 #installed packaged
 sudo pacman -Ss neovim
@@ -23,3 +21,9 @@ sudo pacman -Sy gdb
 yaourt -Sy skypeforlinux-stable-bin
 sudo pacman -Sy sqlite
 yaourt global
+sudo pacman -Sy pandoc
+sudo pacman -Sy rust
+sudo pacman -Sy ripgrep
+sudo pacman -Sy the_silver_searcher
+sudo pacman -Sy fd
+sudo pacman -Sy cmake

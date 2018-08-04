@@ -4,6 +4,7 @@
 
 ANACONDA=/home/arnob/anaconda3/bin
 FLATBUFFERS=/home/arnob/binaries/flatbuffers
+GNUGLOBAL=/home/arnob/executables/global/bin
 CHROME=/usr/lib/chrome
 DOTFILES='~/dotfiles'
 SAVE_CMD="python3 ~/dotfiles/save_command.py"
@@ -16,12 +17,14 @@ DOT_SETUP_FILE='~/dotfiles/dot_setup.sh'
 # EXPORT
 ################################################################
 
-export PATH=$PATH:$CHROME:$LIVE_LATEX_PREVIEW
 export EDITOR=vim
 export MYVIMRC=~/.vimrc
 export HISTFILE=~/.bash_history
+# better yaourt colors
+export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
 #export PS1=${debian_chroot:+($debian_chroot)}\u@\h:\w\$ #old value
 #export PS1="[\u]:[\W]$" #[username]:[baseWorkingDirectory]
+export PATH=$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH
 
 ################################################################
 # ALIAS
@@ -59,6 +62,10 @@ alias u0="du --max-depth=0 -h"
 alias u1="du --max-depth=1 -h"
 alias l="ls -lrth --color=auto"
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
+alias df='df -h'                          # human-readable sizes
+alias free='free -m'                      # show sizes in MB
+alias grep='grep --colour=auto'
+alias egrep='egrep --colour=auto'
 
 ################################################################
 # CUSTOM FUNCTIONS
@@ -76,12 +83,56 @@ function mp(){
   touch $1.cpp && touch $1.in && vim $1.cpp
 }
 
-################################################################
-########           copied from su ~/.bashrc      ###############
-################################################################
+function bench(){
+  time $@ 1>/dev/null 2>&1
+}
 
- [[ $- != *i* ]] && return
 
+# ex - archive extractor
+ex ()
+{
+  if [ -f $1 ] ; then
+    case $1 in
+      *.tar.bz2|*.tbz2|*.tb2) tar kxjf $1       ;;
+      *.tar.bz|*.tbz)         tar kxjf $1       ;;
+      *.tar.gz|*.tgz)         tar kxzf $1       ;;
+      *.tar.xz|*.txz)         tar kxJf $1       ;;
+      *.lzip)                 tar kxf --lzip $1 ;;
+      *.lzop)                 tar kxf --lzop $1 ;;
+      *.lzma)                 tar kxf --lzma $1 ;;
+      *.tar)                  tar kxf $1        ;;
+      *.bz2)                  bunzip2 -kd $1    ;;
+      *.rar)                  unrar x $1        ;;
+      *.gz)                   gunzip $1         ;;
+      *.zip)                  unzip $1          ;;
+      *.Z)                    uncompress $1     ;;
+      *.7z)                   7z x $1           ;;
+      *)                      echo "'$1' cannot be extracted via ex()" ;;
+    esac
+  else
+    echo "'$1' is not a valid file"
+  fi
+}
+
+# ar - archiver
+ar ()
+{
+  if [ -f $1 ] ; then
+    case $1 in
+      tbz2) tar kcjf $1       ;;
+      tbz)  tar kcjf $1       ;;
+      tgz)  tar kczf $1       ;;
+      txz)  tar kcJf $1       ;;
+      tar)  tar kcf $1        ;;
+      lzip) tar kcf --lzip $1 ;;
+      lzop) tar kcf --lzop $1 ;;
+      lzma) tar kcf --lzma $1 ;;
+      *)    echo "'$1' cannot be compressed via ar()" ;;
+    esac
+  else
+    echo "'$1' is not a valid file"
+  fi
+}
 colors() {
 	local fgc bgc vals seq0
 
@@ -108,6 +159,13 @@ colors() {
 		echo; echo
 	done
 }
+
+################################################################
+##  CONFIG
+################################################################
+
+# If not running interactively, don't do anything
+ [[ $- != *i* ]] && return
 
 [ -r /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion
 
@@ -153,10 +211,6 @@ if ${use_color} ; then
 		PS1='\[\033[01;32m\][\u@\h\[\033[01;37m\] \W\[\033[01;32m\]]\$\[\033[00m\] '
 	fi
 
-	alias ls='ls --color=auto'
-	alias grep='grep --colour=auto'
-	alias egrep='egrep --colour=auto'
-	alias fgrep='fgrep --colour=auto'
 else
 	if [[ ${EUID} == 0 ]] ; then
 		# show root@ when we don't have colors
@@ -168,14 +222,9 @@ fi
 
 unset use_color safe_term match_lhs sh
 
-alias cp="cp -i"                          # confirm before overwriting something
-alias df='df -h'                          # human-readable sizes
-alias free='free -m'                      # show sizes in MB
-alias np='nano -w PKGBUILD'
-alias more=less
-
+# running gui apps as root
 xhost +local:root > /dev/null 2>&1
-
+# sudo with tab completion
 complete -cf sudo
 
 # Bash won't get SIGWINCH if another process is in the foreground.
@@ -190,32 +239,3 @@ shopt -s expand_aliases
 
 # Enable history appending instead of overwriting.  #139609
 shopt -s histappend
-
-#
-# # ex - archive extractor
-# # usage: ex <file>
-ex ()
-{
-  if [ -f $1 ] ; then
-    case $1 in
-      *.tar.bz2)   tar xjf $1   ;;
-      *.tar.gz)    tar xzf $1   ;;
-      *.bz2)       bunzip2 $1   ;;
-      *.rar)       unrar x $1     ;;
-      *.gz)        gunzip $1    ;;
-      *.tar)       tar xf $1    ;;
-      *.tbz2)      tar xjf $1   ;;
-      *.tgz)       tar xzf $1   ;;
-      *.zip)       unzip $1     ;;
-      *.Z)         uncompress $1;;
-      *.7z)        7z x $1      ;;
-      *)           echo "'$1' cannot be extracted via ex()" ;;
-    esac
-  else
-    echo "'$1' is not a valid file"
-  fi
-}
-
-# better yaourt colors
-export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
-
