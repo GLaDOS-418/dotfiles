@@ -17,6 +17,7 @@ ANACONDA=/home/arnob/anaconda3/bin
 FLATBUFFERS=/home/arnob/binaries/flatbuffers
 GNUGLOBAL=/home/arnob/executables/global/bin
 CHROME=/usr/lib/chrome
+UNICTAGS=/home/arnob/executables/ctags_bld/bin
 DOTFILES='~/dotfiles'
 SAVE_CMD="python3 ~/dotfiles/save_command.py"
 #phantomjs required for youtube-dl
@@ -35,7 +36,7 @@ export HISTFILE=~/.bash_history
 export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
 #export PS1=${debian_chroot:+($debian_chroot)}\u@\h:\w\$ #old value
 #export PS1="[\u]:[\W]$" #[username]:[baseWorkingDirectory]
-export PATH=$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH
+export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH:/home/arnob/executables/
 
 ################################################################
 # ALIAS
@@ -60,8 +61,8 @@ alias vvim="vim ~/.vimrc"
 alias vbash="vim ~/.bashrc"
 alias sbash="source ~/.bashrc"
 alias gv="gvim"
-alias spac="$SAVE_CMD sudo pacman"
-alias syao="$SAVE_CMD yaourt"
+alias spac="$SAVE_CMD sudo -i pacman -Sy"
+alias syao="$SAVE_CMD yaourt -Sy"
 alias v="vim "
 alias gv="gvim "
 alias vd="vimdiff "
@@ -99,6 +100,10 @@ function bench(){
   time $@ 1>/dev/null 2>&1
 }
 
+function gpp(){
+  echo 'hello'
+  /usr/bin/g++ -g -Dfio -o $-std=gnu++17 1 $1.cpp
+}
 
 function grl(){
   grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*} $@ 2>/dev/null
