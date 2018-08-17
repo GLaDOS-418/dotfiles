@@ -1,3 +1,14 @@
+#!/bin/env bash
+#########################################
+##                           ___.      ##
+## _____ _______  ____   ____\_ |__    ##
+## \__  \\_  __ \/    \ /  _ \| __ \   ##
+##  / __ \|  | \/   |  (  <_> ) \_\ \  ##
+## (____  /__|  |___|  /\____/|___  /  ##
+##      \/           \/           \/   ##
+##                                     ##
+#########################################
+
 ################################################################
 # LOCAL VARIABLE
 ################################################################
@@ -66,6 +77,7 @@ alias df='df -h'                          # human-readable sizes
 alias free='free -m'                      # show sizes in MB
 alias grep='grep --colour=auto'
 alias egrep='egrep --colour=auto'
+alias rsync='rsync -azvhP'
 
 ################################################################
 # CUSTOM FUNCTIONS
@@ -88,6 +100,13 @@ function bench(){
 }
 
 
+function grl(){
+  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*} $@ 2>/dev/null
+}
+
+function grn(){
+  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml} $@ 2>/dev/null
+}
 # ex - archive extractor
 ex ()
 {
@@ -206,19 +225,23 @@ if ${use_color} ; then
 	fi
 
 	if [[ ${EUID} == 0 ]] ; then
-		PS1='\[\033[01;31m\][\h\[\033[01;36m\] \W\[\033[01;31m\]]\$\[\033[00m\] '
+		PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '
 	else
-		PS1='\[\033[01;32m\][\u@\h\[\033[01;37m\] \W\[\033[01;32m\]]\$\[\033[00m\] '
+		PS1='\[\033[01;32m\][\u@\h\[\033[01;37m\] \w\[\033[01;32m\]]\$\[\033[00m\] '
 	fi
 
 else
 	if [[ ${EUID} == 0 ]] ; then
 		# show root@ when we don't have colors
-		PS1='\u@\h \W \$ '
+		PS1='\u@\h \w \$ '
 	else
 		PS1='\u@\h \w \$ '
 	fi
 fi
+
+# get rid of annoying dark blue color on black bg on terminal
+LS_COLORS=$LS_COLORS:'di=0;33'
+export LS_COLORS
 
 unset use_color safe_term match_lhs sh
 
