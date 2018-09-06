@@ -57,9 +57,14 @@ alias prp="pipenv run python"
 alias psh="pipenv shell"
 alias ipshow="ip link show"
 alias tux="sudo arpon -d -i wlp3s0 -D"
-alias vvim="vim ~/.vimrc"
-alias vbash="vim ~/.bashrc"
-alias sbash="source ~/.bashrc"
+alias vv="vim ~/.vimrc"
+alias vc="vim ~/.vim/sources/custom_functions.vim"
+alias va="vim ~/.vim/sources/abbreviations.vim"
+alias vs="vim ~/.vim/sources/statusline.vim"
+alias vp="vim ~/.vim/sources/plugins.vim"
+alias vb="vim ~/.bashrc"
+alias sb="source ~/.bashrc"
+alias more=less
 alias gv="gvim"
 alias spac="$SAVE_CMD sudo -i pacman -Sy"
 alias syao="$SAVE_CMD yaourt -Sy"
@@ -106,11 +111,11 @@ function gpp(){
 }
 
 function grl(){
-  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*} $@ 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh} $@ 2>/dev/null
 }
 
 function grn(){
-  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml} $@ 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,ksh,sh} $@ 2>/dev/null
 }
 # ex - archive extractor
 ex ()
@@ -245,7 +250,7 @@ else
 fi
 
 # get rid of annoying dark blue color on black bg on terminal
-LS_COLORS=$LS_COLORS:'di=0;33'
+LS_COLORS=$LS_COLORS:'di=01;33'
 export LS_COLORS
 
 unset use_color safe_term match_lhs sh
@@ -267,3 +272,4 @@ shopt -s expand_aliases
 
 # Enable history appending instead of overwriting.  #139609
 shopt -s histappend
+shopt -s globstar
