@@ -29,6 +29,7 @@ DOT_SETUP_FILE='~/dotfiles/dot_setup.sh'
 # EXPORT
 ################################################################
 
+#export https_proxy=""
 export EDITOR=vim
 export MYVIMRC=~/.vimrc
 export HISTFILE=~/.bash_history
@@ -42,22 +43,24 @@ export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH:/home/arnob/e
 # ALIAS
 ################################################################
 
-alias gp="git push"
+alias cdr='cd ./"$(git rev-parse --show-cdup)"'
+alias gp="git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream"
 alias gl="git pull"
 alias st="git status"
 alias br="git branch"
-alias log="git log"
+alias log="git log --oneline --no-merges"
 alias emacs="emacs & &> /dev/null"
-alias suvim="sudo -E gvim"
  #remove unused packages(orphans): if none found o/p :"no targets specified"
 alias cleanpac="sudo pacman -Rns $(pacman -Qtdq)"
 alias cdp="cd /mnt/windows/projects"
+alias dh="git diff  --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
 alias diffhead="git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
 alias prp="pipenv run python"
 alias psh="pipenv shell"
 alias ipshow="ip link show"
 alias tux="sudo arpon -d -i wlp3s0 -D"
 alias vv="vim ~/.vimrc"
+alias sv="sudo -E vim"
 alias vc="vim ~/.vim/sources/custom_functions.vim"
 alias va="vim ~/.vim/sources/abbreviations.vim"
 alias vs="vim ~/.vim/sources/statusline.vim"
@@ -65,7 +68,6 @@ alias vp="vim ~/.vim/sources/plugins.vim"
 alias vb="vim ~/.bashrc"
 alias sb="source ~/.bashrc"
 alias more=less
-alias gv="gvim"
 alias spac="$SAVE_CMD sudo -i pacman -Sy"
 alias syao="$SAVE_CMD yaourt -Sy"
 alias v="vim "
@@ -106,7 +108,6 @@ function bench(){
 }
 
 function gpp(){
-  echo 'hello'
   /usr/bin/g++ -g -Dfio -o $-std=gnu++17 1 $1.cpp
 }
 
