@@ -177,15 +177,7 @@ ar ()
   fi
 }
 
-set -e
-if grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null ; then
-    echo "Windows 10 Bash"
-else
-    echo "Anything else"
-fi
-
-# WSL 'git' wrapper, save as /usr/local/bin/git and chmod a+x
-# named the function git to get bash completion
+# WSL 'git' wrapper. Named the function git to get bash completion
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
 function git(){                                                                                     
   REALPATH=`readlink -f ${PWD}`                                                                     
