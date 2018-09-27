@@ -34,6 +34,7 @@ export MYVIMRC=~/.vimrc
 export HISTFILE=~/.bash_history
 # better yaourt colors
 export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
+export YAY_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
 #export PS1=${debian_chroot:+($debian_chroot)}\u@\h:\w\$ #old value
 #export PS1="[\u]:[\W]$" #[username]:[baseWorkingDirectory]
 export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH:/home/arnob/executables/
@@ -49,7 +50,7 @@ alias br="git branch"
 alias log="git log"
 alias emacs="emacs & &> /dev/null"
 alias suvim="sudo -E gvim"
- #remove unused packages(orphans): if none found o/p :"no targets specified"
+#remove unused packages(orphans): if none found o/p :"no targets specified"
 alias cleanpac="sudo pacman -Rns $(pacman -Qtdq)"
 alias cdp="cd /mnt/windows/projects"
 alias diffhead="git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
@@ -72,7 +73,7 @@ alias v="vim "
 alias gv="gvim "
 alias vd="vimdiff "
 alias gvd="gvimdiff "
-alias wg="wget --recursive --timestamping --level=inf --no-remove-listing --convert-links --show-progress --progress=bar:force --no-parent --execute robots=off --compression=auto --verbose --continue --wait=2 --random-wait --reject htm,html,tmp,dstore,db,dll --directory-prefix=wget_dl --regex-type=pcre"
+alias wg="wget --recursive --timestamping --level=inf --no-remove-listing --convert-links --show-progress --progress=bar:force --no-parent --execute robots=off --compression=auto --verbose --continue --wait=2 --random-wait --reject htm,html,tmp,dstore,db,dll --directory-prefix=guest_dir --regex-type=pcre"
 alias cdw="cd /mnt/windows/Users/AB/Downloads/"
 alias tv="find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > list_tv.txt"
 alias u0="du --max-depth=0 -h"
