@@ -29,36 +29,52 @@ DOT_SETUP_FILE='~/dotfiles/dot_setup.sh'
 # EXPORT
 ################################################################
 
+#export https_proxy=""
 export EDITOR=vim
-export MYVIMRC=~/.vimrc
-export HISTFILE=~/.bash_history
-# better yaourt colors
-export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
-export YAY_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
-#export PS1=${debian_chroot:+($debian_chroot)}\u@\h:\w\$ #old value
-#export PS1="[\u]:[\W]$" #[username]:[baseWorkingDirectory]
+export MYVIMRC="~/.vimrc"
+export INPUTRC="~/.inputrc"
+export HISTFILE="~/.bash_history"
+
+# don't put duplicate lines or lines starting with space in the history.
+export HISTCONTROL=ignoreboth
+
+# for setting history length see HISTSIZE and HISTFILESIZE
+export HISTSIZE=1000
+export HISTFILESIZE=2000
+
 export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH:/home/arnob/executables/
 
 ################################################################
 # ALIAS
 ################################################################
 
-alias gp="git push"
+# You may want to put all your additions into a separate file like
+# ~/.bash_aliases, instead of adding them here directly.
+# See /usr/share/doc/bash-doc/examples in the bash-doc package.
+
+if [ -f ~/.bash_aliases ]; then
+	. ~/.bash_aliases
+fi
+
+alias cdr='cd ./"$(git rev-parse --show-cdup)"'
+alias gp="git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream"
 alias gl="git pull"
 alias st="git status"
 alias br="git branch"
-alias log="git log"
+alias log="git log --oneline --no-merges"
 alias emacs="emacs & &> /dev/null"
 alias suvim="sudo -E gvim"
 #remove unused packages(orphans): if none found o/p :"no targets specified"
 alias cleanpac="sudo pacman -Rns $(pacman -Qtdq)"
 alias cdp="cd /mnt/windows/projects"
+alias dh="git diff  --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
 alias diffhead="git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
 alias prp="pipenv run python"
 alias psh="pipenv shell"
 alias ipshow="ip link show"
 alias tux="sudo arpon -d -i wlp3s0 -D"
 alias vv="vim ~/.vimrc"
+alias sv="sudo -E vim"
 alias vc="vim ~/.vim/sources/custom_functions.vim"
 alias va="vim ~/.vim/sources/abbreviations.vim"
 alias vs="vim ~/.vim/sources/statusline.vim"
@@ -66,7 +82,6 @@ alias vp="vim ~/.vim/sources/plugins.vim"
 alias vb="vim ~/.bashrc"
 alias sb="source ~/.bashrc"
 alias more=less
-alias gv="gvim"
 alias spac="$SAVE_CMD sudo -i pacman -Sy"
 alias syao="$SAVE_CMD yaourt -Sy"
 alias v="vim "
@@ -107,7 +122,6 @@ function bench(){
 }
 
 function gpp(){
-  echo 'hello'
   /usr/bin/g++ -g -Dfio -o $-std=gnu++17 1 $1.cpp
 }
 
@@ -163,6 +177,18 @@ ar ()
     echo "'$1' is not a valid file"
   fi
 }
+
+# WSL 'git' wrapper. Named the function git to get bash completion
+# https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
+function git(){                                                                                     
+  REALPATH=`readlink -f ${PWD}`                                                                     
+  if grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
+    git.exe "$@"                                                                                    
+  else                                                                                              
+    /usr/bin/git "$@"                                                                               
+  fi                                                                                                
+}  
+
 colors() {
 	local fgc bgc vals seq0
 
@@ -197,7 +223,48 @@ colors() {
 # If not running interactively, don't do anything
  [[ $- != *i* ]] && return
 
-[ -r /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion
+# enable programmable completion features (you don't need to enable
+# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
+# sources /etc/bash.bashrc).
+if ! shopt -oq posix; then
+	if [ -f /usr/share/bash-completion/bash_completion ]; then
+		. /usr/share/bash-completion/bash_completion
+	elif [ -f /etc/bash_completion ]; then
+		. /etc/bash_completion
+	fi
+fi
+
+# running gui apps as root
+xhost +local:root > /dev/null 2>&1
+# sudo with tab completion
+complete -cf sudo
+
+# make less more friendly for non-text input files, see lesspipe(1)
+[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+
+# set variable identifying the chroot you work in (used in the prompt below)
+if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
+	debian_chroot=$(cat /etc/debian_chroot)
+fi
+
+# Bash won't get SIGWINCH if another process is in the foreground.
+# Enable checkwinsize so that bash will check the terminal size when
+# it regains control.
+shopt -s checkwinsize
+
+shopt -s expand_aliases
+
+# Enable history appending instead of overwriting.
+shopt -s histappend
+
+# the pattern "**" used in a pathname expansion context will
+# match all files and zero or more directories and subdirectories.
+shopt -s globstar
+
+###################################################################
+# COLORS
+###################################################################
+
 
 # Change the window title of X terminals
 case ${TERM} in
@@ -250,27 +317,16 @@ else
 	fi
 fi
 
+# better yaourt colors
+export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
+#export PS1=${debian_chroot:+($debian_chroot)}\u@\h:\w\$ #old value
+#export PS1="[\u]:[\W]$" #[username]:[baseWorkingDirectory]
+
+# colored GCC warnings and errors
+export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+
 # get rid of annoying dark blue color on black bg on terminal
 LS_COLORS=$LS_COLORS:'di=01;33'
 export LS_COLORS
 
 unset use_color safe_term match_lhs sh
-
-# running gui apps as root
-xhost +local:root > /dev/null 2>&1
-# sudo with tab completion
-complete -cf sudo
-
-# Bash won't get SIGWINCH if another process is in the foreground.
-# Enable checkwinsize so that bash will check the terminal size when
-# it regains control.  #65623
-# http://cnswww.cns.cwru.edu/~chet/bash/FAQ (E11)
-shopt -s checkwinsize
-
-shopt -s expand_aliases
-
-# export QT_SELECT=4
-
-# Enable history appending instead of overwriting.  #139609
-shopt -s histappend
-shopt -s globstar
