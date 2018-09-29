@@ -53,9 +53,13 @@ export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH:/home/arnob/e
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
 if [ -f ~/.bash_aliases ]; then
-	. ~/.bash_aliases
+  . ~/.bash_aliases
 fi
 
+# PROJECT SPECIFIC
+alias jee="cd /mnt/c/Users/ABH/Documents/work/repos/jee_analyzer"
+
+#PROJECT AGNOSTTIC
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
 alias gp="git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream"
 alias gl="git pull"
@@ -65,7 +69,7 @@ alias log="git log --oneline --no-merges"
 alias emacs="emacs & &> /dev/null"
 alias suvim="sudo -E gvim"
 #remove unused packages(orphans): if none found o/p :"no targets specified"
-alias cleanpac="sudo pacman -Rns $(pacman -Qtdq)"
+alias cleanpac='sudo pacman -Rns $(pacman -Qtdq)'
 alias cdp="cd /mnt/windows/projects"
 alias dh="git diff  --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
 alias diffhead="git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
@@ -94,6 +98,7 @@ alias tv="find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.
 alias u0="du --max-depth=0 -h"
 alias u1="du --max-depth=1 -h"
 alias l="ls -lrth --color=auto"
+alias la="ls -lrthA --color=auto"
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
 alias df='df -h'                          # human-readable sizes
 alias free='free -m'                      # show sizes in MB
@@ -126,11 +131,11 @@ function gpp(){
 }
 
 function grl(){
-  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh} $@ 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,dll,vcsxproj} $@ 2>/dev/null
 }
 
 function grn(){
-  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,ksh,sh} $@ 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,dll,vcsxproj} $@ 2>/dev/null
 }
 # ex - archive extractor
 ex ()
@@ -180,40 +185,40 @@ ar ()
 
 # WSL 'git' wrapper. Named the function git to get bash completion
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
-function git(){                                                                                     
-  REALPATH=`readlink -f ${PWD}`                                                                     
+function git(){
+  REALPATH=`readlink -f ${PWD}`
   if grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
-    git.exe "$@"                                                                                    
-  else                                                                                              
-    /usr/bin/git "$@"                                                                               
-  fi                                                                                                
-}  
+    git.exe "$@"
+  else
+    /usr/bin/git "$@"
+  fi
+}
 
 colors() {
-	local fgc bgc vals seq0
+  local fgc bgc vals seq0
 
-	printf "Color escapes are %s\n" '\e[${value};...;${value}m'
-	printf "Values 30..37 are \e[33mforeground colors\e[m\n"
-	printf "Values 40..47 are \e[43mbackground colors\e[m\n"
-	printf "Value  1 gives a  \e[1mbold-faced look\e[m\n\n"
+  printf "Color escapes are %s\n" '\e[${value};...;${value}m'
+  printf "Values 30..37 are \e[33mforeground colors\e[m\n"
+  printf "Values 40..47 are \e[43mbackground colors\e[m\n"
+  printf "Value  1 gives a  \e[1mbold-faced look\e[m\n\n"
 
-	# foreground colors
-	for fgc in {30..37}; do
-		# background colors
-		for bgc in {40..47}; do
-			fgc=${fgc#37} # white
-			bgc=${bgc#40} # black
+  # foreground colors
+  for fgc in {30..37}; do
+    # background colors
+    for bgc in {40..47}; do
+      fgc=${fgc#37} # white
+      bgc=${bgc#40} # black
 
-			vals="${fgc:+$fgc;}${bgc}"
-			vals=${vals%%;}
+      vals="${fgc:+$fgc;}${bgc}"
+      vals=${vals%%;}
 
-			seq0="${vals:+\e[${vals}m}"
-			printf "  %-9s" "${seq0:-(default)}"
-			printf " ${seq0}TEXT\e[m"
-			printf " \e[${vals:+${vals+$vals;}}1mBOLD\e[m"
-		done
-		echo; echo
-	done
+      seq0="${vals:+\e[${vals}m}"
+      printf "  %-9s" "${seq0:-(default)}"
+      printf " ${seq0}TEXT\e[m"
+      printf " \e[${vals:+${vals+$vals;}}1mBOLD\e[m"
+    done
+    echo; echo
+  done
 }
 
 ################################################################
@@ -221,17 +226,17 @@ colors() {
 ################################################################
 
 # If not running interactively, don't do anything
- [[ $- != *i* ]] && return
+[[ $- != *i* ]] && return
 
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
 # sources /etc/bash.bashrc).
 if ! shopt -oq posix; then
-	if [ -f /usr/share/bash-completion/bash_completion ]; then
-		. /usr/share/bash-completion/bash_completion
-	elif [ -f /etc/bash_completion ]; then
-		. /etc/bash_completion
-	fi
+  if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+  elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+  fi
 fi
 
 # running gui apps as root
@@ -244,7 +249,7 @@ complete -cf sudo
 
 # set variable identifying the chroot you work in (used in the prompt below)
 if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
-	debian_chroot=$(cat /etc/debian_chroot)
+  debian_chroot=$(cat /etc/debian_chroot)
 fi
 
 # Bash won't get SIGWINCH if another process is in the foreground.
@@ -265,15 +270,14 @@ shopt -s globstar
 # COLORS
 ###################################################################
 
-
 # Change the window title of X terminals
 case ${TERM} in
-	xterm*|rxvt*|Eterm*|aterm|kterm|gnome*|interix|konsole*)
-		PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\007"'
-		;;
-	screen*)
-		PROMPT_COMMAND='echo -ne "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\033\\"'
-		;;
+  xterm*|rxvt*|Eterm*|aterm|kterm|gnome*|interix|konsole*)
+    PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\007"'
+    ;;
+  screen*)
+    PROMPT_COMMAND='echo -ne "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\033\\"'
+    ;;
 esac
 
 use_color=true
@@ -288,33 +292,37 @@ match_lhs=""
 [[ -f ~/.dir_colors   ]] && match_lhs="${match_lhs}$(<~/.dir_colors)"
 [[ -f /etc/DIR_COLORS ]] && match_lhs="${match_lhs}$(</etc/DIR_COLORS)"
 [[ -z ${match_lhs}    ]] \
-	&& type -P dircolors >/dev/null \
-	&& match_lhs=$(dircolors --print-database)
+  && type -P dircolors >/dev/null \
+  && match_lhs=$(dircolors --print-database)
 [[ $'\n'${match_lhs} == *$'\n'"TERM "${safe_term}* ]] && use_color=true
 
 if ${use_color} ; then
-	# Enable colors for ls, etc.  Prefer ~/.dir_colors #64489
-	if type -P dircolors >/dev/null ; then
-		if [[ -f ~/.dir_colors ]] ; then
-			eval $(dircolors -b ~/.dir_colors)
-		elif [[ -f /etc/DIR_COLORS ]] ; then
-			eval $(dircolors -b /etc/DIR_COLORS)
-		fi
-	fi
+  # Enable colors for ls, etc.  Prefer ~/.dir_colors #64489
+  if type -P dircolors >/dev/null ; then
+    if [[ -f ~/.dir_colors ]] ; then
+      eval $(dircolors -b ~/.dir_colors)
+    elif [[ -f /etc/DIR_COLORS ]] ; then
+      eval $(dircolors -b /etc/DIR_COLORS)
+    fi
+  fi
 
-	if [[ ${EUID} == 0 ]] ; then
-		PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '
-	else
-		PS1='\[\033[01;32m\][\u@\h\[\033[01;37m\] \w\[\033[01;32m\]]\$\[\033[00m\] '
-	fi
+  function parse_git_branch(){
+    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1) /'
+  }
+
+  if [[ ${EUID} == 0 ]] ; then
+    PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '
+  else
+    PS1="\[\033[01;32m\][\u@\h\[\033[01;37m\] \w \[\033[01;33m\]\$(parse_git_branch)\[\033[01;32m\]]$\[\033[00m\] "
+  fi
 
 else
-	if [[ ${EUID} == 0 ]] ; then
-		# show root@ when we don't have colors
-		PS1='\u@\h \w \$ '
-	else
-		PS1='\u@\h \w \$ '
-	fi
+  if [[ ${EUID} == 0 ]] ; then
+    # show root@ when we don't have colors
+    PS1='\u@\h \w \$ '
+  else
+    PS1='\u@\h \w \$ '
+  fi
 fi
 
 # better yaourt colors
