@@ -56,16 +56,14 @@ if [ -f ~/.bash_aliases ]; then
   . ~/.bash_aliases
 fi
 
-# PROJECT SPECIFIC
-alias jee="cd /mnt/c/Users/ABH/Documents/work/repos/jee_analyzer"
-
 #PROJECT AGNOSTTIC
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
 alias gp="git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream"
 alias gl="git pull"
 alias st="git status"
 alias br="git branch"
-alias log="git log --oneline --no-merges"
+alias log="git log --oneline --no-merges HEAD~20..HEAD"
+alias lg="git log --no-merges HEAD~10..HEAD"
 alias emacs="emacs & &> /dev/null"
 alias suvim="sudo -E gvim"
 #remove unused packages(orphans): if none found o/p :"no targets specified"
@@ -307,13 +305,13 @@ if ${use_color} ; then
   fi
 
   function parse_git_branch(){
-    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1) /'
+    git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/ (\1)/'
   }
 
   if [[ ${EUID} == 0 ]] ; then
     PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '
   else
-    PS1="\[\033[01;32m\][\u@\h\[\033[01;37m\] \w \[\033[01;33m\]\$(parse_git_branch)\[\033[01;32m\]]$\[\033[00m\] "
+    PS1="\[\033[01;32m\][\u@\h\[\033[01;37m\] \w\[\033[01;33m\]\$(parse_git_branch)\[\033[01;32m\]]$\[\033[00m\] "
   fi
 
 else
