@@ -34,9 +34,6 @@ fi
 
 cp -r $HOME/vim/fonts/* $HOME/.local/share/fonts/
 
-ln -s $HOME/vim/vim/.vim $HOME/.vim
-ln -s $HOME/vim/vim/.vimrc $HOME/.vimrc
-
 if [[ -f $HOME/.vimrc ]]; then
   rm $HOME/.vimrc
 fi
@@ -44,6 +41,9 @@ fi
 if [[ -d $HOME/.vim ]]; then
   rm -rf $HOME/.vim
 fi
+
+ln -s $HOME/vim/vim/.vim $HOME/.vim
+ln -s $HOME/vim/vim/.vimrc $HOME/.vimrc
 
 #do this after package install to avoid ycm build errors
 vim +PlugInstall +qall
