@@ -91,6 +91,7 @@ alias gv="gvim "
 alias vd="vimdiff "
 alias gvd="gvimdiff "
 alias wg="wget --recursive --timestamping --level=inf --no-remove-listing --convert-links --show-progress --progress=bar:force --no-parent --execute robots=off --compression=auto --verbose --continue --wait=2 --random-wait --reject htm,html,tmp,dstore,db,dll --directory-prefix=guest_dir --regex-type=pcre"
+alias wgold="wget --recursive --timestamping --level=inf --no-remove-listing --convert-links --show-progress --progress=bar:force --no-parent --execute robots=off --verbose --continue --wait=2 --random-wait --reject htm,html,tmp,dstore,db,dll --directory-prefix=guest_dir --regex-type=pcre"
 alias cdw="cd /mnt/windows/Users/AB/Downloads/"
 alias tv="find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > list_tv.txt"
 alias u0="du --max-depth=0 -h"
@@ -125,15 +126,15 @@ function bench(){
 }
 
 function gpp(){
-  /usr/bin/g++ -g -Dfio -o $-std=gnu++17 1 $1.cpp
+  /usr/bin/g++ -g -Dfio -o -std=gnu++17 $1 $1.cpp
 }
 
 function grl(){
-  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,dll,vcsxproj} $@ 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
 }
 
 function grn(){
-  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,dll,vcsxproj} $@ 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
 }
 # ex - archive extractor
 ex ()
@@ -164,16 +165,16 @@ ex ()
 # ar - archiver
 ar ()
 {
-  if [ -f $1 ] ; then
+  if [ -f $2 ] ; then
     case $1 in
-      tbz2) tar kcjf $1       ;;
-      tbz)  tar kcjf $1       ;;
-      tgz)  tar kczf $1       ;;
-      txz)  tar kcJf $1       ;;
-      tar)  tar kcf $1        ;;
-      lzip) tar kcf --lzip $1 ;;
-      lzop) tar kcf --lzop $1 ;;
-      lzma) tar kcf --lzma $1 ;;
+      tbz2) tar -kcjf $2       ;;
+      tbz)  tar -kcjf $2       ;;
+      tgz)  tar -kczf $2       ;;
+      txz)  tar -kcJf $2       ;;
+      tar)  tar -kcf $2        ;;
+      lzip) tar -kcf --lzip $2 ;;
+      lzop) tar -kcf --lzop $2 ;;
+      lzma) tar -kcf --lzma $2 ;;
       *)    echo "'$1' cannot be compressed via ar()" ;;
     esac
   else
@@ -185,7 +186,8 @@ ar ()
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
 function git(){
   REALPATH=`readlink -f ${PWD}`
-  if grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
+  if grep -qE "(Microsoft|WSL|MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" -o "${REALPATH:0:6}" == "/home/" -o "${REALPATH:0:3}" == "/c/" ]; then
+    # /mnt/ for microsoft wsl and /c/ for git bash and /home/ for cygwin
     git.exe "$@"
   else
     /usr/bin/git "$@"
@@ -305,13 +307,14 @@ if ${use_color} ; then
   fi
 
   function parse_git_branch(){
-    git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/ (\1)/'
+    git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/(\1) /'
   }
 
   if [[ ${EUID} == 0 ]] ; then
     PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '
   else
-    PS1="\[\033[01;32m\][\u@\h\[\033[01;37m\] \w\[\033[01;33m\]\$(parse_git_branch)\[\033[01;32m\]]$\[\033[00m\] "
+      # https://stackoverflow.com/questions/35897021/why-does-a-newline-in-ps1-throw-a-syntax-error-in-git-for-windows-bash?lq=1
+      PS1='\[\033[01;32m\][ \u@\h\[\033[01;37m\] \w\[\033[01;36m\] $(parse_git_branch)\[\033[01;32m\]]'$'\[\033[00m\]\n\$ '
   fi
 
 else
