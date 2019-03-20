@@ -1,1 +1,22 @@
+"\C-l": alias-expand-line
+"\C-p":history-search-backward
+"\C-n":history-search-forward
+
+# no bell anywhere
 set bell-style none
+
+# case insensitive autocompletion
+set completion-ignore-case On
+
+# set max common prefix allowed to be 3 chars. If more than 3, replace all with ...
+set completion-prefix-display-length 3
+
+# prefix symlinks to dir with '\' during autocompletion
+set mark-symlinked-directories On
+
+# don't ring the bell, show all completions if multiple correct choices
+set show-all-if-ambiguous On
+
+# do the above even if no partial completion can be made
+set show-all-if-unmodified On
+set visible-stats On

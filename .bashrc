@@ -272,6 +272,18 @@ shopt -s histappend
 # match all files and zero or more directories and subdirectories.
 shopt -s globstar
 
+# a dir name is executed as if it is an arg to cd cmd
+shopt -s autocd
+
+# correct minor spelling mistakes in cd
+shopt -s cdspell
+
+# check if a job is running in current bash session. If yes, ask for second exit
+shopt -s checkjobs
+
+# bash attempting spell correction if dir does not exit
+shopt -s dirspell
+
 ###################################################################
 # COLORS
 ###################################################################
