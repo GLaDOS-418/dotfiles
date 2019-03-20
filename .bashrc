@@ -42,7 +42,8 @@ export HISTCONTROL=ignoreboth
 export HISTSIZE=1000
 export HISTFILESIZE=2000
 
-export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH:/home/arnob/executables/
+export GOPATH=${HOME}/go
+export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$PATH:/home/arnob/executables/
 
 ################################################################
 # ALIAS
@@ -54,6 +55,11 @@ export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$PATH:/home/arnob/e
 
 if [ -f ~/.bash_aliases ]; then
   . ~/.bash_aliases
+fi
+
+# PROJECT SPECIFIC
+if [ -f ~/.workrc ]; then
+    . ~/.workrc
 fi
 
 #PROJECT AGNOSTTIC
