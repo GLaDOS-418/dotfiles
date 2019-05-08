@@ -1,4 +1,9 @@
-"\C-l": alias-expand-line
+# cursor movements
+"\C-a":beginning-of-line
+"\C-e":end-of-line
+"\C-l":clear-screen
+
+# search back/for(ward) using string from start of the line to curr cursor position
 "\C-p":history-search-backward
 "\C-n":history-search-forward
 
@@ -19,4 +24,9 @@ set show-all-if-ambiguous On
 
 # do the above even if no partial completion can be made
 set show-all-if-unmodified On
+
+# append completions with file types(same as `stat` sys call)
 set visible-stats On
+
+# show completion acc to file types based on LS_COLORS
+set colored-stats On

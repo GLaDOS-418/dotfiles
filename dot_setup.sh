@@ -3,7 +3,7 @@
 # crontab entries
 # * * * * * 'sudo -i arpon -d -i wlp3s0 -D'
 
-#fstab entry for windows mount
+# fstab entry for windows mount
 # UUID=CC8AA6D38AA6B97A /mnt/windows/  ntfs    defaults,noatime 0 2
 
 # mount shared host dir from windows host to linux guest vbox
@@ -18,6 +18,12 @@ if [[ -f $HOME/.bashrc ]]; then
 fi
 
 ln -s $PWD/.bashrc $HOME/.bashrc
+
+if [[ -f $HOME/.inputrc ]]; then
+  rm $HOME/.inputrc
+fi
+ln -s $PWD/.inputrc $HOME/.inputrc
+
 source ~/.bashrc
 
 #installed packaged

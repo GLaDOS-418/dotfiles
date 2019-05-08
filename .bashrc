@@ -44,15 +44,17 @@ export HISTFILESIZE=2000
 
 export GOPATH=${HOME}/go
 export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$PATH:/home/arnob/executables/
+# export MANPATH=$MANPATH:$HOME/share/man
 
 ################################################################
-# ALIAS
+# ALIASES
 ################################################################
 
 # You may want to put all your additions into a separate file like
 # ~/.bash_aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
+# PROJECT AGNOSTTIC
 if [ -f ~/.bash_aliases ]; then
   . ~/.bash_aliases
 fi
@@ -62,65 +64,21 @@ if [ -f ~/.workrc ]; then
     . ~/.workrc
 fi
 
-#PROJECT AGNOSTTIC
-alias cdr='cd ./"$(git rev-parse --show-cdup)"'
-alias gp="git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream"
-alias gl="git pull"
-alias st="git status"
-alias br="git branch"
-alias log="git log --oneline --no-merges HEAD~20..HEAD"
-alias lg="git log --no-merges HEAD~10..HEAD"
-alias emacs="emacs & &> /dev/null"
-alias suvim="sudo -E gvim"
-#remove unused packages(orphans): if none found o/p :"no targets specified"
-alias cleanpac='sudo pacman -Rns $(pacman -Qtdq)'
-alias cdp="cd /mnt/windows/projects"
-alias dh="git diff  --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
-alias diffhead="git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD"
-alias prp="pipenv run python"
-alias psh="pipenv shell"
-alias ipshow="ip link show"
-alias tux="sudo arpon -d -i wlp3s0 -D"
-alias vv="vim ~/.vimrc"
-alias sv="sudo -E vim"
-alias vc="vim ~/.vim/sources/custom_functions.vim"
-alias va="vim ~/.vim/sources/abbreviations.vim"
-alias vs="vim ~/.vim/sources/statusline.vim"
-alias vp="vim ~/.vim/sources/plugins.vim"
-alias vb="vim ~/.bashrc"
-alias sb="source ~/.bashrc"
-alias more=less
-alias spac="$SAVE_CMD sudo -i pacman -Sy"
-alias syao="$SAVE_CMD yaourt -Sy"
-alias v="vim "
-alias gv="gvim "
-alias vd="vimdiff "
-alias gvd="gvimdiff "
-alias wg="wget --recursive --timestamping --level=inf --no-remove-listing --convert-links --show-progress --progress=bar:force --no-parent --execute robots=off --compression=auto --verbose --continue --wait=2 --random-wait --reject htm,html,tmp,dstore,db,dll --directory-prefix=guest_dir --regex-type=pcre"
-alias wgold="wget --recursive --timestamping --level=inf --no-remove-listing --convert-links --show-progress --progress=bar:force --no-parent --execute robots=off --verbose --continue --wait=2 --random-wait --reject htm,html,tmp,dstore,db,dll --directory-prefix=guest_dir --regex-type=pcre"
-alias cdw="cd /mnt/windows/Users/AB/Downloads/"
-alias tv="find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > list_tv.txt"
-alias u0="du --max-depth=0 -h"
-alias u1="du --max-depth=1 -h"
-alias l="ls -lrth --color=auto"
-alias la="ls -lrthA --color=auto"
-alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
-alias df='df -h'                          # human-readable sizes
-alias free='free -m'                      # show sizes in MB
-alias grep='grep --colour=auto'
-alias egrep='egrep --colour=auto'
-alias rsync='rsync -azvhP'
-
 ################################################################
 # CUSTOM FUNCTIONS
 ################################################################
+
+export COLUMNS
+function ls {
+    command ls -FhvC --color=always --author --time-style=long-iso "$@" | less -RXF
+}
 
 function lstcmd(){
   fc -ln "$1" "$1" | sed '1s/^[[:space:]]*//' | xargs echo >> $DOT_SETUP_FILE
 }
 
-function lmed(){
-  find $1 -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > $2
+function lmedia(){
+  find $1 -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdfh > $2
 }
 
 function mp(){
@@ -133,6 +91,10 @@ function bench(){
 
 function gpp(){
   /usr/bin/g++ -g -Dfio -o -std=gnu++17 $1 $1.cpp
+}
+
+function gx(){
+    grep -Rn --include=*.xml $@ 2>/dev/null
 }
 
 function grl(){
