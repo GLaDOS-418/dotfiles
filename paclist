@@ -20,3 +20,5 @@ chromium
 virtualbox-guest-utils
 youtube-dl
 bash-completion
+python
+openssh
