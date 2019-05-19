@@ -1,3 +1,4 @@
+# 'bind -p' for full listing
 # cursor movements
 "\C-a":beginning-of-line
 "\C-e":end-of-line
@@ -9,6 +10,9 @@
 
 # no bell anywhere
 set bell-style none
+
+# don't show ctrl chars on terminal
+set echo-control-characters off
 
 # case insensitive autocompletion
 set completion-ignore-case On

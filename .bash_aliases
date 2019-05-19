@@ -6,7 +6,7 @@
 
 alias u0='du --max-depth=0 -h'
 alias u1='du --max-depth=1 -h'
-alias ll='ls -lrt'  # ls is function declared later
+alias l='ls -lrt'   # ls is function declared later
 alias la='ls -lrtA' # ls is function declared later
 alias df='df -h'                          # human-readable sizes
 alias free='free -m'                      # show sizes in MB

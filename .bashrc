@@ -50,17 +50,20 @@ export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$PATH:/
 # ALIASES
 ################################################################
 
+# Remove all predefined aliases
+unalias -a
+
 # You may want to put all your additions into a separate file like
 # ~/.bash_aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
 # PROJECT AGNOSTTIC
-if [ -f ~/.bash_aliases ]; then
+if [ -e ~/.bash_aliases ]; then
   . ~/.bash_aliases
 fi
 
 # PROJECT SPECIFIC
-if [ -f ~/.workrc ]; then
+if [ -e ~/.workrc ]; then
     . ~/.workrc
 fi
 
@@ -73,40 +76,36 @@ function ls {
     command ls -FhvC --color=always --author --time-style=long-iso "$@" | less -RXF
 }
 
-function lstcmd(){
+function lstcmd {
   fc -ln "$1" "$1" | sed '1s/^[[:space:]]*//' | xargs echo >> $DOT_SETUP_FILE
 }
 
-function lmedia(){
+function lmedia {
   find $1 -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdfh > $2
 }
 
-function mp(){
+function mp {
   touch $1.cpp && touch $1.in && vim $1.cpp
 }
 
-function bench(){
+function bench {
   time $@ 1>/dev/null 2>&1
 }
 
-function gpp(){
+function gpp {
   /usr/bin/g++ -g -Dfio -o -std=gnu++17 $1 $1.cpp
 }
 
-function gx(){
-    grep -Rn --include=*.xml $@ 2>/dev/null
-}
-
-function grl(){
+function grl {
   grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
 }
 
-function grn(){
+function grn {
   grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
 }
+
 # ex - archive extractor
-ex ()
-{
+function ex {
   if [ -f $1 ] ; then
     case $1 in
       *.tar.bz2|*.tbz2|*.tb2) tar kxjf $1       ;;
@@ -131,8 +130,7 @@ ex ()
 }
 
 # ar - archiver
-ar ()
-{
+function ar {
   if [ -f $2 ] ; then
     case $1 in
       tbz2) tar -kcjf $2       ;;
@@ -152,17 +150,28 @@ ar ()
 
 # WSL 'git' wrapper. Named the function git to get bash completion
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
-function git(){
+function git {
   REALPATH=`readlink -f ${PWD}`
-  if grep -qE "(Microsoft|WSL|MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" -o "${REALPATH:0:6}" == "/home/" -o "${REALPATH:0:3}" == "/c/" ]; then
-    # /mnt/ for microsoft wsl and /c/ for git bash and /home/ for cygwin
+  if grep -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/home/" -o "${REALPATH:0:3}" == "/c/" ]; then
+    # /c/ for git bash and /home/ for cygwin
+    git.exe "$@"
+  elif grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
+    # /mnt/ for microsoft wsl. WSL doesn't allow windows programs to alter subsystem files. Thus no /home/
     git.exe "$@"
   else
     /usr/bin/git "$@"
   fi
 }
 
-colors() {
+function git_ignore { 
+  # Usage : generates .gitignore file for languages, IDEs and Operating Systems
+  # $ git_ignore vim c++ linux
+  # End of https://www.gitignore.io/api/vim,c++,linux
+  curl -Ls  "http://www.gitignore.io/api/$(IFS=, ; echo "$*")"; 
+  printf '\n'
+}
+
+function colors {
   local fgc bgc vals seq0
 
   printf "Color escapes are %s\n" '\e[${value};...;${value}m'
@@ -225,26 +234,26 @@ fi
 # it regains control.
 shopt -s checkwinsize
 
-shopt -s expand_aliases
-
-# Enable history appending instead of overwriting.
-shopt -s histappend
-
 # the pattern "**" used in a pathname expansion context will
 # match all files and zero or more directories and subdirectories.
 shopt -s globstar
 
-# a dir name is executed as if it is an arg to cd cmd
-shopt -s autocd
+# Prevent file overwrite on stdout redirection.
+# Use `>|` to force redirection to an existing file.
+set -o noclobber
 
-# correct minor spelling mistakes in cd
-shopt -s cdspell
+# cdspell                 - correct minor spelling mistakes in cd
+# checkjobs               - check if a job is running in current bash session. If yes, ask for second exit
+# dirspell                - bash attempting spell correction if dir does not exit
+# histappend              - Enable history appending instead of overwriting.
+# autocd                  - a dir name is executed as if it is an arg to cd cmd
+# direxpand               - automatically expand directory globs when completing
+# histverify              - expand, but don't automatically execute, history expansions
+# nocaseglob              - case insensitive globbing
+# no_empty_cmd_completion - don't TAB expand empty lines
 
-# check if a job is running in current bash session. If yes, ask for second exit
-shopt -s checkjobs
-
-# bash attempting spell correction if dir does not exit
-shopt -s dirspell
+shopt -s expand_aliases cdspell checkjobs dirspell histappend \
+autocd direxpand histverify nocaseglob no_empty_cmd_completion
 
 ###################################################################
 # COLORS
