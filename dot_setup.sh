@@ -89,12 +89,17 @@ if [[ -e $HOME/.vim ]]; then
   rm -rf $HOME/.vim
 fi
 
-#do this after package install to avoid ycm build errors
-vim +PlugInstall +qall
+if [[ ! -d $HOME/.config ]]; then
+    mkdir $HOME/.config
+fi
 
 ln -s $PWD/.bashrc $HOME/.bashrc
 ln -s $PWD/.bash_aliases $HOME/.bash_aliases
 ln -s $PWD/.inputrc $HOME/.inputrc
 ln -s $HOME/vim/vim/.vim $HOME/.vim
 ln -s $HOME/vim/vim/.vimrc $HOME/.vimrc
+ln -s $HOME/vim/nvim $HOME/.config/nvim
+
+#do this after package install to avoid ycm build errors
+vim +PlugInstall +qall
 
