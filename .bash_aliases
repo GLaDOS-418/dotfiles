@@ -13,10 +13,14 @@ alias free='free -m'                      # show sizes in MB
 alias grep='grep --colour=always'
 alias egrep='egrep --colour=always'
 alias rsync='rsync -azvhP'
-alias v='vim '
-alias gv='gvim '
-alias vd='vimdiff '
-alias gvd='gvimdiff '
+if [[ -x /usr/share/nvim ]]; then
+    alias v='nvim'
+else
+    alias v='vim'
+fi
+alias gv='gvim'
+alias vd='vimdiff'
+alias gvd='gvimdiff'
 alias emacs='emacs & &> /dev/null'
 alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
@@ -27,12 +31,13 @@ alias more=less
 ################################################################
 
 alias sb='source ~/.bashrc'
-alias vb='vim ~/.bashrc'
-alias vv='vim ~/.vimrc'
-alias vc='vim ~/.vim/sources/custom_functions.vim'
-alias va='vim ~/.vim/sources/abbreviations.vim'
-alias vs='vim ~/.vim/sources/statusline.vim'
-alias vp='vim ~/.vim/sources/plugins.vim'
+alias vb='v ~/.bashrc'
+alias vv='v ~/.vimrc'
+alias vc='v ~/.vim/sources/custom_functions.vim'
+alias va='v ~/.vim/sources/abbreviations.vim'
+alias vs='v ~/.vim/sources/statusline.vim'
+alias vp='v ~/.vim/sources/plugins.vim'
+alias vba='v ~/.bash_aliases'
 
 ################################################################
 # TOOL ALIAS 
@@ -43,8 +48,9 @@ alias wgold='wget --recursive --timestamping --level=inf --no-remove-listing --c
 alias wg='wgold --compression=auto'
 
 # GIT
-alias dh='git diff  --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD'
+alias dh='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD'
 alias diffhead='git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD'
+alias sdf='git sdf'
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
 alias gp='git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream'
 alias gl='git pull'

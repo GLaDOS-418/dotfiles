@@ -13,17 +13,18 @@
 # LOCAL VARIABLE
 ################################################################
 
-ANACONDA=/home/arnob/anaconda3/bin
-FLATBUFFERS=/home/arnob/binaries/flatbuffers
-GNUGLOBAL=/home/arnob/executables/global/bin
+ANACONDA=$HOME/anaconda3/bin
+FLATBUFFERS=$HOME/binaries/flatbuffers
+GNUGLOBAL=$HOME/executables/global/bin
 CHROME=/usr/lib/chrome
-UNICTAGS=/home/arnob/executables/ctags_bld/bin
-DOTFILES='~/dotfiles'
-SAVE_CMD="python3 ~/dotfiles/save_command.py"
+UNICTAGS=$HOME/executables/ctags_bld/bin
+DOTFILES=$HOME/dotfiles
+SAVE_CMD="python3 $HOME/dotfiles/save_command.py"
 #phantomjs required for youtube-dl
-#PHANTOMJS=/home/arnob/Downloads/phantomjs-2.1.3/bin
-LIVE_LATEX_PREVIEW='~/.vim/bundle/vim-live-latex-preview/bin/'
-DOT_SETUP_FILE='~/dotfiles/dot_setup.sh'
+#PHANTOMJS=$HOME/Downloads/phantomjs-2.1.3/bin
+LIVE_LATEX_PREVIEW="$HOME/.vim/bundle/vim-live-latex-preview/bin/"
+DOT_SETUP_FILE="$HOME/dotfiles/dot_setup.sh"
+DIFF_SO_FANCY="$HOME/dotfiles/so-fancy"
 
 ################################################################
 # EXPORT
@@ -31,19 +32,23 @@ DOT_SETUP_FILE='~/dotfiles/dot_setup.sh'
 
 #export https_proxy=""
 export EDITOR=vim
-export MYVIMRC="~/.vimrc"
-export INPUTRC="~/.inputrc"
-export HISTFILE="~/.bash_history"
+export MYVIMRC="$HOME/.vimrc"
+export INPUTRC="$HOME/.inputrc"
+export COLUMNS
+
+# BASH HISTORY
 
 # don't put duplicate lines or lines starting with space in the history.
 export HISTCONTROL=ignoreboth
 
-# for setting history length see HISTSIZE and HISTFILESIZE
+# save last 2k commands on disk and of that load last 1k commands in memory.
 export HISTSIZE=1000
 export HISTFILESIZE=2000
+export HISTFILE="$HOME/.bash_history"
+export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 
 export GOPATH=${HOME}/go
-export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$PATH:/home/arnob/executables/
+export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$DIFF_SO_FANCY:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
 ################################################################
@@ -54,24 +59,27 @@ export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$PATH:/
 unalias -a
 
 # You may want to put all your additions into a separate file like
-# ~/.bash_aliases, instead of adding them here directly.
+# $HOME/.bash_aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
 # PROJECT AGNOSTTIC
-if [ -e ~/.bash_aliases ]; then
-  . ~/.bash_aliases
+if [ -e $HOME/.bash_aliases ]; then
+  . $HOME/.bash_aliases
 fi
 
 # PROJECT SPECIFIC
-if [ -e ~/.workrc ]; then
-    . ~/.workrc
+if [ -e $HOME/.workrc ]; then
+    . $HOME/.workrc
 fi
 
 ################################################################
 # CUSTOM FUNCTIONS
 ################################################################
 
-export COLUMNS
+function mcd {
+    mkdir -pv $1 && cd $1
+}
+
 function ls {
     command ls -FhvC --color=always --author --time-style=long-iso "$@" | less -RXF
 }
@@ -198,6 +206,10 @@ function colors {
   done
 }
 
+function parse_git_branch {
+    git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/(\1) /'
+}
+
 ################################################################
 ##  CONFIG
 ################################################################
@@ -278,7 +290,7 @@ use_color=true
 # globbing instead of external grep binary.
 safe_term=${TERM//[^[:alnum:]]/?}   # sanitize TERM
 match_lhs=""
-[[ -f ~/.dir_colors   ]] && match_lhs="${match_lhs}$(<~/.dir_colors)"
+[[ -f $HOME/.dir_colors   ]] && match_lhs="${match_lhs}$(<$HOME/.dir_colors)"
 [[ -f /etc/DIR_COLORS ]] && match_lhs="${match_lhs}$(</etc/DIR_COLORS)"
 [[ -z ${match_lhs}    ]] \
   && type -P dircolors >/dev/null \
@@ -286,18 +298,14 @@ match_lhs=""
 [[ $'\n'${match_lhs} == *$'\n'"TERM "${safe_term}* ]] && use_color=true
 
 if ${use_color} ; then
-  # Enable colors for ls, etc.  Prefer ~/.dir_colors #64489
+  # Enable colors for ls, etc.  Prefer $HOME/.dir_colors #64489
   if type -P dircolors >/dev/null ; then
-    if [[ -f ~/.dir_colors ]] ; then
-      eval $(dircolors -b ~/.dir_colors)
+    if [[ -f $HOME/.dir_colors ]] ; then
+      eval $(dircolors -b $HOME/.dir_colors)
     elif [[ -f /etc/DIR_COLORS ]] ; then
       eval $(dircolors -b /etc/DIR_COLORS)
     fi
   fi
-
-  function parse_git_branch(){
-    git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/(\1) /'
-  }
 
   if [[ ${EUID} == 0 ]] ; then
     PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '

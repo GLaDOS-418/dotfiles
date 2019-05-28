@@ -96,6 +96,8 @@ fi
 ln -s $PWD/.bashrc $HOME/.bashrc
 ln -s $PWD/.bash_aliases $HOME/.bash_aliases
 ln -s $PWD/.inputrc $HOME/.inputrc
+ln -s $PWD/.gitconfig $HOME/.bashrc
+ln -s $PWD/.tmux.conf $HOME/.bashrc
 ln -s $HOME/vim/vim/.vim $HOME/.vim
 ln -s $HOME/vim/vim/.vimrc $HOME/.vimrc
 ln -s $HOME/vim/nvim $HOME/.config/nvim
