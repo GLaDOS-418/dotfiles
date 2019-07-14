@@ -9,22 +9,33 @@
 ##                                     ##
 #########################################
 
+# If not running interactively, don't do anything
+[[ $- != *i* ]] && return
+
+if  which tmux > /dev/null 2>&1  &&  [ -z "$TMUX" ]; then
+    ID="$( tmux ls 2&>/dev/null | grep -vm1 attached | cut -d: -f1 )" # get the id of a deattached session
+    if [[ -z "$ID" ]] ;then # if not available create a new one
+        tmux new-session
+    else
+        tmux attach-session -t "$ID" # if available attach to it
+    fi
+fi
+
 ################################################################
 # LOCAL VARIABLE
 ################################################################
 
-ANACONDA=$HOME/anaconda3/bin
-FLATBUFFERS=$HOME/binaries/flatbuffers
-GNUGLOBAL=$HOME/executables/global/bin
-CHROME=/usr/lib/chrome
-UNICTAGS=$HOME/executables/ctags_bld/bin
-DOTFILES=$HOME/dotfiles
-SAVE_CMD="python3 $HOME/dotfiles/save_command.py"
-#phantomjs required for youtube-dl
-#PHANTOMJS=$HOME/Downloads/phantomjs-2.1.3/bin
-LIVE_LATEX_PREVIEW="$HOME/.vim/bundle/vim-live-latex-preview/bin/"
+# ANACONDA=$HOME/anaconda3/bin
+# FLATBUFFERS=$HOME/binaries/flatbuffers
+# GNUGLOBAL=$HOME/executables/global/bin
+# CHROME=/usr/lib/chrome
+# UNICTAGS=$HOME/executables/ctags_bld/bin
+# PHANTOMJS=$HOME/Downloads/phantomjs-2.1.3/bin
+# LIVE_LATEX_PREVIEW="$HOME/.vim/bundle/vim-live-latex-preview/bin/"
 DOT_SETUP_FILE="$HOME/dotfiles/dot_setup.sh"
 DIFF_SO_FANCY="$HOME/dotfiles/so-fancy"
+DOTFILES=$HOME/dotfiles
+SAVE_CMD="python3 $HOME/dotfiles/save_command.py"
 
 ################################################################
 # EXPORT
@@ -75,6 +86,22 @@ fi
 ################################################################
 # CUSTOM FUNCTIONS
 ################################################################
+
+function ftstats {
+    # recursive statistics on file types in directory
+    # find . -type f | sed 's/.*\.//' | sort | uniq -c | sort -nr
+    if [[ -n $1 ]]; then
+        # any arg means folder-wise
+        for d in */ ; do
+            echo $d
+            find $d -type f | sed -r 's/.*\/([^\/]+)/\1/' | sed 's/^[^\.]*$//' | sed -r 's/.*(\.[^\.]+)$/\1/' | sort | uniq -c | sort -nr
+            # files only    | keep filename only          | no ext -> '' ext   | keep part after . (i.e. ext) | count          | sort by count desc
+        done
+    else
+        find $d -type f | sed -r 's/.*\/([^\/]+)/\1/' | sed 's/^[^\.]*$//' | sed -r 's/.*(\.[^\.]+)$/\1/' | sort | uniq -c | sort -nr
+    fi
+
+}
 
 function mcd {
     mkdir -pv $1 && cd $1
@@ -160,12 +187,14 @@ function ar {
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
 function git {
   REALPATH=`readlink -f ${PWD}`
-  if grep -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/home/" -o "${REALPATH:0:3}" == "/c/" ]; then
-    # /c/ for git bash and /home/ for cygwin
+  if grep -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/cygdrive/" -o "${REALPATH:0:3}" == "/c/" ]; then
+    # /c/ for git bash and /cygdrive/ for cygwin
     git.exe "$@"
   elif grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
     # /mnt/ for microsoft wsl. WSL doesn't allow windows programs to alter subsystem files. Thus no /home/
     git.exe "$@"
+  elif grep -qE "(MSYS_NT)" /proc/version &> /dev/null ;  then
+    /mingw64/bin/git "$@"
   else
     /usr/bin/git "$@"
   fi
@@ -213,9 +242,6 @@ function parse_git_branch {
 ################################################################
 ##  CONFIG
 ################################################################
-
-# If not running interactively, don't do anything
-[[ $- != *i* ]] && return
 
 # enable programmable completion features (you don't need to enable
 # this, if it's already enabled in /etc/bash.bashrc and /etc/profile
@@ -336,3 +362,5 @@ LS_COLORS=$LS_COLORS:'di=01;33'
 export LS_COLORS
 
 unset use_color safe_term match_lhs sh
+
+# [ -f ~/.fzf.bash ] && source ~/.fzf.bash
