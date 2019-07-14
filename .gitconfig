@@ -1,25 +1,32 @@
-[diff]
-	tool = gvimdiff
-[core]
-	autocrlf = false 
-	editor = gvim
-	pager = diff-so-fancy | less --tabs=4 -RFX
 [user]
 	name = Arnob Bhanja
 	email = arnobbhanja@live.com
-[merge]
-	tool = fugitive
-[mergetool]
-	prompt = false
+[core]
+	autocrlf = true
+	editor = vim
+	pager = diff-so-fancy | less --tabs=4 -RFX
+	excludesfile = C:/users/abh/.gitignore_global
+        #whitespace = trailing-space,space-before-tab
 [alias]
         squash = "!f(){ git reset --soft HEAD~${1} && git commit --edit -m\"$(git log --format=%B --reverse HEAD..HEAD@{1})\"; };f"
 	lo = "log --oneline --no-merges -n 20"
 	pick = "!g(){ git cherry-pick {1} -n; };g"
 	sdf = "!f() { [ -z \"$GIT_PREFIX\" ] || cd \"$GIT_PREFIX\" && git diff --color \"$@\" | diff-so-fancy  | less --tabs=4 -RFX; }; f"
+        hide="update-index --assume-unchanged"
+        unhide="update-index --no-assume-unchanged"
+        graph="log --graph --pretty=format:'%Cred%h%Creset - %C(cyan)%an%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative"
 [system "core"]
        longpaths = true
+[diff]
+	tool = vimdiff
+[merge]
+	tool = fugitive
+[mergetool]
+	prompt = true
 [mergetool "fugitive"]
-	cmd = gvim -f -c \"Gdiff\" \"$MERGED\"
+	cmd = vim -f -c \"Gdiff\" \"$MERGED\"
+[apply]
+        #whitespace = fix
 [color]
 	ui = true
         status = always
