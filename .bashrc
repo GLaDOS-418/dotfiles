@@ -216,6 +216,22 @@ function git_ignore {
   printf '\n'
 }
 
+function dh {
+    BRANCH=HEAD
+    if [ -n $1 ]; then
+        BRANCH=$1
+    fi
+    git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
+}
+
+function diffhead {
+    BRANCH=HEAD
+    if [ -n $1 ]; then
+        BRANCH=$1
+    fi
+    git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
+}
+
 function colors {
   local fgc bgc vals seq0
 
