@@ -33,7 +33,7 @@ fi
 # PHANTOMJS=$HOME/Downloads/phantomjs-2.1.3/bin
 # LIVE_LATEX_PREVIEW="$HOME/.vim/bundle/vim-live-latex-preview/bin/"
 DOT_SETUP_FILE="$HOME/dotfiles/dot_setup.sh"
-DIFF_SO_FANCY="$HOME/dotfiles/so-fancy"
+TOOL_SCRIPTS="$HOME/dotfiles/tools"
 DOTFILES=$HOME/dotfiles
 SAVE_CMD="python3 $HOME/dotfiles/save_command.py"
 
@@ -58,12 +58,14 @@ export HISTFILESIZE=2000
 export HISTFILE="$HOME/.bash_history"
 export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 
+export CC=clang
+export CXX=clang++
 export GOPATH=${HOME}/go
-export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$DIFF_SO_FANCY:$PATH
+export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
 ################################################################
-# ALIASES
+# SOURCES
 ################################################################
 
 # Remove all predefined aliases
@@ -81,6 +83,12 @@ fi
 # PROJECT SPECIFIC
 if [ -e $HOME/.workrc ]; then
     . $HOME/.workrc
+fi
+
+# git completion
+git_completion=$HOME/dotfiles/tools/git-completion-bash.sh
+if [ -e  ${git_completion} ]; then
+    . ${git_completion}
 fi
 
 ################################################################
