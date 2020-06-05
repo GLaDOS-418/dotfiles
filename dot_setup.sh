@@ -101,7 +101,10 @@ ln -s $PWD/.tmux.conf $HOME/.bashrc
 ln -s $HOME/vim/vim/.vim $HOME/.vim
 ln -s $HOME/vim/vim/.vimrc $HOME/.vimrc
 ln -s $HOME/vim/nvim $HOME/.config/nvim
+ln -s $HOME/vim/.gvimrc $HOME/.gvimrc
 
 #do this after package install to avoid ycm build errors
-vim +PlugInstall +qall
+vim +PlugInstall +UpdateRemotePlugins +qall
 
+# install packages not from pacman
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh

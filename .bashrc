@@ -95,6 +95,21 @@ fi
 # CUSTOM FUNCTIONS
 ################################################################
 
+function spac {
+    sudo -i pacman -Sy $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/paclist
+    fi
+}
+
+
+function syay {
+    yay -Sy $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/yaylist
+    fi
+}
+
 function ftstats {
     # recursive statistics on file types in directory
     # find . -type f | sed 's/.*\.//' | sort | uniq -c | sort -nr
@@ -128,7 +143,18 @@ function lmedia {
 }
 
 function mp {
-  touch $1.cpp && touch $1.in && vim $1.cpp
+  touch $1.cpp && touch $1.in && vim -O $1.cpp $1.in
+}
+
+function op {
+  # open multiple files matching the glob in vim
+    if [[ -z $1 ]]; then
+        echo "no glob..."
+    elif [[ `ls -l $1* | wc -l` -gt 2 ]]; then
+        echo "too many matches..."
+    else
+        vim -O $(ls $1*)
+    fi
 }
 
 function bench {

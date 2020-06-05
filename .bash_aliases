@@ -13,11 +13,14 @@ alias free='free -m'                      # show sizes in MB
 alias grep='grep --colour=always'
 alias egrep='egrep --colour=always'
 alias rsync='rsync -azvhP'
-if [[ -x /usr/share/nvim ]]; then
-    alias v='nvim'
-else
-    alias v='vim'
-fi
+#if [[ -x /usr/share/nvim ]]; then
+#    alias v='nvim'
+#else
+#    alias v='vim'
+#fi
+alias nv='nvim'
+alias v='vim'
+alias uv='v +PlugInstall +UpdateRemotePlugins +qa'
 alias gv='gvim'
 alias vd='vimdiff'
 alias gvd='gvimdiff'
@@ -60,8 +63,6 @@ alias log='git log --oneline --no-merges HEAD~20..HEAD'
 
 # PACMAN
 alias cdp='cd /mnt/windows/projects'
-alias spac="$SAVE_CMD sudo -i pacman -Sy"
-alias syao="$SAVE_CMD yaourt -Sy"
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
 alias cleanpac='sudo pacman -Rns $(pacman -Qtdq)' # remove unused packages(orphans): if none found o/p :"no targets specified"
 

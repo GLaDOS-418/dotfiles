@@ -8,7 +8,6 @@ inkscape
 gdb
 sqlite
 pandoc
-rust
 ripgrep
 cmake
 neovim
@@ -22,3 +21,19 @@ youtube-dl
 bash-completion
 python
 openssh
+brave
+calibre
+iotop
+qbittorrent
+rclone
+xclip
+npm
+obs-studio
+handbrake
+docker
+audacity
+kdbg
+redshift
+xorg-xbacklight
+intellij-idea-community-edition
+discord
