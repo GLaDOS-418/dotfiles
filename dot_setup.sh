@@ -108,3 +108,7 @@ vim +PlugInstall +UpdateRemotePlugins +qall
 
 # install packages not from pacman
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# enable snapd
+sudo systemctl enable --now snapd.socket
+sudo ln -s /var/lib/snapd/snap /snap

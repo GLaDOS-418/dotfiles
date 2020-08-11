@@ -15,8 +15,6 @@ clang
 jdk10-openjdk
 go
 boost
-chromium
-virtualbox-guest-utils
 youtube-dl
 bash-completion
 python
@@ -37,3 +35,8 @@ redshift
 xorg-xbacklight
 intellij-idea-community-edition
 discord
+ktimer
+openvpn
+dialog
+python-pip
+python-setuptools

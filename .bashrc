@@ -102,11 +102,17 @@ function spac {
     fi
 }
 
-
 function syay {
     yay -Sy $@
     if [[ $? == 0 ]]; then
         echo $@ | tr ' ' '\n' >> $DOTFILES/yaylist
+    fi
+}
+
+function spip {
+    sudo pip3 install $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/piplist
     fi
 }
 
@@ -287,6 +293,10 @@ function colors {
 
 function parse_git_branch {
     git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/(\1) /'
+}
+
+function update_calibre {
+  sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
 }
 
 ################################################################
