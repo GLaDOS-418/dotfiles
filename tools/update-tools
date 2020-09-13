@@ -1,3 +1,31 @@
 #!/usr/bin/env bash
+
+function update_ctags {
+  git subtree pull --prefix ctags https://github.com/universal-ctags/ctags.git master --squash;
+  mkdir -p $UNICTAGS
+  pushd ctags
+
+  ./autogen.sh
+  ./configure --prefix=$UNICTAGS # defaults to /usr/local
+  make
+  make install # may require extra privileges depending on where to install
+  popd
+}
+
+# all commands from 'dotfiles' folder...
+pushd $HOME/dotfiles
+
+if ! git diff-index --quiet HEAD --; then
+    echo "git repo has changes.. subtree won't work.."
+    popd
+    exit 1
+fi
+
+update_ctags
+
+popd
+
+#Misc
+
 curl -Ls 'https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy' >| $HOME/dotfiles/tools/diff-so-fancy
 curl -Ls 'https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash' >| $HOME/dotfiles/tools/git-completion-bash.sh

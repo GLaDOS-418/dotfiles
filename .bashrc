@@ -29,7 +29,6 @@ fi
 # FLATBUFFERS=$HOME/binaries/flatbuffers
 # GNUGLOBAL=$HOME/executables/global/bin
 # CHROME=/usr/lib/chrome
-# UNICTAGS=$HOME/executables/ctags_bld/bin
 # PHANTOMJS=$HOME/Downloads/phantomjs-2.1.3/bin
 # LIVE_LATEX_PREVIEW="$HOME/.vim/bundle/vim-live-latex-preview/bin/"
 DOT_SETUP_FILE="$HOME/dotfiles/dot_setup.sh"
@@ -49,6 +48,7 @@ export COLUMNS
 
 # The Firefox build system and related tools store shared, persistent state in a common directory on the filesystem
 export MOZBUILD_STATE_PATH='/home/helix/repos/firefox/.mozbuild'
+export UNICTAGS=$HOME/executables/ctags_bld/bin
 
 # BASH HISTORY
 
