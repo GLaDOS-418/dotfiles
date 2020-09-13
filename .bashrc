@@ -47,6 +47,9 @@ export MYVIMRC="$HOME/.vimrc"
 export INPUTRC="$HOME/.inputrc"
 export COLUMNS
 
+# The Firefox build system and related tools store shared, persistent state in a common directory on the filesystem
+export MOZBUILD_STATE_PATH='/home/helix/repos/firefox/.mozbuild'
+
 # BASH HISTORY
 
 # don't put duplicate lines or lines starting with space in the history.
@@ -113,6 +116,13 @@ function spip {
     sudo pip3 install $@
     if [[ $? == 0 ]]; then
         echo $@ | tr ' ' '\n' >> $DOTFILES/piplist
+    fi
+}
+
+function shnap {
+    sudo -i snap install $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/snaplist
     fi
 }
 

@@ -40,3 +40,6 @@ openvpn
 dialog
 python-pip
 python-setuptools
+mercurial
+watchman
+kdeconnect

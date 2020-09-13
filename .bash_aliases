@@ -80,3 +80,4 @@ alias tux='sudo arpon -d -i wlp3s0 -D'
 
 alias cdw='cd /mnt/windows/Users/AB/Downloads/'
 alias tv='find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > list_tv.txt'
+alias data='cd /run/media/helix/DATA'
