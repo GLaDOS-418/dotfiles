@@ -27,7 +27,7 @@ fi
 
 # ANACONDA=$HOME/anaconda3/bin
 # FLATBUFFERS=$HOME/binaries/flatbuffers
-# GNUGLOBAL=$HOME/executables/global/bin
+# GNUGLOBAL=$HOME/bin/global/bin
 # CHROME=/usr/lib/chrome
 # PHANTOMJS=$HOME/Downloads/phantomjs-2.1.3/bin
 # LIVE_LATEX_PREVIEW="$HOME/.vim/bundle/vim-live-latex-preview/bin/"
@@ -48,7 +48,8 @@ export COLUMNS
 
 # The Firefox build system and related tools store shared, persistent state in a common directory on the filesystem
 export MOZBUILD_STATE_PATH='/home/helix/repos/firefox/.mozbuild'
-export UNICTAGS=$HOME/executables/ctags_bld/bin
+export EXERCISM=$HOME/bin/exercism
+export UNICTAGS=$HOME/bin/ctags_bld
 
 # BASH HISTORY
 
@@ -64,12 +65,20 @@ export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 export CC=clang
 export CXX=clang++
 export GOPATH=${HOME}/go
-export PATH=$UNICTAGS:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$PATH
+export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$EXERCISM:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
+
+# use Fzf with 'fd'
+export FZF_DEFAULT_COMMAND="fd . $HOME"
+export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+export FZF_ALT_C_COMMAND="fd -t d . $HOME"
 
 ################################################################
 # SOURCES
 ################################################################
+
+#Fuzzy search files using fzf
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
 # Remove all predefined aliases
 unalias -a
@@ -113,13 +122,13 @@ function syay {
 }
 
 function spip {
-    sudo pip3 install $@
+    pip3 install $@
     if [[ $? == 0 ]]; then
         echo $@ | tr ' ' '\n' >> $DOTFILES/piplist
     fi
 }
 
-function shnap {
+function ssnap {
     sudo -i snap install $@
     if [[ $? == 0 ]]; then
         echo $@ | tr ' ' '\n' >> $DOTFILES/snaplist
@@ -432,5 +441,3 @@ LS_COLORS=$LS_COLORS:'di=01;33'
 export LS_COLORS
 
 unset use_color safe_term match_lhs sh
-
-# [ -f ~/.fzf.bash ] && source ~/.fzf.bash

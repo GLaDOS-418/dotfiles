@@ -104,7 +104,7 @@ ln -s $HOME/vim/nvim $HOME/.config/nvim
 ln -s $HOME/vim/.gvimrc $HOME/.gvimrc
 
 #do this after package install to avoid ycm build errors
-vim +PlugInstall +UpdateRemotePlugins +qall
+vim +PlugInstall +UpdateRemotePlugins +VimspectorInstall +qall
 
 # install packages not from pacman
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -113,3 +113,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sudo systemctl enable --now snapd.socket
 sudo ln -s /var/lib/snapd/snap /snap
 cat snaplist | xargs sudo -i snap install
+
+# Misc
+
+# Language server tool ( firefox addon )
+curl https://languagetool.org/download/LanguageTool-stable.zip && ex LanguageTool-stable.zip
+
+#Joplin
+wget -O - https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash

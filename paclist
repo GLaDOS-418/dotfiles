@@ -10,7 +10,6 @@ sqlite
 pandoc
 ripgrep
 cmake
-neovim
 clang
 jdk10-openjdk
 go
@@ -43,3 +42,15 @@ python-setuptools
 mercurial
 watchman
 kdeconnect
+code
+docker-compose
+hugo
+mediainfo-gui
+psensor
+bpytop
+delve
+wireshark-qt
+smartmontools
+gsmartcontrol
+gnome-disk-utility
+tmux

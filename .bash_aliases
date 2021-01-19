@@ -13,13 +13,13 @@ alias free='free -m'                      # show sizes in MB
 alias grep='grep --colour=always'
 alias egrep='egrep --colour=always'
 alias rsync='rsync -azvhP'
-#if [[ -x /usr/share/nvim ]]; then
-#    alias v='nvim'
-#else
-#    alias v='vim'
-#fi
+if [[ -x /usr/share/nvim ]]; then
+    alias v='nvim'
+else
+    alias v='vim'
+fi
 alias nv='nvim'
-alias v='vim'
+#alias v='vim'
 alias uv='v +PlugInstall +UpdateRemotePlugins +qa'
 alias gv='gvim'
 alias vd='vimdiff'
