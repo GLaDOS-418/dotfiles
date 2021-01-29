@@ -135,6 +135,36 @@ function ssnap {
     fi
 }
 
+function gww {
+    g++ -g -O -Wall -Weffc++ -pedantic  \
+        -pedantic-errors -Wextra -Waggregate-return -Wcast-align \
+        -Wcast-qual -Wconversion \
+        -Wdisabled-optimization \
+        -Wfloat-equal -Wformat=2 \
+        -Wformat-nonliteral -Wformat-security  \
+        -Wformat-y2k \
+        -Wimport  -Winit-self  -Winline \
+        -Winvalid-pch   \
+        -Wlong-long \
+        -Wmissing-field-initializers -Wmissing-format-attribute   \
+        -Wmissing-include-dirs -Wmissing-noreturn \
+        -Wpacked  -Wpadded -Wpointer-arith \
+        -Wredundant-decls \
+        -Wshadow -Wstack-protector \
+        -Wstrict-aliasing=2 -Wswitch-default \
+        -Wswitch-enum \
+        -Wunreachable-code -Wunused \
+        -Wunused-parameter \
+        -Wvariadic-macros \
+        -Wwrite-strings \
+        -std=c++17 \
+    $@
+}
+
+function gwe {
+    gww -Werror $@
+}
+
 function ftstats {
     # recursive statistics on file types in directory
     # find . -type f | sed 's/.*\.//' | sort | uniq -c | sort -nr
@@ -191,11 +221,11 @@ function gpp {
 }
 
 function grl {
-  grep -Rl --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
 }
 
 function grn {
-  grep -Rn --exclude-dir={docs,deploy} --include=\*.{cpp,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql} $@ 2>/dev/null
 }
 
 # ex - archive extractor
@@ -268,16 +298,17 @@ function git_ignore {
 }
 
 function dh {
-    BRANCH=HEAD
+    BRANCH='HEAD'
     if [ -n $1 ]; then
         BRANCH=$1
     fi
+    echo $BRANCH
     git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
 }
 
 function diffhead {
-    BRANCH=HEAD
-    if [ -n $1 ]; then
+    BRANCH='HEAD'
+    if [ ! -n $1 ]; then
         BRANCH=$1
     fi
     git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
