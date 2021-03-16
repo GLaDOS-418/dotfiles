@@ -1,6 +1,6 @@
 [user]
-	name = Arnob Bhanja
-	email = arnobbhanja@live.com
+    name = Arnob Bhanja
+    email = arnobbhanja@live.com
 [core]
 	autocrlf = true
 	editor = vim
@@ -8,19 +8,49 @@
 	excludesfile = C:/users/abh/.gitignore_global
         #whitespace = trailing-space,space-before-tab
 [alias]
-        squash = "!f(){ git reset --soft HEAD~${1} && git commit --edit -m\"$(git log --format=%B --reverse HEAD..HEAD@{1})\"; };f"
-	lo = "log --oneline --no-merges -n 20"
-	pick = "!g(){ git cherry-pick {1} -n; };g"
-	sdf = "!f() { [ -z \"$GIT_PREFIX\" ] || cd \"$GIT_PREFIX\" && git diff --color \"$@\" | diff-so-fancy  | less --tabs=4 -RFX; }; f"
-        hide="update-index --assume-unchanged"
-        unhide="update-index --no-assume-unchanged"
-        graph="log --graph --pretty=format:'%Cred%h%Creset - %C(cyan)%an%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative"
+    co=checkout
+    edit=config --global -e # edit git global config
+    pr=!git pull --rebase --prune
+    cob=checkout -b
+    squash="!f(){ git reset --soft HEAD~${1} && git commit --edit -m\"$(git log --format=%B --reverse HEAD..HEAD@{1})\"; };f"
+    lo="log --oneline --no-merges -n 20 --pretty=format:'%Cred%h%Creset - %C(cyan)%an%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative"
+    abh="log --oneline --no-merges --pretty=format:'%Cred%h%Creset - %C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit  --author='Arnob Bhanja' --date=relative"
+
+    pick="!g(){ git cherry-pick ${1} -n; };g"
+    dsf="!f() { [ -z \"$GIT_PREFIX\" ] || cd \"$GIT_PREFIX\" && git diff --color \"$@\" | diff-so-fancy  | less --tabs=4 -RFX; }; f"
+    hide="update-index --assume-unchanged"
+    unhide="update-index --no-assume-unchanged"
+    graph="log --graph --pretty=format:'%Cred%h%Creset - %C(cyan)%an%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative"
+    can="commit --amend --no-edit"
+    caan="commit -a --amend --no-edit"
+
+    # delete all merged branches
+    bclean="!f() { git branch --merged ${1} | grep -v  ${1} | egrep -o --color=never '[a-zA-Z0-9.-]{5,}' | xargs git branch -d; };f"
+
+    # git add only non-whitespace changes
+    addnw=!sh -c 'git diff -U0 -w --no-color "$@" | git apply --cached --ignore-whitespace --unidiff-zero -'
+    gui = !gitk &
+    slist = stash list --format='%gd (%cr): %gs'
+    sdiff = stash show -p
+    autopull = !git stash && git pull && git stash apply
+    mtg = mergetool --gui
+    pt =  !git pull origin $(git rev-parse --abbrev-ref HEAD)
 [system "core"]
-       longpaths = true
+   longpaths = true
 [diff]
 	tool = vimdiff
+	renameLimit = 1000
+	guitool = kdiff3
+#[merge]
+        #tool = fugitive
+
 [merge]
-	tool = fugitive
+    tool = vimdiff
+    guitool = kdiff3
+[mergetool "kdiff3"]
+    path = "C:\\Program Files\\KDiff3\\kdiff3.exe"
+    keepBackup = false
+    trustExitCode = false
 [mergetool]
 	prompt = true
 [mergetool "fugitive"]
@@ -59,3 +89,7 @@
 	useUnicodeRuler = false
 	rulerWidth = 47
 	first-run = false
+[gui]
+	encoding = utf-8
+[rebase]
+	autoStash = true
