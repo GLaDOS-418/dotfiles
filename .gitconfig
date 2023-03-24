@@ -1,11 +1,11 @@
 [user]
-    name = Arnob Bhanja
+    name  = GLaDOS-418 
     email = arnobbhanja@live.com
 [core]
-	autocrlf = true
-	editor = vim
+	#autocrlf = true
+	editor = nvim
 	pager = diff-so-fancy | less --tabs=4 -RFX
-	excludesfile = C:/users/abh/.gitignore_global
+	#excludesfile = C:/users/abh/.gitignore_global
         #whitespace = trailing-space,space-before-tab
 [alias]
     co=checkout
@@ -38,14 +38,14 @@
 [system "core"]
    longpaths = true
 [diff]
-	tool = vimdiff
+	tool = nvimdiff
 	renameLimit = 1000
 	guitool = kdiff3
 #[merge]
         #tool = fugitive
 
 [merge]
-    tool = vimdiff
+    tool = nvimdiff
     guitool = kdiff3
 [mergetool "kdiff3"]
     path = "C:\\Program Files\\KDiff3\\kdiff3.exe"
@@ -54,7 +54,7 @@
 [mergetool]
 	prompt = true
 [mergetool "fugitive"]
-	cmd = vim -f -c \"Gdiff\" \"$MERGED\"
+	cmd = nvim -f -c \"Gdiff\" \"$MERGED\"
 [apply]
         #whitespace = fix
 [color]

@@ -54,3 +54,6 @@ smartmontools
 gsmartcontrol
 gnome-disk-utility
 tmux
+xdg-utils
+fd
+jq

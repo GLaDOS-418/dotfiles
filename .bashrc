@@ -51,7 +51,33 @@ export MOZBUILD_STATE_PATH='/home/helix/repos/firefox/.mozbuild'
 export EXERCISM=$HOME/bin/exercism
 export UNICTAGS=$HOME/bin/ctags_bld
 
-# BASH HISTORY
+export CC=clang
+export CXX=clang++
+export GOPATH=${HOME}/go
+export LOCALBIN=${HOME}/.local/bin
+export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$EXERCISM:$LOCALBIN:$PATH
+# export MANPATH=$MANPATH:$HOME/share/man
+
+# use Fzf with 'fd'
+export FZF_DEFAULT_COMMAND="fd . $HOME"
+export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+export FZF_ALT_C_COMMAND="fd -t d . $HOME"
+# Preview file content using bat (https://github.com/sharkdp/bat)
+export FZF_CTRL_T_OPTS="
+  --preview 'bat -n --color=always {}'
+  --bind 'ctrl-/:change-preview-window(down|hidden|)'"
+
+# CTRL-/ to toggle small preview window to see the full command
+# CTRL-Y to copy the command into clipboard using pbcopy
+export FZF_CTRL_R_OPTS="
+  --preview 'echo {}' --preview-window up:3:hidden:wrap
+  --bind 'ctrl-/:toggle-preview'
+  --bind 'ctrl-y:execute-silent(echo -n {2..} | pbcopy)+abort'
+  --color header:italic
+  --header 'Press CTRL-Y to copy command into clipboard'"
+
+
+### BASH HISTORY
 
 # don't put duplicate lines or lines starting with space in the history.
 export HISTCONTROL=ignoreboth
@@ -61,17 +87,6 @@ export HISTSIZE=1000
 export HISTFILESIZE=2000
 export HISTFILE="$HOME/.bash_history"
 export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
-
-export CC=clang
-export CXX=clang++
-export GOPATH=${HOME}/go
-export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$EXERCISM:$PATH
-# export MANPATH=$MANPATH:$HOME/share/man
-
-# use Fzf with 'fd'
-export FZF_DEFAULT_COMMAND="fd . $HOME"
-export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-export FZF_ALT_C_COMMAND="fd -t d . $HOME"
 
 ################################################################
 # SOURCES
@@ -106,6 +121,14 @@ fi
 ################################################################
 # CUSTOM FUNCTIONS
 ################################################################
+
+function generate_new_key {
+  ssh-keygen -t ed25519 -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')
+}
+
+function fzfupdate {
+    cd ~/.fzf && git pull && ./install
+}
 
 function spac {
     sudo -i pacman -Sy $@
@@ -472,3 +495,8 @@ LS_COLORS=$LS_COLORS:'di=01;33'
 export LS_COLORS
 
 unset use_color safe_term match_lhs sh
+. "$HOME/.cargo/env"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
