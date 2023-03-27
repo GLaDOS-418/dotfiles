@@ -35,6 +35,7 @@ DOT_SETUP_FILE="$HOME/dotfiles/dot_setup.sh"
 TOOL_SCRIPTS="$HOME/dotfiles/tools"
 DOTFILES=$HOME/dotfiles
 SAVE_CMD="python3 $HOME/dotfiles/save_command.py"
+FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
 
 ################################################################
 # EXPORT
@@ -59,7 +60,8 @@ export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TO
 # export MANPATH=$MANPATH:$HOME/share/man
 
 # use Fzf with 'fd'
-export FZF_DEFAULT_COMMAND="fd . $HOME"
+export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+#export FZF_DEFAULT_COMMAND="fd . $HOME"
 export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 export FZF_ALT_C_COMMAND="fd -t d . $HOME"
 # Preview file content using bat (https://github.com/sharkdp/bat)
@@ -76,6 +78,8 @@ export FZF_CTRL_R_OPTS="
   --color header:italic
   --header 'Press CTRL-Y to copy command into clipboard'"
 
+# morhetz/gruvbox
+export FZF_DEFAULT_OPTS='--color=bg+:#3c3836,bg:#32302f,spinner:#fb4934,hl:#928374,fg:#ebdbb2,header:#928374,info:#8ec07c,pointer:#fb4934,marker:#fb4934,fg+:#ebdbb2,prompt:#fb4934,hl+:#fb4934'
 
 ### BASH HISTORY
 
@@ -94,6 +98,10 @@ export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 
 #Fuzzy search files using fzf
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+if [ -e ${FZF_UTILITIES} ]; then
+  . ${FZF_UTILITIES}
+fi
 
 # Remove all predefined aliases
 unalias -a
