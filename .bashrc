@@ -188,7 +188,7 @@ function gww {
         -Wunused-parameter \
         -Wvariadic-macros \
         -Wwrite-strings \
-        -std=c++17 \
+        -std=c++20 \
     $@
 }
 

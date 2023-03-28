@@ -29,6 +29,16 @@ alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
 alias more=less
 
+#### try to prevent accidental data loss
+# alias cp='cp -i'
+# alias mv='mv -i'
+
+TRASH="${HOME}/.local/share/Trash/files/"
+mkdir -p ${TRASH}
+
+alias rm='mv -t "${TRASH}" --backup=numbered -- "$@"'
+alias nuke_trash='/bin/rm -r ${TRASH:?}/*'
+
 ################################################################
 # EDITOR ALIAS 
 ################################################################
@@ -41,6 +51,7 @@ alias va='v ~/.vim/sources/abbreviations.vim'
 alias vs='v ~/.vim/sources/statusline.vim'
 alias vp='v ~/.vim/sources/plugins.vim'
 alias vba='v ~/.bash_aliases'
+alias vn='v -u NONE'
 
 ################################################################
 # TOOL ALIAS 
@@ -51,7 +62,7 @@ alias wgold='wget --recursive --timestamping --level=inf --no-remove-listing --c
 alias wg='wgold --compression=auto'
 
 # GIT
-alias dh='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD'
+alias dh='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines --diff-algorithm=histogram'
 alias diffhead='git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD'
 alias sdf='git sdf'
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
