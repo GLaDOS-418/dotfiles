@@ -42,13 +42,13 @@ typedef enum _CXXParserParseTemplateAngleBracketsResult
 
 static bool cxxTemplateTokenCheckIsNonTypeAndCompareWord(const CXXToken *t,void * szWord)
 {
-	// To be non type the token must NOT be preceeded by class/struct/union
+	// To be non type the token must NOT be preceded by class/struct/union
 	if(!t->pPrev)
 		return false;
 	if(cxxTokenTypeIs(t->pPrev,CXXTokenTypeKeyword))
 	{
 		if(cxxKeywordIsTypeRefMarker(t->pPrev->eKeyword))
-			return false; // preceeded by a type ref marker
+			return false; // preceded by a type ref marker
 
 		// otherwise it's probably something like "int"
 	}
@@ -79,7 +79,7 @@ static bool cxxTokenIsPresentInTemplateParametersAsNonType(CXXToken * t)
 
 static bool cxxTemplateTokenCheckIsTypeAndCompareWord(const CXXToken * t,void * szWord)
 {
-	// To be non type the token must be preceeded by class/struct/union
+	// To be non type the token must be preceded by class/struct/union
 	if(!t->pPrev)
 		return false;
 	if(!cxxTokenTypeIs(t->pPrev,CXXTokenTypeKeyword))
@@ -269,7 +269,10 @@ cxxParserParseTemplateAngleBracketsInternal(bool bCaptureTypeParameters,int iNes
 	// around but without proper state (include headers, macro expansion, full type
 	// database etc) we simply can't do the same. However, we try to recover if we
 	// figure out we (or the programmer?) screwed up.
-	//
+	// For 'greater-than' operators, the first non-nested operator is taken as the
+	// end of the template parameter list rather than a 'greater-than' operator.
+	// Treating non-nested operators differently is a syntax error at least since C++03
+	// onwards according to https://en.cppreference.com/w/cpp/language/template_parameters.
 	//
 	// Like gcc, if this function knows identifiers in a template prefix more,
 	// the quality of parsing becomes better.
@@ -354,7 +357,10 @@ cxxParserParseTemplateAngleBracketsInternal(bool bCaptureTypeParameters,int iNes
 					// ... 1 < whatever ...
 					cxxTokenTypeIs(pSmallerThan->pPrev,CXXTokenTypeNumber) ||
 					// ... nonTypeParam < whatever ...
-					cxxTokenIsPresentInTemplateParametersAsNonType(pSmallerThan->pPrev)
+					(
+						cxxTokenTypeIsOneOf(pSmallerThan->pPrev,CXXTokenTypeIdentifier) &&
+						cxxTokenIsPresentInTemplateParametersAsNonType(pSmallerThan->pPrev)
+					)
 				)
 				{
 					CXX_DEBUG_PRINT("Treating < as less-than operator");
@@ -418,35 +424,8 @@ cxxParserParseTemplateAngleBracketsInternal(bool bCaptureTypeParameters,int iNes
 
 				CXX_DEBUG_PRINT("Found %d greater-than signs",iGreaterThanCount);
 
-				// check greater than operator: very narrow conditions
-				if(
-					(iGreaterThanCount == 1) &&
-					(
-						// whatever op 2 [C++03 allows this without parens]
-						// whatever op (...) [C++03 allows this without parens]
-						cxxTokenTypeIsOneOf(
-								g_cxx.pToken,
-								CXXTokenTypeNumber | CXXTokenTypeOpeningParenthesis
-							) ||
-						// whatever op nonTypeParameter [C++03 allows this without parens]
-						(
-							cxxTokenTypeIs(g_cxx.pToken,CXXTokenTypeIdentifier) &&
-							cxxTokenIsPresentInTemplateParametersAsNonType(g_cxx.pToken)
-						)
-						// WARNING: don't be tempted to add a loose condition that has
-						// (!cxxTokenIsPresentInTemplateParametersAsType()) on the right.
-						// It's unsafe.
-					)
-				)
-				{
-					CXX_DEBUG_PRINT("Treating as greater-than sign");
-
-					if(cxxTokenTypeIsOneOf(g_cxx.pToken,CXXTokenTypeOpeningParenthesis))
-						cxxParserUngetCurrentToken(); // needs to be condensed
-
-					continue;
-				}
-
+				// We do not check for the greater than operator, as it is only valid
+				// inside parentheses in a template parameter list (see i#3388).
 
 				// check right shift operator: a bit broader conditions
 				if(
@@ -849,7 +828,7 @@ void cxxParserEmitTemplateParameterTags(void)
 				g_cxx.oTemplateParameters.aTypeEnds[i]
 			);
 
-		cxxTagCommit();
+		cxxTagCommit(NULL);
 		if (pTypeToken)
 			cxxTokenDestroy(pTypeToken);
 	}

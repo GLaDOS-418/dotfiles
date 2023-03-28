@@ -22,6 +22,7 @@
 #define CXX_COMMON_MACRO_ROLES(__langPrefix) \
 	static roleDefinition __langPrefix##MacroRoles [] = { \
 		RoleTemplateUndef, \
+		RoleTemplateCondition, \
 	}
 
 CXX_COMMON_MACRO_ROLES(C);
@@ -57,7 +58,7 @@ CXX_COMMON_HEADER_ROLES(CUDA);
 	{ true,  'u', "union",      "union names", .syncWith = _syncWith },			\
 	{ true,  'v', "variable",   "variable definitions", .syncWith = _syncWith },		\
 	{ false, 'x', "externvar",  "external and forward variable declarations", .syncWith = _syncWith }, \
-	{ false, 'z', "parameter",  "function parameters inside function definitions", .syncWith = _syncWith }, \
+	{ false, 'z', "parameter",  "function parameters inside function or prototype definitions", .syncWith = _syncWith }, \
 	{ false, 'L', "label",      "goto labels", .syncWith = _syncWith }, \
 	{ false, 'D', "macroparam", "parameters inside macro definitions", .syncWith = _syncWith }
 
@@ -74,8 +75,7 @@ static kindDefinition g_aCXXCPPKinds [] = {
 	{ true,  'n', "namespace",  "namespaces" },
 	{ false, 'A', "alias",      "namespace aliases" },
 	{ false, 'N', "name",       "names imported via using scope::symbol" },
-	{ false, 'U', "using",      "using namespace statements",
-			.referenceOnly = true },
+	{ false, 'U', "using",      "using namespace statements" },
 	{ false, 'Z', "tparam",     "template parameters" },
 };
 
@@ -202,6 +202,21 @@ bool cxxTagKindEnabled(unsigned int uKind)
 	return g_cxx.pKindDefinitions[uKind].enabled;
 }
 
+bool cxxTagRoleEnabled(unsigned int uKind, int iRole)
+{
+	if(!cxxTagKindEnabled(uKind))
+		return true;
+	if(iRole == ROLE_DEFINITION_INDEX)
+		return true;
+
+	CXX_DEBUG_ASSERT(
+		(ROLE_DEFINITION_INDEX < iRole
+		 && iRole < g_cxx.pKindDefinitions[uKind].nRoles),
+		"The role must be associated to the kind (%u)", uKind
+		);
+	return g_cxx.pKindDefinitions[uKind].roles[iRole].enabled;
+}
+
 fieldDefinition * cxxTagGetCPPFieldDefinitionifiers(void)
 {
 	return g_aCXXCPPFields;
@@ -244,6 +259,45 @@ bool cxxTagFieldEnabled(unsigned int uField)
 
 static tagEntryInfo g_oCXXTag;
 
+void cxxTagUseTokenAsPartOfDefTag(int iCorkIndex, CXXToken * pToken)
+{
+	Assert (pToken->iCorkIndex == CORK_NIL);
+	pToken->iCorkIndex = iCorkIndex;
+}
+
+void cxxTagUseTokensInRangeAsPartOfDefTags(int iCorkIndex, CXXToken * pFrom, CXXToken * pTo)
+{
+	cxxTagUseTokenAsPartOfDefTag(iCorkIndex, pFrom);
+	while (pFrom != pTo)
+	{
+		pFrom = pFrom->pNext;
+		cxxTagUseTokenAsPartOfDefTag(iCorkIndex, pFrom);
+	}
+}
+
+static short cxxTagLookBackLastNth(langType iLangType, int iScopeIndex, unsigned int uKind)
+{
+	for (size_t uCount = countEntryInCorkQueue (); uCount > (CORK_NIL + 1); uCount--)
+	{
+		int iCorkIndex = (int)(uCount - 1);
+		tagEntryInfo *pTag = getEntryInCorkQueue(iCorkIndex);
+		if (iCorkIndex == iScopeIndex)
+			return 0;
+		else if (pTag->extensionFields.scopeIndex == iScopeIndex
+				 && pTag->langType == iLangType
+				 && pTag->kindIndex == uKind)
+		{
+			return pTag->extensionFields.nth + (
+				/* Over-wrapped; if the value is too large for sizeof(nth),
+				 * Don't increment more. */
+				((short)(pTag->extensionFields.nth + 1) > 0)
+				? 1
+				: 0
+				);
+		}
+	}
+	return NO_NTH_FIELD;
+}
 
 tagEntryInfo * cxxTagBegin(unsigned int uKind,CXXToken * pToken)
 {
@@ -267,8 +321,20 @@ tagEntryInfo * cxxTagBegin(unsigned int uKind,CXXToken * pToken)
 
 	if(!cxxScopeIsGlobal())
 	{
+		// scopeKindIndex and scopeName are used for printing the scope field
+		// in a tags file.
 		g_oCXXTag.extensionFields.scopeKindIndex = cxxScopeGetKind();
 		g_oCXXTag.extensionFields.scopeName = cxxScopeGetFullName();
+		// scopeIndex is used in the parser internally.
+		g_oCXXTag.extensionFields.scopeIndex = cxxScopeGetDefTag();
+		if (isFieldEnabled(FIELD_NTH) && g_oCXXTag.extensionFields.scopeIndex != CORK_NIL)
+		{
+			if (uKind == CXXTagKindMEMBER || uKind == CXXTagKindENUMERATOR
+				|| uKind == CXXTagKindPARAMETER || uKind == CXXTagCPPKindTEMPLATEPARAM)
+				g_oCXXTag.extensionFields.nth = cxxTagLookBackLastNth(g_oCXXTag.langType,
+																	  g_oCXXTag.extensionFields.scopeIndex,
+																	  uKind);
+		}
 	}
 
 	// FIXME: meaning of "is file scope" is quite debatable...
@@ -334,6 +400,14 @@ vString * cxxTagSetProperties(unsigned int uProperties)
 		ADD_PROPERTY("scopedenum");
 	if(uProperties & CXXTagPropertyFunctionTryBlock)
 		ADD_PROPERTY("fntryblock");
+	if (uProperties & CXXTagPropertyConstexpr)
+		ADD_PROPERTY("constexpr");
+	if (uProperties & CXXTagPropertyConsteval)
+		ADD_PROPERTY("consteval");
+	if (uProperties & CXXTagPropertyConstinit)
+		ADD_PROPERTY("constinit");
+	if (uProperties & CXXTagPropertyThreadLocal)
+		ADD_PROPERTY("thread_local");
 
 	cxxTagSetField(CXXTagFieldProperties,vStringValue(pszProperties),false);
 
@@ -601,8 +675,11 @@ void cxxTagHandleTemplateFields()
 
 }
 
-int cxxTagCommit(void)
+int cxxTagCommit(int *piCorkQueueIndexFQ)
 {
+	if(piCorkQueueIndexFQ)
+		*piCorkQueueIndexFQ = CORK_NIL;
+
 	if(g_oCXXTag.isFileScope)
 	{
 		if(!isXtagEnabled(XTAG_FILE_SCOPE))
@@ -630,6 +707,8 @@ int cxxTagCommit(void)
 #endif
 
 	int iCorkQueueIndex = makeTagEntry(&g_oCXXTag);
+	if (iCorkQueueIndex != CORK_NIL)
+		registerEntry(iCorkQueueIndex);
 
 	// Handle --extra=+q
 	if(!isXtagEnabled(XTAG_QUALIFIED_TAGS))
@@ -645,7 +724,7 @@ int cxxTagCommit(void)
 
 	enum CXXScopeType eScopeType = cxxScopeGetType();
 
-	if(eScopeType == CXXScopeTypeFunction)
+	if(eScopeType == CXXScopeTypeFunction || eScopeType == CXXScopeTypePrototype)
 	{
 		// old ctags didn't do this, and --extra=+q is mainly
 		// for backward compatibility so...
@@ -681,7 +760,9 @@ int cxxTagCommit(void)
 			g_oCXXTag.lineNumber
 		);
 
-	makeTagEntry(&g_oCXXTag);
+	int iCorkQueueIndexFQ = makeTagEntry(&g_oCXXTag);
+	if(piCorkQueueIndexFQ)
+		*piCorkQueueIndexFQ = iCorkQueueIndexFQ;
 
 	vStringDelete(x);
 
@@ -691,5 +772,5 @@ int cxxTagCommit(void)
 void cxxTag(unsigned int uKind,CXXToken * pToken)
 {
 	if(cxxTagBegin(uKind,pToken) != NULL)
-		cxxTagCommit();
+		cxxTagCommit(NULL);
 }

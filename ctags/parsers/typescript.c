@@ -1715,6 +1715,8 @@ static void parseClassBody (const int scope, tokenInfo *const token)
 								parseTemplate,
 								parseTypeofKeyword,
 								parseClassBodyAfterCurlyChars,
+								parseSquares,
+								parseCurlies,
 								parseIdentifier,
 								NULL);
 
@@ -1813,11 +1815,16 @@ static void parseClassBody (const int scope, tokenInfo *const token)
 				case TOKEN_STRING:
 				case TOKEN_COMMA:
 				case TOKEN_NUMBER:
+				case TOKEN_SQUARES:
+				case TOKEN_CURLIES:
 					parsingValue = false;
 					break;
 				case TOKEN_OPEN_PAREN:
-					if (! member) break;
 					uwiUngetC ('(');
+					if (! member) {
+						parsed = tryParser (parseParens, token, false);
+						break;
+					}
 
 					const int nscope = emitTag (member, isGenerator ? TSTAG_GENERATOR : TSTAG_METHOD);
 

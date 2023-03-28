@@ -12,19 +12,31 @@ static void initializeInkoParser (const langType language)
 {
 
 	addLanguageRegexTable (language, "toplevel");
-	addLanguageRegexTable (language, "object");
+	addLanguageRegexTable (language, "class");
 	addLanguageRegexTable (language, "trait");
 	addLanguageRegexTable (language, "method");
 	addLanguageRegexTable (language, "comment");
 	addLanguageRegexTable (language, "impl");
 	addLanguageRegexTable (language, "let");
+	addLanguageRegexTable (language, "sstring");
+	addLanguageRegexTable (language, "dstring");
+	addLanguageRegexTable (language, "tstring");
 
+	addLanguageTagMultiTableRegex (language, "toplevel",
+	                               "^'",
+	                               "", "", "{tenter=sstring}", NULL);
+	addLanguageTagMultiTableRegex (language, "toplevel",
+	                               "^\"",
+	                               "", "", "{tenter=dstring}", NULL);
+	addLanguageTagMultiTableRegex (language, "toplevel",
+	                               "^`",
+	                               "", "", "{tenter=tstring}", NULL);
 	addLanguageTagMultiTableRegex (language, "toplevel",
 	                               "^#",
 	                               "", "", "{tenter=comment}", NULL);
 	addLanguageTagMultiTableRegex (language, "toplevel",
-	                               "^[[:blank:]]*object[[:blank:]]+",
-	                               "", "", "{tenter=object}", NULL);
+	                               "^[[:blank:]]*class[[:blank:]]+",
+	                               "", "", "{tenter=class}", NULL);
 	addLanguageTagMultiTableRegex (language, "toplevel",
 	                               "^[[:blank:]]*trait[[:blank:]]+",
 	                               "", "", "{tenter=trait}", NULL);
@@ -44,15 +56,18 @@ static void initializeInkoParser (const langType language)
 	                               "^\\}",
 	                               "", "", "{scope=pop}", NULL);
 	addLanguageTagMultiTableRegex (language, "toplevel",
+	                               "^(@[a-zA-Z0-9_]+):",
+	                               "\\1", "a", "{scope=ref}", NULL);
+	addLanguageTagMultiTableRegex (language, "toplevel",
 	                               "^.",
 	                               "", "", "", NULL);
-	addLanguageTagMultiTableRegex (language, "object",
+	addLanguageTagMultiTableRegex (language, "class",
 	                               "^([A-Z][a-zA-Z0-9_?]*)[^{]*",
 	                               "\\1", "o", "{scope=push}", NULL);
-	addLanguageTagMultiTableRegex (language, "object",
+	addLanguageTagMultiTableRegex (language, "class",
 	                               "^\\{",
 	                               "", "", "{tleave}", NULL);
-	addLanguageTagMultiTableRegex (language, "object",
+	addLanguageTagMultiTableRegex (language, "class",
 	                               "^.",
 	                               "", "", "", NULL);
 	addLanguageTagMultiTableRegex (language, "trait",
@@ -65,11 +80,11 @@ static void initializeInkoParser (const langType language)
 	                               "^.",
 	                               "", "", "", NULL);
 	addLanguageTagMultiTableRegex (language, "method",
-	                               "^([a-zA-Z0-9_?]+|\\[\\]=?|\\^|&|\\||\\*|\\+|\\-|/|>>|<<|%)[^{]*",
+	                               "^([a-zA-Z0-9_?]+|\\[\\]=?|\\^|&|\\||\\*|\\+|\\-|/|>>|<<|%)",
 	                               "\\1", "m", "{scope=push}", NULL);
 	addLanguageTagMultiTableRegex (language, "method",
-	                               "^\\{",
-	                               "", "", "{tleave}", NULL);
+	                               "^\\{|\n",
+	                               "", "", "{scope=pop}{tleave}", NULL);
 	addLanguageTagMultiTableRegex (language, "method",
 	                               "^.",
 	                               "", "", "", NULL);
@@ -92,15 +107,33 @@ static void initializeInkoParser (const langType language)
 	                               "^.",
 	                               "", "", "", NULL);
 	addLanguageTagMultiTableRegex (language, "let",
-	                               "^(@[a-zA-Z0-9_]+)",
-	                               "\\1", "a", "{scope=ref}", NULL);
-	addLanguageTagMultiTableRegex (language, "let",
 	                               "^([A-Z][a-zA-Z0-9_]+)",
-	                               "\\1", "c", "{scope=ref}", NULL);
-	addLanguageTagMultiTableRegex (language, "let",
-	                               "^=",
+	                               "\\1", "c", "{scope=ref}{tleave}", NULL);
+	addLanguageTagMultiTableRegex (language, "sstring",
+	                               "^'",
 	                               "", "", "{tleave}", NULL);
-	addLanguageTagMultiTableRegex (language, "let",
+	addLanguageTagMultiTableRegex (language, "sstring",
+	                               "^\\\\'",
+	                               "", "", "", NULL);
+	addLanguageTagMultiTableRegex (language, "sstring",
+	                               "^.",
+	                               "", "", "", NULL);
+	addLanguageTagMultiTableRegex (language, "dstring",
+	                               "^\"",
+	                               "", "", "{tleave}", NULL);
+	addLanguageTagMultiTableRegex (language, "dstring",
+	                               "^\\\\\"",
+	                               "", "", "", NULL);
+	addLanguageTagMultiTableRegex (language, "dstring",
+	                               "^.",
+	                               "", "", "", NULL);
+	addLanguageTagMultiTableRegex (language, "tstring",
+	                               "^`",
+	                               "", "", "{tleave}", NULL);
+	addLanguageTagMultiTableRegex (language, "tstring",
+	                               "^\\\\`",
+	                               "", "", "", NULL);
+	addLanguageTagMultiTableRegex (language, "tstring",
 	                               "^.",
 	                               "", "", "", NULL);
 }
@@ -122,7 +155,7 @@ extern parserDefinition* InkoParser (void)
 
 	static kindDefinition InkoKindTable [] = {
 		{
-		  true, 'o', "object", "Object definition",
+		  true, 'o', "class", "Class definition",
 		},
 		{
 		  true, 'm', "method", "Method definition",
@@ -137,7 +170,7 @@ extern parserDefinition* InkoParser (void)
 		  true, 'c', "constant", "Constant definition",
 		},
 		{
-		  true, 'r', "reopen", "Reopen object",
+		  true, 'r', "reopen", "Reopen class",
 		},
 	};
 	static fieldDefinition InkoFieldTable [] = {
@@ -150,6 +183,8 @@ extern parserDefinition* InkoParser (void)
 
 	parserDefinition* const def = parserNew ("Inko");
 
+	def->versionCurrent= 0;
+	def->versionAge    = 0;
 	def->enabled       = true;
 	def->extensions    = extensions;
 	def->patterns      = patterns;

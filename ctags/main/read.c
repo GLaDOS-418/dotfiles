@@ -26,6 +26,7 @@
 #include "routines_p.h"
 #include "options_p.h"
 #include "parse_p.h"
+#include "promise.h"
 #include "promise_p.h"
 #include "stats_p.h"
 #include "trace.h"
@@ -112,6 +113,7 @@ typedef struct sInputFile {
 	inputLineFposMap lineFposMap;
 	vString *allLines;
 	int thinDepth;
+	time_t mtime;
 } inputFile;
 
 static inputLangInfo inputLang;
@@ -122,6 +124,7 @@ static langType sourceLang;
 */
 static void     langStackInit (langStack *langStack);
 static langType langStackTop  (langStack *langStack);
+static langType langStackBotom(langStack *langStack);
 static void     langStackPush (langStack *langStack, langType type);
 static langType langStackPop  (langStack *langStack);
 static void     langStackClear(langStack *langStack);
@@ -146,7 +149,24 @@ extern unsigned long getInputLineNumber (void)
 extern int getInputLineOffset (void)
 {
 	unsigned char *base = (unsigned char *) vStringValue (File.line);
-	int ret = File.currentLine - base - File.ungetchIdx;
+	int ret;
+
+	if (File.currentLine)
+		ret = File.currentLine - base - File.ungetchIdx;
+	else if (File.input.lineNumber)
+	{
+		/* When EOF is saw, currentLine is set to NULL.
+		 * So the way to calculate the offset at the end of file is tricky.
+		 */
+		ret = (mio_tell (File.mio) - (File.bomFound? 3: 0))
+			- getInputFileOffsetForLine(File.input.lineNumber);
+	}
+	else
+	{
+		/* At the first line of file. */
+		ret = mio_tell (File.mio) - (File.bomFound? 3: 0);
+	}
+
 	return ret >= 0 ? ret : 0;
 }
 
@@ -189,7 +209,9 @@ extern MIOPos getInputFilePositionForLine (unsigned int line)
 extern long getInputFileOffsetForLine (unsigned int line)
 {
 	compoundPos *cpos = getInputFileCompoundPosForLine (line);
-	return cpos->offset;
+	long r = cpos->offset - (File.bomFound? 3: 0) - cpos->crAdjustment;
+	Assert (r >= 0);
+	return r;
 }
 
 extern langType getInputLanguage (void)
@@ -243,9 +265,9 @@ extern bool doesInputLanguageAllowNullTag (void)
 	return doesLanguageAllowNullTag (getInputLanguage ());
 }
 
-extern bool doesInputLanguageRequestAutomaticFQTag (void)
+extern bool doesInputLanguageRequestAutomaticFQTag (const tagEntryInfo *e)
 {
-	return doesLanguageRequestAutomaticFQTag (getInputLanguage ());
+	return doesLanguageRequestAutomaticFQTag (e->langType);
 }
 
 extern const char *getSourceFileTagPath (void)
@@ -360,6 +382,9 @@ extern unsigned long getInputLineNumberForFileOffset(long offset)
 {
 	compoundPos *p;
 
+	if (File.bomFound)
+		offset += 3;
+
 	p = bsearch (&offset, File.lineFposMap.pos, File.lineFposMap.count, sizeof (compoundPos),
 		     compoundPosForOffset);
 	if (p == NULL)
@@ -429,6 +454,12 @@ static void resetLangOnStack (inputLangInfo *langInfo, langType lang)
 	Assert (langInfo->stack.count > 0);
 	langStackClear  (& (langInfo->stack));
 	langStackPush (& (langInfo->stack), lang);
+}
+
+extern langType baseLangOnStack (inputLangInfo *langInfo)
+{
+	Assert (langInfo->stack.count > 0);
+	return langStackBotom (& (langInfo->stack));
 }
 
 static void pushLangOnStack (inputLangInfo *langInfo, langType lang)
@@ -597,8 +628,8 @@ static bool parseLineDirective (char *s)
 #define MAX_IN_MEMORY_FILE_SIZE (1024*1024)
 #endif
 
-extern MIO *getMio (const char *const fileName, const char *const openMode,
-		    bool memStreamRequired)
+static MIO *getMioFull (const char *const fileName, const char *const openMode,
+		    bool memStreamRequired, time_t *mtime)
 {
 	FILE *src;
 	fileStatus *st;
@@ -607,6 +638,8 @@ extern MIO *getMio (const char *const fileName, const char *const openMode,
 
 	st = eStat (fileName);
 	size = st->size;
+	if (mtime)
+		*mtime = st->mtime;
 	eStatFree (st);
 	if ((!memStreamRequired)
 	    && (size > MAX_IN_MEMORY_FILE_SIZE || size == 0))
@@ -628,6 +661,12 @@ extern MIO *getMio (const char *const fileName, const char *const openMode,
 	}
 	fclose (src);
 	return mio_new_memory (data, size, eRealloc, eFreeNoNullCheck);
+}
+
+extern MIO *getMio (const char *const fileName, const char *const openMode,
+		    bool memStreamRequired)
+{
+	return getMioFull (fileName, openMode, memStreamRequired, NULL);
 }
 
 /* Return true if utf8 BOM is found */
@@ -664,7 +703,7 @@ static void rewindInputFile (inputFile *f)
  *  fails, it will display an error message and leave the File.mio set to NULL.
  */
 extern bool openInputFile (const char *const fileName, const langType language,
-			      MIO *mio)
+			      MIO *mio, time_t mtime)
 {
 	const char *const openMode = "rb";
 	bool opened = false;
@@ -701,7 +740,7 @@ extern bool openInputFile (const char *const fileName, const langType language,
 			mio_rewind (mio);
 	}
 
-	File.mio = mio? mio_ref (mio): getMio (fileName, openMode, memStreamRequired);
+	File.mio = mio? mio_ref (mio): getMioFull (fileName, openMode, memStreamRequired, &File.mtime);
 
 	if (File.mio == NULL)
 		error (WARNING | PERROR, "cannot open \"%s\"", fileName);
@@ -709,6 +748,8 @@ extern bool openInputFile (const char *const fileName, const langType language,
 	{
 		opened = true;
 
+		if (File.mio == mio)
+			File.mtime = mtime;
 
 		File.bomFound = checkUTF8BOM (File.mio, true);
 
@@ -718,8 +759,8 @@ extern bool openInputFile (const char *const fileName, const langType language,
 		File.filePosition.offset = StartOfLine.offset = mio_tell (File.mio);
 		File.currentLine  = NULL;
 
-		if (File.line != NULL)
-			vStringClear (File.line);
+		File.line = vStringNewOrClear (File.line);
+		File.ungetchIdx = 0;
 
 		setInputFileParameters  (vStringNewInit (fileName), language);
 		File.input.lineNumberOrigin = 0L;
@@ -741,6 +782,11 @@ extern bool openInputFile (const char *const fileName, const langType language,
 	return opened;
 }
 
+extern time_t getInputFileMtime (void)
+{
+	return File.mtime;
+}
+
 extern void resetInputFile (const langType language)
 {
 	Assert (File.mio);
@@ -751,8 +797,10 @@ extern void resetInputFile (const langType language)
 	File.filePosition.offset = StartOfLine.offset = mio_tell (File.mio);
 	File.currentLine  = NULL;
 
-	if (File.line != NULL)
-		vStringClear (File.line);
+	Assert (File.line);
+	vStringClear (File.line);
+	File.ungetchIdx = 0;
+
 	if (hasLanguageMultilineRegexPatterns (language))
 		File.allLines = vStringNew ();
 
@@ -851,9 +899,9 @@ static eolType readLine (vString *const vLine, MIO *const mio)
 		 * CR (Mac OS 9). As CR-only EOL isn't handled by gets() and Mac OS 9
 		 * is dead, we only handle CR-LF EOLs and convert them into LF. */
 		if (newLine && vStringLength (vLine) > 1 &&
-			vStringItem (vLine, vStringLength (vLine) - 2) == '\r')
+			vStringChar (vLine, vStringLength (vLine) - 2) == '\r')
 		{
-			vStringItem (vLine, vStringLength (vLine) - 2) = '\n';
+			vStringChar (vLine, vStringLength (vLine) - 2) = '\n';
 			vStringChop (vLine);
 			r = eol_cr_nl;
 		}
@@ -868,14 +916,12 @@ static eolType readLine (vString *const vLine, MIO *const mio)
 	return r;
 }
 
-static vString *iFileGetLine (void)
+static vString *iFileGetLine (bool chop_newline)
 {
 	eolType eol;
 	langType lang = getInputLanguage();
 
-	if (File.line == NULL)
-		File.line = vStringNew ();
-
+	Assert (File.line);
 	eol = readLine (File.line, File.mio);
 
 	if (vStringLength (File.line) > 0)
@@ -888,10 +934,16 @@ static vString *iFileGetLine (void)
 
 		if (Option.lineDirectives && vStringChar (File.line, 0) == '#')
 			parseLineDirective (vStringValue (File.line) + 1);
-		matchLanguageRegex (lang, File.line);
 
 		if (File.allLines)
 			vStringCat (File.allLines, File.line);
+
+		bool chopped = vStringStripNewline (File.line);
+
+		matchLanguageRegex (lang, File.line);
+
+		if (chopped && !chop_newline)
+			vStringPutNewlinAgainUnsafe (File.line);
 
 		return File.line;
 	}
@@ -936,7 +988,7 @@ extern int getcFromInputFile (void)
 		}
 		else
 		{
-			vString* const line = iFileGetLine ();
+			vString* const line = iFileGetLine (false);
 			if (line != NULL)
 				File.currentLine = (unsigned char*) vStringValue (line);
 			if (File.currentLine == NULL)
@@ -992,12 +1044,11 @@ extern int skipToCharacterInInputFile2 (int c0, int c1)
  */
 extern const unsigned char *readLineFromInputFile (void)
 {
-	vString* const line = iFileGetLine ();
+	vString* const line = iFileGetLine (true);
 	const unsigned char* result = NULL;
 	if (line != NULL)
 	{
 		result = (const unsigned char*) vStringValue (line);
-		vStringStripNewline (line);
 		DebugStatement ( debugPrintf (DEBUG_READ, "%s\n", result); )
 	}
 	return result;
@@ -1045,6 +1096,7 @@ extern char *readLineFromBypass (
 }
 
 extern void   pushNarrowedInputStream (
+				       bool useMemoryStreamInput,
 				       unsigned long startLine, long startCharOffset,
 				       unsigned long endLine, long endCharOffset,
 				       unsigned long sourceLineOffset,
@@ -1059,9 +1111,17 @@ extern void   pushNarrowedInputStream (
 						  endLine, endCharOffset,
 						  sourceLineOffset))
 	{
-		File.thinDepth++;
-		verbose ("push thin stream (%d)\n", File.thinDepth);
-		return;
+		if ((!useMemoryStreamInput
+			 || mio_memory_get_data (File.mio, NULL)))
+		{
+			File.thinDepth++;
+			verbose ("push thin stream (%d)\n", File.thinDepth);
+			return;
+		}
+		error(WARNING, "INTERNAL ERROR: though pushing thin MEMORY stream, "
+			  "underlying input stream is a FILE stream: %s@%s",
+			  vStringValue (File.input.name), vStringValue (File.input.tagPath));
+		AssertNotReached ();
 	}
 	Assert (File.thinDepth == 0);
 
@@ -1074,7 +1134,17 @@ extern void   pushNarrowedInputStream (
 
 	tmp = getInputFilePositionForLine (endLine);
 	mio_setpos (File.mio, &tmp);
-	mio_seek (File.mio, endCharOffset, SEEK_CUR);
+	if (endCharOffset == EOL_CHAR_OFFSET)
+	{
+		long line_start = mio_tell (File.mio);
+		vString *tmpstr = vStringNew ();
+		readLine (tmpstr, File.mio);
+		endCharOffset = mio_tell (File.mio) - line_start;
+		vStringDelete (tmpstr);
+		Assert (endCharOffset >= 0);
+	}
+	else
+		mio_seek (File.mio, endCharOffset, SEEK_CUR);
 	q = mio_tell (File.mio);
 
 	mio_setpos (File.mio, &original);
@@ -1154,6 +1224,11 @@ extern langType popLanguage (void)
 	return popLangOnStack (& inputLang);
 }
 
+extern langType getLanguageForBaseParser (void)
+{
+	return baseLangOnStack (& inputLang);
+}
+
 static void langStackInit (langStack *langStack)
 {
 	langStack->count = 0;
@@ -1166,6 +1241,12 @@ static langType langStackTop (langStack *langStack)
 {
 	Assert (langStack->count > 0);
 	return langStack->languages [langStack->count - 1];
+}
+
+static langType langStackBotom(langStack *langStack)
+{
+	Assert (langStack->count > 0);
+	return langStack->languages [0];
 }
 
 static void     langStackClear (langStack *langStack)

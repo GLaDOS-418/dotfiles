@@ -1,7 +1,3 @@
-let CONSTANT = 10
-
-object Person {
-  def init(name: String) {
-    let @name = name
-  }
-}
+let FOO = 10
+let BAR = 20
+let foo: Bla = 30

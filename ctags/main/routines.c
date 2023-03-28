@@ -300,19 +300,6 @@ extern int strnuppercmp (const char *s1, const char *s2, size_t n)
 	return result;
 }
 
-#ifndef HAVE_STRSTR
-extern char* strstr (const char *str, const char *substr)
-{
-	const size_t length = strlen (substr);
-	const char *p;
-
-	for (p = str  ;  *p != '\0'  ;  ++p)
-		if (strncmp (p, substr, length) == 0)
-			return (char*) p;
-	return NULL;
-}
-#endif
-
 extern char* strrstr (const char *str, const char *substr)
 {
 	const size_t length = strlen (substr);
@@ -477,6 +464,7 @@ extern fileStatus *eStat (const char *const fileName)
 				file.isSetuid = (bool) ((status.st_mode & S_ISUID) != 0);
 				file.isSetgid = (bool) ((status.st_mode & S_ISGID) != 0);
 				file.size = status.st_size;
+				file.mtime = status.st_mtime;
 			}
 		}
 	}
@@ -893,11 +881,10 @@ extern char* relativeFilename (const char *file, const char *dir)
 	return res;
 }
 
-extern MIO *tempFile (const char *const mode, char **const pName)
+extern FILE *tempFileFP (const char *const mode, char **const pName)
 {
 	char *name;
 	FILE *fp;
-	MIO *mio;
 	int fd;
 #if defined(HAVE_MKSTEMP)
 	const char *const pattern = "tags.XXXXXX";
@@ -950,10 +937,13 @@ extern MIO *tempFile (const char *const mode, char **const pName)
 	fp = fdopen (fd, mode);
 	if (fp == NULL)
 		error (FATAL | PERROR, "cannot open temporary file");
-	mio = mio_new_fp (fp, fclose);
-	DebugStatement (
-		debugPrintf (DEBUG_STATUS, "opened temporary file %s\n", name); )
 	Assert (*pName == NULL);
 	*pName = name;
-	return mio;
+	return fp;
+}
+
+extern MIO *tempFile (const char *const mode, char **const pName)
+{
+	FILE *fp = tempFileFP (mode, pName);
+	return mio_new_fp (fp, fclose);
 }

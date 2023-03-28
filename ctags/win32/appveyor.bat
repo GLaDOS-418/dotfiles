@@ -34,8 +34,11 @@ exit 1
 :msbuild_build
 :: ----------------------------------------------------------------------
 :: Using VC12 (VC2013) with msbuild, iconv disabled
-cd win32
 @echo on
+copy win32\config_mvc.h config.h
+copy win32\gnulib_h\langinfo.h gnulib
+copy win32\gnulib_h\fnmatch.h gnulib
+cd win32
 msbuild ctags_vs2013.sln /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll" /p:Configuration=%CONFIGURATION%
 
 @echo off
@@ -139,9 +142,9 @@ if "%normalbuild%"=="no" (
   bash -lc "for i in {1..3}; do pacman --noconfirm --noprogressbar -S --needed mingw-w64-%MSYS2_ARCH%-python3-sphinx && break || sleep 15; done"
 )
 :: Install necessary packages
-bash -lc "for i in {1..3}; do pacman --noconfirm --noprogressbar -S --needed mingw-w64-%MSYS2_ARCH%-{jansson,libxml2,libyaml} && break || sleep 15; done"
+bash -lc "for i in {1..3}; do pacman --noconfirm --noprogressbar -S --needed mingw-w64-%MSYS2_ARCH%-{jansson,libxml2,libyaml,pcre2} autoconf automake && break || sleep 15; done"
 
-bash -lc "./autogen.sh"
+bash -lc "./autogen.sh" || exit 1
 :: Use static link.
 bash -lc "./configure --disable-external-sort --enable-static && make -j2"
 
@@ -161,7 +164,7 @@ if "%normalbuild%-%ARCH%"=="yes-x64" (
   @echo Tests for msys2 x64 are skipped.
   exit 0
 )
-bash -lc "make check APPVEYOR=1 PYTHON=py"
+bash -lc "make check PYTHON=py"
 
 @echo off
 goto :eof
@@ -194,18 +197,27 @@ copy COPYING package\license > nul
 copy win32\mkstemp\COPYING.MinGW-w64-runtime.txt package\license > nul
 robocopy man package\man *.html > nul
 cd package
-7z a ..\ctags-%ver%-%ARCH%.debug.zip %filelist% %dirlist%
-strip *.exe
+for %%i in (*.exe) do call :strip %%i
 7z a ..\ctags-%ver%-%ARCH%.zip %filelist% %dirlist%
+7z a ..\ctags-%ver%-%ARCH%.debuginfo.zip *.exe.debug
 cd ..
+goto :eof
+
+:strip
+objcopy --only-keep-debug %1 %1.debug
+strip %1
+objcopy --add-gnu-debuglink=%1.debug %1
 goto :eof
 
 
 :mingw_build
 :: ----------------------------------------------------------------------
-:: Using MinGW without autotools, iconv disabled
+:: Using MinGW-w64 without autotools, iconv disabled
 @echo on
-path C:\MinGW\bin;C:\MinGW\msys\1.0\bin;%path%
+set MSYS2_ARCH=x86_64
+set MSYS2_DIR=msys64
+set MSYSTEM=MINGW64
+PATH C:\%MSYS2_DIR%\%MSYSTEM%\bin;C:\%MSYS2_DIR%\usr\bin;%PATH%
 make -f mk_mingw.mak -j2
 
 @echo off
@@ -231,7 +243,7 @@ goto :eof
 :: ----------------------------------------------------------------------
 :: Using Cygwin, iconv enabled
 @echo on
-c:\cygwin64\setup-x86_64.exe -qnNdO -P dos2unix,libiconv-devel,libjansson-devel,libxml2-devel,libyaml-devel
+c:\cygwin64\setup-x86_64.exe -qnNdO -P dos2unix,libiconv-devel,libjansson-devel,libxml2-devel,libyaml-devel,pcre2,perl
 PATH c:\cygwin64\bin;%PATH%
 set CHERE_INVOKING=yes
 bash -lc "./autogen.sh"
@@ -248,7 +260,7 @@ c:\cygwin64\bin\file readtags.exe
 :: Check if it works
 .\ctags --version || exit 1
 :: Run tests
-bash -lc "make check APPVEYOR=1 PYTHON=py"
+bash -lc "make check PYTHON=py"
 
 @echo off
 goto :eof

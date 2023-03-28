@@ -25,6 +25,8 @@
 #include "routines.h"
 #include "debug.h"
 #include "objpool.h"
+#include "promise.h"
+#include "trace.h"
 
 #define isIdentChar(c) (isalnum (c) || (c) == '_' || (c) >= 0x80)
 #define newToken() (objPoolGet (TokenPool))
@@ -236,6 +238,35 @@ typedef enum eTokenType {
 	TOKEN_BACKSLASH,
 	TOKEN_QMARK,
 } tokenType;
+
+#ifdef DEBUG
+static const char *tokenTypes[] = {
+#define E(X) [TOKEN_##X] = #X
+	E(UNDEFINED),
+	E(EOF),
+	E(CHARACTER),
+	E(CLOSE_PAREN),
+	E(SEMICOLON),
+	E(COLON),
+	E(COMMA),
+	E(KEYWORD),
+	E(OPEN_PAREN),
+	E(OPERATOR),
+	E(IDENTIFIER),
+	E(STRING),
+	E(PERIOD),
+	E(OPEN_CURLY),
+	E(CLOSE_CURLY),
+	E(EQUAL_SIGN),
+	E(OPEN_SQUARE),
+	E(CLOSE_SQUARE),
+	E(VARIABLE),
+	E(AMPERSAND),
+	E(BACKSLASH),
+	E(QMARK),
+#undef E
+};
+#endif
 
 typedef struct {
 	tokenType		type;
@@ -610,26 +641,69 @@ static void parseString (vString *const string, const int delimiter)
 	}
 }
 
-/* reads an HereDoc or a NowDoc (the part after the <<<).
+/* Strips @indent_len characters from lines in @string to get the correct
+ * string value for an indented heredoc (PHP 7.3+).
+ * This doesn't handle invalid values specially and might yield surprising
+ * results with them, but it doesn't really matter as it's invalid anyway. */
+static void stripHeredocIndent (vString *const string, size_t indent_len)
+{
+	char *str = vStringValue (string);
+	size_t str_len = vStringLength (string);
+	char *p = str;
+	size_t new_len = str_len;
+	bool at_line_start = true;
+
+	while (*p)
+	{
+		if (at_line_start)
+		{
+			size_t p_len;
+			size_t strip_len;
+
+			p_len = str_len - (p - str);
+			strip_len = p_len < indent_len ? p_len : indent_len;
+			memmove (p, p + strip_len, p_len - strip_len);
+			p += strip_len;
+			new_len -= strip_len;
+		}
+		/* CRLF is already normalized as LF */
+		at_line_start = (*p == '\r' || *p == '\n');
+		p++;
+	}
+	vStringTruncate (string, new_len);
+}
+
+/* reads a PHP >= 7.3 HereDoc or a NowDoc (the part after the <<<).
  * 	<<<[ \t]*(ID|'ID'|"ID")
  * 	...
- * 	ID;?
+ * 	[ \t]*ID[^:indent-char:];?
  *
  * note that:
  *  1) starting ID must be immediately followed by a newline;
  *  2) closing ID is the same as opening one;
- *  3) closing ID must be immediately followed by a newline or a semicolon
- *     then a newline.
+ *  3) closing ID must not be immediately followed by an identifier character;
+ *  4) optional indentation of the closing ID is stripped from body lines,
+ *     which lines must have the exact same prefix indentation.
  *
- * Example of a *single* valid heredoc:
+ * This is slightly relaxed from PHP < 7.3, where the closing ID had to be the
+ * only thing on its line, with the only exception of a semicolon right after
+ * the ID.
+ *
+ * Example of a single valid heredoc:
  * 	<<< FOO
  * 	something
  * 	something else
- * 	FOO this is not an end
- * 	FOO; this isn't either
- * 	FOO; # neither this is
+ * 	FOO_this is not an end
  * 	FOO;
  * 	# previous line was the end, but the semicolon wasn't required
+ *
+ * Another example using indentation and more code after the heredoc:
+ * 	<<<FOO
+ * 		something
+ * 		something else
+ * 		FOO . 'hello';
+ * 	# the heredoc ends at FOO, and leading tabs are stripped from the body.
+ * 	# ". 'hello'" is a normal concatenation operator and the string "hello".
  */
 static void parseHeredoc (vString *const string)
 {
@@ -673,54 +747,43 @@ static void parseHeredoc (vString *const string)
 	{
 		c = getcFromInputFile ();
 
-		if (c != '\r' && c != '\n')
-			vStringPut (string, (char) c);
-		else
+		vStringPut (string, (char) c);
+		if (c == '\r' || c == '\n')
 		{
-			/* new line, check for a delimiter right after */
-			int nl = c;
-			int extra = EOF;
+			/* new line, check for a delimiter right after.  No need to handle
+			 * CRLF, getcFromInputFile() normalizes it to LF already. */
+			const size_t prev_string_len = vStringLength (string) - 1;
+			size_t indent_len = 0;
 
 			c = getcFromInputFile ();
+			while (c == ' ' || c == '\t')
+			{
+				vStringPut (string, (char) c);
+				c = getcFromInputFile ();
+				indent_len++;
+			}
+
 			for (len = 0; c != 0 && (c - delimiter[len]) == 0; len++)
 				c = getcFromInputFile ();
 
 			if (delimiter[len] != 0)
 				ungetcToInputFile (c);
-			else
+			else if (! isIdentChar (c))
 			{
-				/* line start matched the delimiter, now check whether there
-				 * is anything after it */
-				if (c == '\r' || c == '\n')
-				{
-					ungetcToInputFile (c);
-					break;
-				}
-				else if (c == ';')
-				{
-					int d = getcFromInputFile ();
-					if (d == '\r' || d == '\n')
-					{
-						/* put back the semicolon since it's not part of the
-						 * string.  we can't put back the newline, but it's a
-						 * whitespace character nobody cares about it anyway */
-						ungetcToInputFile (';');
-						break;
-					}
-					else
-					{
-						/* put semicolon in the string and continue */
-						extra = ';';
-						ungetcToInputFile (d);
-					}
-				}
+				/* line start matched the delimiter and has a separator, we're done */
+				ungetcToInputFile (c);
+
+				/* strip trailing newline and indent of the end delimiter */
+				vStringTruncate (string, prev_string_len);
+
+				/* strip indent from the value if needed */
+				if (indent_len > 0)
+					stripHeredocIndent (string, indent_len);
+				break;
 			}
 			/* if we are here it wasn't a delimiter, so put everything in the
 			 * string */
-			vStringPut (string, (char) nl);
 			vStringNCatS (string, delimiter, len);
-			if (extra != EOF)
-				vStringPut (string, (char) extra);
 		}
 	}
 	while (c != EOF);
@@ -808,13 +871,17 @@ static int findPhpStart (void)
 		if ((c = getcFromInputFile ()) == '<')
 		{
 			c = getcFromInputFile ();
-			/* <? and <?php, but not <?xml */
+			/* <?, <?= and <?php, but not <?xml */
 			if (c == '?')
 			{
+				c = getcFromInputFile ();
+				/* echo tag */
+				if (c == '=')
+					c = getcFromInputFile ();
 				/* don't enter PHP mode on "<?xml", yet still support short open tags (<?) */
-				if (tolower ((c = getcFromInputFile ())) != 'x' ||
-					tolower ((c = getcFromInputFile ())) != 'm' ||
-					tolower ((c = getcFromInputFile ())) != 'l')
+				else if (tolower (c)                          != 'x' ||
+				         tolower ((c = getcFromInputFile ())) != 'm' ||
+				         tolower ((c = getcFromInputFile ())) != 'l')
 				{
 					break;
 				}
@@ -839,16 +906,8 @@ static int skipSingleComment (void)
 	do
 	{
 		c = getcFromInputFile ();
-		if (c == '\r')
-		{
-			int next = getcFromInputFile ();
-			if (next != '\n')
-				ungetcToInputFile (next);
-			else
-				c = next;
-		}
 		/* ?> in single-line comments leaves PHP mode */
-		else if (c == '?')
+		if (c == '?')
 		{
 			int next = getcFromInputFile ();
 			if (next == '>')
@@ -873,9 +932,19 @@ getNextChar:
 
 	if (! InPhp)
 	{
+		unsigned long startSourceLineNumber = getSourceLineNumber ();
+		unsigned long startLineNumber = getInputLineNumber ();
+		int startLineOffset = getInputLineOffset ();
+
 		c = findPhpStart ();
 		if (c != EOF)
 			InPhp = true;
+
+		unsigned long endLineNumber = getInputLineNumber ();
+		int endLineOffset = getInputLineOffset ();
+
+		makePromise ("HTML", startLineNumber, startLineOffset,
+					 endLineNumber, endLineOffset, startSourceLineNumber);
 	}
 	else
 		c = getcFromInputFile ();
@@ -1089,6 +1158,8 @@ getNextChar:
 	}
 
 	MayBeKeyword = nextMayBeKeyword;
+
+	TRACE_PRINT("token: %s (%s)", tokenTypes[token->type], vStringValue (token->string));
 }
 
 static void readQualifiedName (tokenInfo *const token, vString *name,
@@ -1529,6 +1600,9 @@ static bool parseUse (tokenInfo *const token)
 		if (readNext)
 		{
 			readToken (token);
+			/* in case of a trailing comma (or an empty group) */
+			if (token->type == TOKEN_CLOSE_CURLY)
+				break;
 			readQualifiedName (token, refName, nameToken);
 		}
 
@@ -1670,6 +1744,8 @@ static void enterScope (tokenInfo *const parentToken,
 						const vString *const extraScope,
 						const int parentKind)
 {
+	TRACE_ENTER();
+
 	tokenInfo *token = newToken ();
 	vString *typeName = vStringNew ();
 	int origParentKind = parentToken->parentKind;
@@ -1769,10 +1845,14 @@ static void enterScope (tokenInfo *const parentToken,
 	parentToken->parentKind = origParentKind;
 	vStringDelete (typeName);
 	deleteToken (token);
+
+	TRACE_LEAVE();
 }
 
 static void findTags (bool startsInPhpMode)
 {
+	TRACE_ENTER();
+
 	tokenInfo *const token = newToken ();
 
 	InPhp = startsInPhpMode;
@@ -1792,16 +1872,22 @@ static void findTags (bool startsInPhpMode)
 	vStringDelete (FullScope);
 	vStringDelete (CurrentNamesapce);
 	deleteToken (token);
+
+	TRACE_LEAVE();
 }
 
 static void findPhpTags (void)
 {
+	TRACE_ENTER();
 	findTags (false);
+	TRACE_LEAVE();
 }
 
 static void findZephirTags (void)
 {
+	TRACE_ENTER();
 	findTags (true);
+	TRACE_LEAVE();
 }
 
 static void initializePool (void)

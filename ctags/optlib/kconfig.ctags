@@ -8,12 +8,14 @@
 #
 #  Reference
 #     https://www.kernel.org/doc/html/latest/kbuild/kconfig-language.html
+#     https://www.kernel.org/doc/html/latest/kbuild/kconfig-macro-language.html
 #
-#  
+#
 #  This parser was originally written in C as proplosed in #2553 by Maxime.
 #  Masatake converted it to an optlib file.
 #
---langdef=Kconfig
+
+--langdef=Kconfig{version=1.1}
 --map-Kconfig=+(Kconfig*)
 
 --kinddef-Kconfig=c,config,configs
@@ -21,6 +23,7 @@
 --kinddef-Kconfig=M,mainMenu,the main menu
 --kinddef-Kconfig=k,kconfig,kconfig file
 --kinddef-Kconfig=C,choice,choices
+--kinddef-Kconfig=v,variable,macro variables
 
 --_roledef-Kconfig.{kconfig}=source,kconfig file loaded with source directive
 
@@ -43,7 +46,7 @@
 # Date:   Thu Jun 22 12:21:20 2006 +0900
 #
 #    kbuild: adding symbols in Kconfig and defconfig to TAGS
-#    
+#
 --_extradef-Kconfig=configPrefixed,prepend CONFIG_ to config names
 --extras-Kconfig=+{configPrefixed}
 
@@ -51,15 +54,19 @@
 --regex-Kconfig=/^[ \t]*#.*$//{placeholder}
 
 --regex-Kconfig=/^[ \t]*(menu)?config[ \t]+([A-Za-z0-9_]+)[ \t]*$/\2/c/{scope=ref}
---regex-Kconfig=/^[ \t]*(menu)?config[ \t]+([A-Za-z0-9_]+)[ \t]*$/CONFIG_\2/c/{scope=ref}{_extra=configPrefixed}{exclusive}
+--regex-Kconfig=/^[ \t]*(menu)?config[ \t]+([A-Za-z0-9_]+)[ \t]*$/CONFIG_\2/c/{scope=ref}{_extra=configPrefixed}
+--regex-Kconfig=/^[ \t]*(menu)?config[ \t]+([A-Za-z0-9_]+)[ \t]*$/CONFIG_\2_MODULE/c/{scope=ref}{_extra=configPrefixed}{exclusive}
 
 --regex-Kconfig=/^[ \t]*menu[ \t]+"([^"]+)"[ \t]*/\1/m/{scope=push}{exclusive}
 --regex-Kconfig=/^[ \t]*endmenu[ \t]*//{scope=pop}{placeholder}{exclusive}
 
---regex-Kconfig=/^[ \t]*source[ \t]+"([^"]+)"[ \t]*/\1/k/{_role=source}{exclusive}{scope=ref}
+# Qemu's Kconfig does't use double quotes
+--regex-Kconfig=/^[ \t]*source[ \t]+"?([^"]+)"?[ \t]*/\1/k/{_role=source}{exclusive}{scope=ref}
 
 --regex-Kconfig=/^[ \t]*choice[ \t]+([A-Za-z0-9_]+)[ \t]*/\1/C/{scope=push}{exclusive}
 --regex-Kconfig=/^[ \t]*choice[ \t]*$//C/{_anonymous=choice}{scope=push}{exclusive}
 --regex-Kconfig=/^[ \t]*endchoice[ \t]*//{scope=pop}{placeholder}{exclusive}
 
 --regex-Kconfig=/^[ \t]*mainmenu[ \t]+"([^"]+)"[ \t]*/\1/M/{exclusive}
+
+--regex-Kconfig=/^([-a-zA-Z0-9_$]+)[ \t]*:?=/\1/v/{exclusive}

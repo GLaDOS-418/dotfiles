@@ -92,6 +92,9 @@ int cxxTagGetCPPKindDefinitionCount(void);
 // Returns true if the specified tag kind is enabled in the current language
 bool cxxTagKindEnabled(unsigned int uTagKind);
 
+// Returns true if the specified tag role is enabled in the current language
+bool cxxTagRoleEnabled(unsigned int uTagKind, int iTagRole);
+
 // Begin composing a tag. The tag kind must correspond to the current language.
 // Returns NULL if the tag should *not* be included in the output
 // or the tag entry info that can be filled up with extension fields.
@@ -150,7 +153,15 @@ typedef enum _CXXTagProperty
 	// scoped enum (C++11)
 	CXXTagPropertyScopedEnum = (1 << 16),
 	// function-try-block: int f() try { ... } catch { ... }
-	CXXTagPropertyFunctionTryBlock = (1 << 17)
+	CXXTagPropertyFunctionTryBlock = (1 << 17),
+	// constexpr has been seen.
+	CXXTagPropertyConstexpr = (1 << 18),
+	// consteval has been seen.
+	CXXTagPropertyConsteval = (1 << 19),
+	// constinit has been seen.
+	CXXTagPropertyConstinit = (1 << 20),
+	// thread_local has been seen.
+	CXXTagPropertyThreadLocal = (1 << 21),
 } CXXTagProperty;
 
 // Set the modifiers field of the tag.
@@ -181,13 +192,14 @@ void cxxTagHandleTemplateFields();
 
 // Commit the composed tag. Must follow a successful cxxTagBegin() call.
 // Returns the index of the tag in the cork queue.
-int cxxTagCommit(void);
+int cxxTagCommit(int *piCorkQueueIndexFQ);
 
 // Same as cxxTagBegin() eventually followed by cxxTagCommit()
 void cxxTag(unsigned int uKind,CXXToken * pToken);
 
 typedef enum {
 	CR_MACRO_UNDEF,
+	CR_MACRO_CONDITION,
 } cMacroRole;
 
 typedef enum {
@@ -199,4 +211,7 @@ typedef enum {
 // Must be called before attempting to access the kind options.
 void cxxTagInitForLanguage(langType eLangType);
 
+// Functions for filling iCorkIndex field of tokens.
+void cxxTagUseTokensInRangeAsPartOfDefTags(int iCorkIndex, CXXToken * pFrom, CXXToken * pTo);
+void cxxTagUseTokenAsPartOfDefTag(int iCorkIndex, CXXToken * pToken);
 #endif //!_cxxTag_h_

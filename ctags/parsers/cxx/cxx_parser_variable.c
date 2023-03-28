@@ -103,6 +103,7 @@ CXXToken * cxxParserFindFirstPossiblyNestedAndQualifiedIdentifier(
 bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uFlags)
 {
 	int iCorkIndex = CORK_NIL;
+	int iCorkIndexFQ = CORK_NIL;
 
 	CXX_DEBUG_ENTER();
 
@@ -254,7 +255,7 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 		switch(t->eType)
 		{
 			case CXXTokenTypeParenthesisChain:
-			{
+
 				// At a parenthesis chain we need some additional checks.
 				if(
 						// check for function pointers or nasty arrays
@@ -289,7 +290,10 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 					pTokenBefore = t->pPrev;
 					t = t->pNext->pNext;
 					pRemoveStart = t;
-				} else if(
+					goto got_identifier;
+				}
+
+				if(
 						(t->pChain->iCount == 3) &&
 						cxxTokenTypeIs(
 								cxxTokenChainAt(t->pChain,1),
@@ -303,7 +307,9 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 				{
 					CXX_DEBUG_LEAVE_TEXT("Parenthesis seems to define an __ARGS style prototype");
 					return bGotVariable;
-				} else if(
+				}
+
+				if(
 						cxxTokenTypeIs(t->pPrev,CXXTokenTypeIdentifier) &&
 						(
 							(eScopeType == CXXScopeTypeNamespace) ||
@@ -316,7 +322,10 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 					// ok, *might* be variable instantiation
 					pIdentifier = t->pPrev;
 					pTokenBefore = pIdentifier->pPrev;
-				} else if (
+					goto got_identifier;
+				}
+
+				if (
 						// Variable declaration in parenthesis.
 						// We handle only cases that are clearly variable declarations.
 						// We leave alone the stuff that may also be a function call.
@@ -328,7 +337,9 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 							cxxTokenTypeIsOneOf(t->pPrev,CXXTokenTypeStar | CXXTokenTypeAnd) ||
 							(
 								cxxTokenTypeIs(t->pPrev,CXXTokenTypeKeyword) &&
-								cxxKeywordMayBePartOfTypeName(t->pPrev->eKeyword)
+								cxxKeywordMayBePartOfTypeName(t->pPrev->eKeyword) &&
+								// but not decltype(var)!
+								!cxxKeywordIsDecltype(t->pPrev->eKeyword)
 							)
 						) &&
 						(
@@ -337,14 +348,26 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 						)
 					)
 				{
-					CXX_DEBUG_LEAVE_TEXT("Parenthesis seems to surround a variable definition");
+					CXX_DEBUG_PRINT("Parenthesis seems to surround a variable definition");
 					pTokenBefore = t->pPrev;
 					t = t->pNext;
-				} else {
-					CXX_DEBUG_LEAVE_TEXT("No recognizable parenthesis form for a variable");
-					return bGotVariable;
+					goto got_identifier;
 				}
-			}
+
+				if(
+					cxxTokenTypeIs(t->pPrev,CXXTokenTypeKeyword) &&
+					cxxKeywordIsDecltype(t->pPrev->eKeyword) &&
+					t->pNext
+				)
+				{
+					// part of typename -> skip ahead
+					CXX_DEBUG_PRINT("Parenthesis follows decltype(), skipping");
+					t = t->pNext;
+					continue;
+				}
+
+				CXX_DEBUG_LEAVE_TEXT("No recognizable parenthesis form for a variable");
+				return bGotVariable;
 			break;
 			case CXXTokenTypeBracketChain:
 				if(
@@ -356,10 +379,11 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 					// ok, *might* be new C++ style variable initialization
 					pIdentifier = t->pPrev;
 					pTokenBefore = pIdentifier->pPrev;
-				} else {
-					CXX_DEBUG_LEAVE_TEXT("Bracket chain that doesn't look like a C++ var init");
-					return bGotVariable;
+					goto got_identifier;
 				}
+
+				CXX_DEBUG_LEAVE_TEXT("Bracket chain that doesn't look like a C++ var init");
+				return bGotVariable;
 			break;
 			case CXXTokenTypeSingleColon:
 				// check for bitfield
@@ -388,10 +412,13 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 						pIdentifier = t->pPrev;
 						pTokenBefore = pIdentifier->pPrev;
 					}
-				} else {
-					CXX_DEBUG_LEAVE_TEXT("Single colon that doesn't look like a bit field");
-					return bGotVariable;
+
+					goto got_identifier;
+
 				}
+
+				CXX_DEBUG_LEAVE_TEXT("Single colon that doesn't look like a bit field");
+				return bGotVariable;
 			break;
 			case CXXTokenTypeSquareParenthesisChain:
 				// check for array
@@ -451,6 +478,7 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 			break;
 		}
 
+got_identifier:
 		CXX_DEBUG_ASSERT(pIdentifier,"We should have found an identifier here");
 
 		if(!pTokenBefore)
@@ -568,14 +596,32 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 						return bGotVariable;
 					}
 				} else if(
-						// Still 'MACRO(whatever) variable;' case
+						// Possibly one of:
+						//   MACRO(whatever) variable;
+						//   decltype(whatever) variable;
+						//   __typeof(whatever) variable;
+						//   __typeof__(whatever) variable;
+						//   typeof(whatever) variable;
 						cxxTokenTypeIs(pTokenBefore,CXXTokenTypeParenthesisChain) &&
 						pTokenBefore->pPrev &&
-						cxxTokenTypeIs(pTokenBefore->pPrev,CXXTokenTypeIdentifier) &&
-						!pTokenBefore->pPrev->pPrev
+						(!pTokenBefore->pPrev->pPrev ||
+						 (
+							 cxxTokenTypeIs(pTokenBefore->pPrev->pPrev,CXXTokenTypeKeyword) &&
+							 cxxKeywordMayAppearInVariableDeclaration(pTokenBefore->pPrev->pPrev->eKeyword)
+						 )
+						) &&
+						(
+							// macro
+							cxxTokenTypeIs(pTokenBefore->pPrev,CXXTokenTypeIdentifier) ||
+							// decltype or typeof
+							(
+								cxxTokenTypeIs(pTokenBefore->pPrev,CXXTokenTypeKeyword) &&
+								cxxKeywordIsDecltype(pTokenBefore->pPrev->eKeyword)
+							)
+						)
 					)
 				{
-					CXX_DEBUG_PRINT("Type seems to be hidden in a macro");
+					CXX_DEBUG_PRINT("Type seems to be hidden in a macro or defined by decltype");
 				} else {
 					CXX_DEBUG_LEAVE_TEXT(
 							"Token '%s' of type 0x%02x does not seem " \
@@ -723,6 +769,13 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 				// Volatile is part of the type, so we don't mark it as a property
 				//if(g_cxx.uKeywordState & CXXParserKeywordStateSeenVolatile)
 				//	uProperties |= CXXTagPropertyVolatile;
+				if(g_cxx.uKeywordState & CXXParserKeywordStateSeenConstexpr)
+					uProperties |= CXXTagPropertyConstexpr;
+				if(g_cxx.uKeywordState & CXXParserKeywordStateSeenConstinit)
+					uProperties |= CXXTagPropertyConstinit;
+				// consteval is not here; it is for functions.
+				if(g_cxx.uKeywordState & CXXParserKeywordStateSeenThreadLocal)
+					uProperties |= CXXTagPropertyThreadLocal;
 
 				pszProperties = cxxTagSetProperties(uProperties);
 			}
@@ -730,7 +783,8 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 			if(bGotTemplate)
 				cxxTagHandleTemplateFields();
 
-			iCorkIndex = cxxTagCommit();
+			iCorkIndex = cxxTagCommit(&iCorkIndexFQ);
+			cxxTagUseTokenAsPartOfDefTag(iCorkIndexFQ, pIdentifier);
 
 			if(pTypeToken)
 				cxxTokenDestroy(pTypeToken);
@@ -793,6 +847,11 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 			{
 				cxxParserSetEndLineForTagInCorkQueue (iCorkIndex, t->iLineNumber);
 				iCorkIndex = CORK_NIL;
+				if(iCorkIndexFQ != CORK_NIL)
+				{
+					cxxParserSetEndLineForTagInCorkQueue (iCorkIndexFQ, t->iLineNumber);
+					iCorkIndexFQ = CORK_NIL;
+				}
 			}
 			CXX_DEBUG_LEAVE_TEXT("Noting else");
 			return bGotVariable;
@@ -803,6 +862,11 @@ bool cxxParserExtractVariableDeclarations(CXXTokenChain * pChain,unsigned int uF
 		{
 			cxxParserSetEndLineForTagInCorkQueue (iCorkIndex, t->iLineNumber);
 			iCorkIndex = CORK_NIL;
+			if(iCorkIndexFQ != CORK_NIL)
+			{
+				cxxParserSetEndLineForTagInCorkQueue (iCorkIndexFQ, t->iLineNumber);
+				iCorkIndexFQ = CORK_NIL;
+			}
 		}
 
 		CXX_DEBUG_PRINT("At a comma, might have other declarations here");

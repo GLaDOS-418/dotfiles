@@ -68,7 +68,7 @@ typedef enum {
 	SYNTAX_PROTO2,
 	SYNTAX_PROTO3,
 } protobufSyntax;
-static protobufSyntax syntax = SYNTAX_UNKNOWN;;
+static protobufSyntax syntax = SYNTAX_UNKNOWN;
 
 typedef enum {
 	PK_PACKAGE,
@@ -655,10 +655,13 @@ static void findProtobufTags0 (bool oneshot, int originalScopeCorkIndex)
 static void findProtobufTags (void)
 {
 	cppInit (false, false, false, false,
-			 KIND_GHOST_INDEX, 0, KIND_GHOST_INDEX,
+			 KIND_GHOST_INDEX, 0, 0,
+			 KIND_GHOST_INDEX,
 			 KIND_GHOST_INDEX, 0, 0,
 			 FIELD_UNKNOWN);
 	token.value = vStringNew ();
+
+	syntax = SYNTAX_UNKNOWN;
 
 	nextToken ();
 	findProtobufTags0 (false, CORK_NIL);

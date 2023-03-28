@@ -441,6 +441,17 @@ void cxxTokenChainMoveEntryRange(
 }
 #endif
 
+static CXXToken * cxxTokenCreatePlaceholder(CXXToken * pToken)
+{
+	CXXToken * pPlaceholder = cxxTokenCreate();
+
+	pPlaceholder->iLineNumber = pToken->iLineNumber;
+	pPlaceholder->oFilePosition = pToken->oFilePosition;
+	pPlaceholder->eType = CXXTokenTypeUnknown;
+
+	return pPlaceholder;
+}
+
 CXXTokenChain * cxxTokenChainSplitOnComma(CXXTokenChain * tc)
 {
 	if(!tc)
@@ -457,14 +468,31 @@ CXXTokenChain * cxxTokenChainSplitOnComma(CXXTokenChain * tc)
 
 	while(pStart && pToken->pNext)
 	{
-		while(pToken->pNext && (!cxxTokenTypeIs(pToken->pNext,CXXTokenTypeComma)))
-			pToken = pToken->pNext;
+		CXXToken * pNew = NULL;
 
-		CXXToken * pNew = cxxTokenChainExtractRange(pStart,pToken,0);
+		if (cxxTokenTypeIs(pToken,CXXTokenTypeComma))
+		{
+			// If nothing is passed as an argument like
+			//
+			// macro(,b),
+			// macro(a,), or
+			// macro(,)
+			//
+			// , we must inject a dummy token to the chain.
+			pNew = cxxTokenCreatePlaceholder(pToken);
+			// we will not update pToken in this case.
+		}
+		else
+		{
+			while(pToken->pNext && (!cxxTokenTypeIs(pToken->pNext,CXXTokenTypeComma)))
+				pToken = pToken->pNext;
+
+			pNew = cxxTokenChainExtractRange(pStart,pToken,0);
+			pToken = pToken->pNext; // comma or nothing
+		}
 		if(pNew)
 			cxxTokenChainAppend(pRet,pNew);
 
-		pToken = pToken->pNext; // comma or nothing
 		if(pToken)
 			pToken = pToken->pNext; // after comma
 		pStart = pToken;
@@ -1161,6 +1189,7 @@ void cxxTokenChainNormalizeTypeNameSpacingInRange(CXXToken * pFrom,CXXToken * pT
 	// unsigned short int[3];
 	// ClassA<ClassB<type *,type>> <-- fixme: not sure about the trailing >>
 	// Class<Something> (*)(type[])
+	// decltype(something)
 
 	CXXToken * t = pFrom;
 
@@ -1171,10 +1200,28 @@ void cxxTokenChainNormalizeTypeNameSpacingInRange(CXXToken * pFrom,CXXToken * pT
 				CXXTokenTypeParenthesisChain | CXXTokenTypeSquareParenthesisChain
 			))
 		{
+			// decltype(a) const
+			// -----------^
+			// In this case, a space is needed.
+			bool bFollowedBySpace = (
+					t->pPrev &&
+					cxxTokenTypeIs(t->pPrev,CXXTokenTypeKeyword) &&
+					cxxKeywordIsDecltype(t->pPrev->eKeyword)
+				);
 			cxxTokenChainNormalizeTypeNameSpacing(t->pChain);
-			t->bFollowedBySpace = false;
+			t->bFollowedBySpace = bFollowedBySpace;
+		} else if(cxxTokenTypeIs(t,CXXTokenTypeKeyword))
+		{
+			t->bFollowedBySpace = t->pNext &&
+				(!cxxKeywordIsDecltype(t->eKeyword)) &&
+				cxxTokenTypeIsOneOf(
+						t->pNext,
+						CXXTokenTypeParenthesisChain | CXXTokenTypeIdentifier |
+							CXXTokenTypeKeyword | CXXTokenTypeStar |
+							CXXTokenTypeAnd | CXXTokenTypeMultipleAnds
+					);
 		} else if(cxxTokenTypeIsOneOf(t,
-					CXXTokenTypeIdentifier | CXXTokenTypeKeyword |
+					CXXTokenTypeIdentifier |
 						CXXTokenTypeGreaterThanSign |
 						CXXTokenTypeAnd | CXXTokenTypeMultipleAnds
 				))

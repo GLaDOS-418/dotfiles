@@ -70,9 +70,35 @@ typedef enum {
 	CORK_SYMTAB = (1 << 1),
 } corkUsage;
 
+/* optlib2c requires the declaration here. */
+enum scriptHook {
+	SCRIPT_HOOK_PRELUDE,
+	SCRIPT_HOOK_SEQUEL,
+	SCRIPT_HOOK_MAX,
+};
+
 struct sParserDefinition {
 	/* defined by parser */
 	char* name;                    /* name of language */
+
+	/* The concept of CURRENT and AGE is taken from libtool.
+	 * However, we deleted REVISION in libtool when importing
+	 * the concept of versioning from libtool.
+	 *
+	 * If kinds, roles, fields, and/or extras have been added,
+	 * removed or changed since last release, increment CURRENT.
+	 * If they have been added since last release, increment AGE.
+	 * If they have been removed since last release, set AGE to 0
+	 *
+	 * From the command line of ctags, you can see the version
+	 * information with --version=<LANG>.
+	 *
+	 * In the tags file, !_TAGS_PARSER_VERSION!<LANG> shows the
+	 * information for <LANG>.
+	 */
+	unsigned int    versionCurrent;
+	unsigned int    versionAge;
+
 	kindDefinition* kindTable;	   /* tag kinds handled by parser */
 	unsigned int kindCount;        /* size of `kinds' list */
 	const char *const *extensions; /* list of default extensions */
@@ -84,7 +110,7 @@ struct sParserDefinition {
 	rescanParser parser2;          /* rescanning parser (unusual case) */
 	selectLanguage* selectLanguage; /* may be used to resolve conflicts */
 	unsigned int method;           /* See METHOD_ definitions above */
-	unsigned int useCork;		   /* bit or of corkUsage */
+	unsigned int useCork;		   /* bit fields of corkUsage */
 	bool useMemoryStreamInput;
 	bool allowNullTag;
 	bool requestAutomaticFQTag;
@@ -103,8 +129,8 @@ struct sParserDefinition {
 	parserDependency * dependencies;
 	unsigned int dependencyCount;
 
-	parameterHandlerTable  *parameterHandlerTable;
-	unsigned int parameterHandlerCount;
+	paramDefinition  *paramTable;
+	unsigned int paramCount;
 
 	xpathFileSpec *xpathFileSpecs;
 	unsigned int xpathFileSpecCount;
@@ -139,6 +165,7 @@ extern const char *getLanguageName (const langType language);
 extern const char *getLanguageKindName (const langType language, const int kindIndex);
 
 extern langType getNamedLanguage (const char *const name, size_t len);
+extern langType getNamedLanguageOrAlias (const char *const name, size_t len);
 extern langType getLanguageForFilenameAndContents (const char *const fileName);
 extern langType getLanguageForCommand (const char *const command, langType startFrom);
 extern langType getLanguageForFilename (const char *const filename, langType startFrom);
@@ -146,9 +173,12 @@ extern bool isLanguageEnabled (const langType language);
 extern bool isLanguageKindEnabled (const langType language, int kindIndex);
 extern bool isLanguageRoleEnabled (const langType language, int kindIndex, int roleIndex);
 
-extern kindDefinition* getLanguageKindForLetter (const langType language, char kindLetter);
+extern kindDefinition* getLanguageKindForName (const langType language, const char *kindName);
+extern roleDefinition* getLanguageRoleForName (const langType language, int kindIndex,
+											   const char *roleName);
 
 extern void initializeParser (langType language);
+extern unsigned int getLanguageCorkUsage (langType language);
 
 #ifdef HAVE_ICONV
 extern const char *getLanguageEncoding (const langType language);
@@ -169,7 +199,10 @@ extern void addLanguageTagMultiTableRegex(const langType language,
 										  const char* const name, const char* const kinds, const char* const flags,
 										  bool *disabled);
 
+extern void addLanguageOptscriptToHook (langType language, enum scriptHook hook, const char *const src);
+
 extern void anonGenerate (vString *buffer, const char *prefix, int kind);
+extern void anonConcat   (vString *buffer, int kind);
 extern vString *anonGenerateNew (const char *prefix, int kind);
 extern void anonHashString (const char *filename, char buf[9]);
 

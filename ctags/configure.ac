@@ -6,8 +6,8 @@
 
 #	Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.59])
-AC_INIT([universal-ctags],[0.0.0])
+AC_PREREQ([2.64])
+AC_INIT([universal-ctags],[6.0.0])
 
 if ! test -e "${srcdir}/config.h.in"; then
    echo "---"
@@ -29,8 +29,24 @@ AM_INIT_AUTOMAKE([foreign subdir-objects tar-ustar])
 AM_SILENT_RULES([yes])
 AC_CONFIG_HEADERS([config.h])
 
+m4_ifndef([PKG_CHECK_EXISTS], [m4_fatal([must install pkg-config 0.18 or later before running ./autogen.sh])])
+
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
+
+case $host in
+    *darwin*)
+        if test "${enable_static}" = "yes"; then
+            printf "\n%s\n" "macOS not support --enable-static." >&5
+            printf "\n%s\n" "macOS not support --enable-static." >&6
+            exit 1
+        fi
+        ;;
+    *freebsd*|*openbsd*)
+        # https://github.com/universal-ctags/ctags/issues/3338
+        export LDFLAGS="$LDFLAGS -L/usr/local/lib"
+        ;;
+esac
 
 AH_TEMPLATE([PACKAGE], [Package name.])
 AH_TEMPLATE([VERSION], [Package version.])
@@ -86,17 +102,19 @@ AH_TEMPLATE([ICONV_USE_LIB_PREFIX],
 AH_TEMPLATE([TMPDIR],
 	[If you wish to change the directory in which temporary files are stored,
 	define this label to the directory desired.])
-AH_TEMPLATE([CHECK_REGCOMP],
-	[Define this label if you wish to check the regcomp() function at run time
-	for correct behavior. This function is currently broken on Cygwin.])
 AH_TEMPLATE([NON_CONST_PUTENV_PROTOTYPE],
 	[Define this is you have a prototype for putenv() in <stdlib.h>, but
 	doesn't declare its argument as "const char *".])
 AH_TEMPLATE([MSDOS_STYLE_PATH],
 	[Define to 1 if your system uses MS-DOS style path.])
+AH_TEMPLATE([MANUAL_GLOBBING],
+	[Define to 1 if your system doesn't expand wildcards.])
+AH_TEMPLATE([HAVE__FINDFIRST],
+	[Define to 1 if your system have _findfirst().])
 AH_TEMPLATE([ENABLE_GCOV],
 	[Define to 1 if gcov is instrumented.])
-
+AH_TEMPLATE([USE_GNULIB_FNMATCH],
+	[Define to 1 when using fnmatch implementation in bundled gnulib.])
 
 # Define convenience macros
 # -------------------------
@@ -237,8 +255,82 @@ AM_CONDITIONAL(ENABLE_DEBUGGING, [test "x$enable_debugging" = "xyes"])
 
 AC_PROG_CC
 AC_PROG_CC_C99
+# For gnulib.
+#  Typically, this is immediately after AC_PROG_CC, ...
+gl_EARLY
+
 AC_PROG_RANLIB
 AC_C_BIGENDIAN
+
+if test "$cross_compiling" = "yes"; then
+    # We need to compile and run a program on the build machine.
+    AC_MSG_CHECKING(for cc for build)
+    if test "x${CC_FOR_BUILD}" = "x" ; then
+        CC_FOR_BUILD=cc
+    fi
+    AC_MSG_RESULT($CC_FOR_BUILD)
+
+    AC_MSG_CHECKING(if $CC_FOR_BUILD works)
+
+    unset TEMP_DIR_FOR_CHECKING
+    TEMP_DIR_FOR_CHECKING=$(mktemp -d)
+
+    unset CC_FOR_BUILD_WORKS
+    CC_FOR_BUILD_WORKS=no
+
+    (
+        cd "$TEMP_DIR_FOR_CHECKING" || return 1
+
+        printf 'int main() { return 0;}' > test.c
+
+        $CC_FOR_BUILD $CPPFLAGS_FOR_BUILD $CFLAGS_FOR_BUILD $LDFLAGS_FOR_BUILD -o test test.c
+    ) && CC_FOR_BUILD_WORKS=yes
+
+    AC_MSG_RESULT($CC_FOR_BUILD_WORKS)
+
+    unset BUILD_EXEEXT
+    unset BUILD_OBJEXT
+
+    BUILD_OBJEXT='o'
+
+    if [ -f "$TEMP_DIR_FOR_CHECKING/test.exe" ] ; then
+        BUILD_EXEEXT='.exe'
+    fi
+else
+    CC_FOR_BUILD="$CC"
+    CFLAGS_FOR_BUILD="$CFLAGS"
+    CPPFLAGS_FOR_BUILD="$CPPFLAGS"
+    LDFLAGS_FOR_BUILD="$LDFLAGS"
+
+    BUILD_OBJEXT="$OBJEXT"
+    BUILD_EXEEXT="$EXEEXT"
+fi
+
+AC_ARG_VAR(CC_FOR_BUILD,[build system C compiler])
+AC_ARG_VAR(CFLAGS_FOR_BUILD,[CFLAGS for build system C compiler])
+AC_ARG_VAR(CPPFLAGS_FOR_BUILD,[CPPFLAGS for build system C compiler])
+AC_ARG_VAR(LDFLAGS_FOR_BUILD,[LDFLAGS for build system C compiler])
+
+AC_SUBST([CC_FOR_BUILD])
+AC_SUBST([CFLAGS_FOR_BUILD])
+AC_SUBST([CPPFLAGS_FOR_BUILD])
+AC_SUBST([LDFLAGS_FOR_BUILD])
+
+AC_SUBST([BUILD_OBJEXT])
+AC_SUBST([BUILD_EXEEXT])
+
+AC_ARG_VAR(AR,[ar command or path])
+AC_ARG_VAR(RANLIB,[ranlib command or path])
+AC_ARG_VAR(WINDRES,[windres command or path, used with mingw-w64])
+AC_SUBST([WINDRES])
+
+if test "x${AR}" = "x" ; then
+    AR=ar
+fi
+
+if test "x${WINDRES}" = "x" ; then
+    WINDRES=windres
+fi
 
 if test "${with_sparse_cgcc}" = "yes"; then
 	REAL_CC="${CC}"
@@ -263,12 +355,37 @@ AC_PROG_LN_S
 AC_CHECK_PROG(STRIP, strip, strip, :)
 AC_SYS_LARGEFILE
 
-AC_CHECK_PROGS([perl_found], [perl], [yes], [no])
+AC_CHECK_PROG([perl_found], [perl], [yes], [no])
 AM_CONDITIONAL([RUN_OPTLIB2C], [test "${perl_found}" = "yes"])
+AM_CONDITIONAL([RUN_TXT2CSTR], [test "${perl_found}" = "yes"])
 
-AC_PATH_PROGS(RST2MAN, [rst2man rst2man.py rst2man3 rst2man3.py], [no])
+# rst2man and rst2html are part of python-docutils, and if not found
+# 	can be installed using pip ("pip install docutils"). On some
+#	systems, rst2man and rst2html are actually installed as rst2man.py
+#	and rst2html.py - create a symlink of that's the case.
+#	Also, allow to define path as "--with-rst2man" and "--with-rst2html".
+AC_ARG_WITH([rst2man],
+  AS_HELP_STRING([--with-rst2man=PATH], [Location of rst2man (auto)]),
+  [RST2MAN="$withval"],
+  [AC_PATH_PROGS(RST2MAN,
+    [rst2man rst2man.py rst2man-3 rst2man-3.6 rst2man-3.7 rst2man-3.8 rst2man-3.9, rst2man-3.10],
+    [no])])
 AM_CONDITIONAL([HAVE_RST2MAN], [test "x$RST2MAN" != "xno"])
+AC_ARG_WITH([rst2html],
+  AS_HELP_STRING([--with-rst2html=PATH], [Location of rst2html (auto)]),
+  [RST2HTML="$withval"],
+  [AC_PATH_PROGS(RST2HTML,
+    [rst2html rst2html.py rst2html-3 rst2html-3.6 rst2html-3.7 rst2html-3.8 rst2html-3.9, rst2html-3.10],
+    [no])])
+AM_CONDITIONAL([HAVE_RST2HTML], [test "x$RST2HTML" != "xno"])
 
+# rst2pdf is a separate tool and can also be installed via pip (e.g.,
+# 	"pip install rst2pdf")
+AC_PATH_PROGS(RST2PDF, [rst2pdf], [no])
+AM_CONDITIONAL([HAVE_RST2PDF], [test "x$RST2PDF" != "xno"])
+
+# rst2man had a bug about code-block:: handling.
+# https://sourceforge.net/p/docutils/patches/141
 RST2MAN_OPTIONS=
 if ! test "x$RST2MAN" = "xno"; then
    RST2MAN_SUPPORTING_SYNTAX_HIGHLIGHT_OPTION=no
@@ -281,6 +398,7 @@ if ! test "x$RST2MAN" = "xno"; then
    AC_MSG_RESULT($RST2MAN_SUPPORTING_SYNTAX_HIGHLIGHT_OPTION)
 fi
 AC_SUBST(RST2MAN_OPTIONS)
+AM_CONDITIONAL([HAS_GNU_SED], [sed --version 2>/dev/null | grep -q GNU])
 
 # Checks for operating environment
 # --------------------------------
@@ -402,7 +520,14 @@ fi
 case "$host" in
   i?86-*-mingw* | x86_64-*-mingw*)
 	host_mingw=yes
+	# See https://github.com/universal-ctags/ctags/pull/3069
+	gl_cv_have_weak=no
 	AC_DEFINE(MSDOS_STYLE_PATH)
+	AC_DEFINE(MANUAL_GLOBBING)
+	AC_DEFINE(HAVE__FINDFIRST)
+	;;
+  *-cygwin | *-msys)
+	gl_cv_have_weak=no
 	;;
 esac
 AM_CONDITIONAL([HOST_MINGW], [test "x${host_mingw}" = "xyes"])
@@ -446,19 +571,16 @@ PRETTY_ARG_VAR([EXTRA_CFLAGS], [extra C compiler flags],
 PRETTY_ARG_VAR([WARNING_CFLAGS], [C compiler warning flags],
 	       [-Wall])
 
-# Checks for library functions
-# ----------------------------
-AC_CHECK_FUNCS(fnmatch,[have_fnmatch=yes],[
-AC_LIBOBJ([fnmatch])
-FNMATCH_CPPFLAGS="-I${srcdir}/fnmatch"
-AC_DEFINE(HAVE_FNMATCH)
-have_fnmatch=no])
-AC_SUBST([FNMATCH_CPPFLAGS])
-AC_CHECK_HEADERS(fnmatch.h)
-AM_CONDITIONAL([HAVE_FNMATCH], [test "x$have_fnmatch" = "xyes"])
+# For gnulib.
+#   Place it further down in the file, typically where you normally check for
+#   header files or functions.
+gl_INIT
+
+if test "$REPLACE_FNMATCH" != 0; then
+	AC_DEFINE([USE_GNULIB_FNMATCH])
+fi
 
 AC_CHECK_FUNCS(asprintf)
-AC_CHECK_FUNCS(strstr)
 AC_CHECK_FUNCS(strcasecmp stricmp, break)
 AC_CHECK_FUNCS(strncasecmp strnicmp, break)
 
@@ -502,45 +624,6 @@ if test "$have_setenv" != yes ; then
 		fi
 	fi
 fi
-
-dnl
-dnl
-dnl Check regcomp
-dnl
-dnl If it is found but broken, abort with a message.
-dnl If it is found but cannot be test brokenness, define CHECK_REGCOMP.
-dnl If it is not found, use bundled implementation.
-dnl
-dnl If CHECK_REGCOMP is defined, ctags itself check the brokenness at runtime
-dnl (cross-compiling is assumed here).
-dnl
-dnl
-dnl The final result can be check with ./ctags --list-features.
-dnl
-dnl
-AC_CHECK_FUNCS(regcomp,[
-AC_MSG_CHECKING(if regcomp works)
-AC_RUN_IFELSE([AC_LANG_SOURCE([
-#include <sys/types.h>
-#include <regex.h>
-int main(void) {
-	regex_t patbuf;
-	return (regcomp (&patbuf, "/hello/", 0) != 0);
-}
-])],[regcomp_works=yes],[regcomp_works=no],[AC_DEFINE(CHECK_REGCOMP)])
-AC_MSG_RESULT($regcomp_works)
-if test no = "$regcomp_works"; then
-	AC_MSG_ERROR([regcomp() on this system is broken.])
-fi
-have_regcomp=yes
-],[
-dnl Using bundled regex implementation
-AC_LIBOBJ([regex])
-REGCOMP_CPPFLAGS="-I${srcdir}/gnu_regex -D__USE_GNU"
-AC_DEFINE(HAVE_REGCOMP)
-have_regcomp=no])
-AC_SUBST([REGCOMP_CPPFLAGS])
-AM_CONDITIONAL([HAVE_REGCOMP], [test "xyes" = "x$have_regcomp"])
 
 have_scandir=no
 AC_CHECK_FUNCS(scandir,have_scandir=yes)
@@ -627,6 +710,30 @@ AS_IF([test "x$enable_yaml" != "xno"], [
 ])
 AM_CONDITIONAL(HAVE_LIBYAML, test "x$have_libyaml" = xyes)
 
+AC_ARG_ENABLE([pcre2],
+	[AS_HELP_STRING([--disable-pcre2],
+		[disable pcre2 support])])
+
+AH_TEMPLATE([HAVE_PCRE2],
+	[Define this value if pcre2 is available.])
+AS_IF([test "x$enable_pcre2" != "xno"], [
+	PKG_CHECK_MODULES(PCRE2, libpcre2-8,
+			       [have_libpcre2_8=yes
+			       AC_DEFINE(HAVE_PCRE2)],
+			       [AS_IF([test "x$enable_pcre2" = "xyes"], [
+			           AC_MSG_ERROR([libpcre2-8 not found])])])
+])
+AM_CONDITIONAL(HAVE_PCRE2, test "x$have_libpcre2_8" = xyes)
+
+if test "${enable_static}" = "yes"; then
+	if test "${have_libpcre2_8}" = "yes"; then
+		if test "${host_mingw}" = "yes"; then
+			dnl -DPCRE2_STATIC needs to be added manually.
+			PCRE2_CFLAGS="$PCRE2_CFLAGS -DPCRE2_STATIC"
+		fi
+	fi
+fi
+
 
 # Checks for missing prototypes
 # -----------------------------
@@ -706,6 +813,25 @@ AC_CHECK_DECLS([strnlen],[have_strnlen=yes],[],[
 ])
 AM_CONDITIONAL(HAVE_STRNLEN, test "x$have_strnlen" = xyes)
 
+if test "$cross_compiling" = "yes"; then
+    AC_MSG_CHECKING(whether strnlen is declared for build)
+    TEMP_DIR_FOR_CHECKING=$(mktemp -d || exit 1)
+    cat > "$TEMP_DIR_FOR_CHECKING/test.c" <<EOF
+#include<string.h>
+int main() { strnlen("abcd",1); return 0;}
+EOF
+
+    if $CC_FOR_BUILD $CPPFLAGS_FOR_BUILD $CFLAGS_FOR_BUILD -o "$TEMP_DIR_FOR_CHECKING/test.o" "$TEMP_DIR_FOR_CHECKING/test.c" > /dev/null 2>&1 ; then
+        have_strnlen_for_build=yes
+    else
+        have_strnlen_for_build=no
+    fi
+    AC_MSG_RESULT($have_strnlen_for_build)
+    AM_CONDITIONAL(HAVE_STRNLEN_FOR_BUILD, test "x$have_strnlen_for_build" = xyes)
+else
+    AM_CONDITIONAL(HAVE_STRNLEN_FOR_BUILD, test "x$have_strnlen" = xyes)
+fi
+
 if test "$CTAGS_NAME_EXECUTABLE" != ctags ; then
 	AC_MSG_NOTICE(Changing name of 'ctags' for $CTAGS_NAME_EXECUTABLE)
 fi
@@ -719,15 +845,14 @@ fi
 
 AC_CHECK_FUNCS(mblen)
 
-AC_CONFIG_FILES([Makefile
-		 man/ctags.1.rst
-		 man/ctags-client-tools.7.rst
-		 man/ctags-incompatibilities.7.rst
-		 man/ctags-optlib.7.rst
-		 man/ctags-lang-python.7.rst
-		 man/readtags.1.rst
-		 ])
+AC_CONFIG_FILES([Makefile gnulib/Makefile man/GNUmakefile])
 
 AC_OUTPUT
+
+AC_MSG_RESULT([
+##########################################################################
+Now you can run make or gmake, when you run as make, besure it is GNU make.
+##########################################################################
+])
 
 # vim:ts=4:sw=4:

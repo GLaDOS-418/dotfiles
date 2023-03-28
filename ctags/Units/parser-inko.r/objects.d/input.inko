@@ -1,8 +1,6 @@
-object A {}
-object B {}
+class A {}
+class B {}
 
-object C {
-  object D {
-    object E {}
-  }
+class C {
+  @foo: X
 }

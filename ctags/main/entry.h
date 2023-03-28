@@ -16,6 +16,7 @@
 #include "types.h"
 
 #include <stdint.h>
+#include <time.h>
 
 #include "field.h"
 #include "xtag.h"
@@ -45,13 +46,14 @@ struct sTagEntryInfo {
 	unsigned int isFileScope    :1;  /* is tag visible only within input file? */
 	unsigned int isFileEntry    :1;  /* is this just an entry for a file name? */
 	unsigned int truncateLineAfterTag :1;  /* truncate tag line at end of tag name? */
-	unsigned int placeholder    :1;	 /* This is just a part of scope context.
+	unsigned int placeholder    :1;	 /* is used only for keeping corkIndex based scope chain.
 					    Put this entry to cork queue but
 					    don't print it to tags file. */
 	unsigned int skipAutoFQEmission:1; /* If a parser makes a fq tag for the
 										  current tag by itself, set this. */
 	unsigned int isPseudoTag:1;	/* Used only in xref output.
 								   If a tag is a pseudo, set this. */
+	unsigned int inCorkQueue:1;
 
 	unsigned long lineNumber;     /* line number of tag */
 	const char* pattern;	      /* pattern for locating input line
@@ -67,7 +69,6 @@ struct sTagEntryInfo {
 
 	struct {
 		const char* access;
-		const char* fileScope;
 		const char* implementation;
 		const char* inheritance;
 
@@ -79,8 +80,10 @@ struct sTagEntryInfo {
 		const char* scopeName;
 		int         scopeIndex;   /* cork queue entry for upper scope tag.
 					     This field is meaningful if the value
-					     is not CORK_NIL and scope[0]  and scope[1] are
-					     NULL. */
+					     is not CORK_NIL, scopeKindIndex is KIND_GHOST_INDEX,
+					     and scopeName is NULL.
+					     CXX parser violates this rule; see the comment inside
+					     cxxTagBegin(). */
 
 		const char* signature;
 
@@ -96,6 +99,9 @@ struct sTagEntryInfo {
 		const char* xpath;
 #endif
 		unsigned long endLine;
+		time_t epoch;
+#define NO_NTH_FIELD -1
+		short nth;
 	} extensionFields;  /* list of extension fields*/
 
 	/* `usedParserFields' tracks how many parser own fields are
@@ -133,14 +139,29 @@ extern void initTagEntry (tagEntryInfo *const e, const char *const name,
 			  int kindIndex);
 extern void initRefTagEntry (tagEntryInfo *const e, const char *const name,
 			     int kindIndex, int roleIndex);
+
+/* initForeignRefTagEntry() is for making a tag for the language X when parsing
+ * source code of Y language.
+ * From the view point of the language Y, we call the language X a foreign
+ * language.
+ *
+ * When making a tag for a foreign with this function, you must declare the
+ * language X in the parser of Y with DEPTYPE_FOREIGNER dependency.
+ */
+extern void initForeignTagEntry (tagEntryInfo *const e, const char *const name,
+								 langType type,
+								 int kindIndex);
 extern void initForeignRefTagEntry (tagEntryInfo *const e, const char *const name,
 									langType type,
 									int kindIndex, int roleIndex);
 extern void assignRole(tagEntryInfo *const e, int roleIndex);
+#define clearRoles(E) assignRole((E), ROLE_DEFINITION_INDEX)
+extern void unassignRole(tagEntryInfo *const e, int roleIndex);
 extern bool isRoleAssigned(const tagEntryInfo *const e, int roleIndex);
 
 extern int makeQualifiedTagEntry (const tagEntryInfo *const e);
 
+extern void setTagPositionFromTag (tagEntryInfo *const dst, const tagEntryInfo *const src);
 
 #define CORK_NIL 0
 tagEntryInfo *getEntryInCorkQueue   (int n);
@@ -155,20 +176,26 @@ size_t        countEntryInCorkQueue (void);
  * specified in the scopeIndex field of the tag specified with CORKINDEX.
  */
 void          registerEntry (int corkIndex);
+void        unregisterEntry (int corkIndex);
 
 /* foreachEntriesInScope is for traversing the symbol table for a table
  * specified with CORKINDEX. If CORK_NIL is given, this function traverses
  * top-level entries. If name is NULL, this function traverses all entries
  * under the scope.
  *
- * If FUNC returns false, this function returns false.
- * If FUNC never returns false, this func returns true.
- * If FUNC is not called because no node for NAME in the symbol table.
+ * If FUNC returns false, this function returns false immediately
+ * even if more entires in the scope.
+ * If FUNC never returns false, this function returns true.
+ * If FUNC is not called because no node for NAME in the symbol table,
+ * this function returns true.
  */
 bool          foreachEntriesInScope (int corkIndex,
 									 const char *name, /* or NULL */
 									 entryForeachFunc func,
 									 void *data);
+
+unsigned int countEntriesInScope    (int corkIndex, bool onlyDefinitionTag,
+									 entryForeachFunc func, void *data);
 
 /* Return the cork index for NAME in the scope specified with CORKINDEX.
  * Even if more than one entries for NAME are in the scope, this function
@@ -176,20 +203,25 @@ bool          foreachEntriesInScope (int corkIndex,
  * for NAME.
  */
 int           anyEntryInScope       (int corkIndex,
-									 const char *name);
+									 const char *name,
+									 bool onlyDefinitionTag);
 
 int           anyKindEntryInScope (int corkIndex,
-								   const char *name, int kind);
+								   const char *name, int kind,
+								   bool onlyDefinitionTag);
 
 int           anyKindsEntryInScope (int corkIndex,
 									const char *name,
-									const int * kinds, int count);
+									const int * kinds, int count,
+									bool onlyDefinitionTag);
 
 int           anyKindsEntryInScopeRecursive (int corkIndex,
 											 const char *name,
-											 const int * kinds, int count);
+											 const int * kinds, int count,
+											 bool onlyDefinitionTag);
 
 extern void    markTagExtraBit     (tagEntryInfo *const tag, xtagType extra);
+extern void    unmarkTagExtraBit   (tagEntryInfo *const tag, xtagType extra);
 extern bool isTagExtraBitMarked (const tagEntryInfo *const tag, xtagType extra);
 
 /* If any extra bit is on, return true. */
@@ -197,6 +229,8 @@ extern bool isTagExtra (const tagEntryInfo *const tag);
 
 /* Functions for attaching parser specific fields
  *
+ * Which function you should use?
+ * ------------------------------
  * Case A:
  *
  * If your parser uses the Cork API, and your parser called
@@ -228,12 +262,34 @@ extern bool isTagExtra (const tagEntryInfo *const tag);
  * till calling makeTagEntry (). The parser must free the memory object
  * after calling makeTagEntry () if it is allocated dynamically in the
  * parser side.
+ *
+ * Interpretation of VALUE
+ * -----------------------
+ * For FIELDTYPE_STRING:
+ * Both json writer and xref writer prints it as-is.
+ *
+ * For FIELDTYPE_STRING|FIELDTYPE_BOOL:
+ * If VALUE points "" (empty C string), the json writer prints it as
+ * false, and the xref writer prints it as -.
+ * If VALUE points a non-empty C string, Both json writer and xref
+ * writer print it as-is.
+ *
+ * For FIELDTYPE_BOOL
+ * The json writer always prints true.
+ * The xref writer always prints the name of field.
+ * Set "" explicitly though the value pointed by VALUE is not referred,
+ *
+ *
+ * The other data type and the combination of types are not implemented yet.
+ *
  */
 extern void attachParserField (tagEntryInfo *const tag, bool inCorkQueue, fieldType ftype, const char* value);
 extern void attachParserFieldToCorkEntry (int index, fieldType ftype, const char* value);
 extern const char* getParserFieldValueForType (tagEntryInfo *const tag, fieldType ftype);
 
 extern int makePlaceholder (const char *const name);
+extern void markTagAsPlaceholder (tagEntryInfo *e, bool placeholder);
+extern void markCorkEntryAsPlaceholder (int index, bool placeholder);
 
 /* Marking all tag entries entries under the scope specified
  * with index recursively.

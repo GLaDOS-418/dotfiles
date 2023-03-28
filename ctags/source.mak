@@ -1,4 +1,7 @@
+#
 # Shared macros
+#
+#   $(NULL) at the end of a list makes diff readable
 
 # REPOINFO_HEADS is included from REPOINFO_SRCS
 # only when the building environment has ability
@@ -11,14 +14,64 @@ REPOINFO_OBJS  = $(REPOINFO_SRCS:.c=.$(OBJEXT))
 MIO_HEADS = main/mio.h
 MIO_SRCS  = main/mio.c
 
+UTIL_PUBLIC_HEADS = \
+	main/general.h		\
+	\
+	main/fname.h		\
+	main/gcc-attr.h		\
+	main/htable.h		\
+	main/inline.h		\
+	main/ptrarray.h		\
+	main/routines.h		\
+	main/trashbox.h 	\
+	main/vstring.h		\
+	\
+	$(NULL)
+
+UTIL_PRIVATE_HEADS = \
+	main/routines_p.h	\
+	\
+	$(NULL)
+
+UTIL_HEADS = \
+	$(UTIL_PUBLIC_HEADS)	\
+	$(UTIL_PRIVATE_HEADS)	\
+	\
+	$(NULL)
+
+UTIL_SRCS = \
+	main/fname.c		\
+	main/htable.c		\
+	main/ptrarray.c		\
+	main/routines.c		\
+	main/trashbox.c		\
+	main/vstring.c		\
+	\
+	$(NULL)
+UTIL_OBJS = $(UTIL_SRCS:.c=.$(OBJEXT))
+
+UTILTEST_HEADS = \
+	extra-cmds/acutest.h \
+	\
+	$(MIO_HEADS) \
+	\
+	$(NULL)
+UTILTEST_SRCS  = \
+	extra-cmds/utiltest.c \
+	extra-cmds/readtags-stub.c \
+	\
+	$(MIO_SRCS) \
+	\
+	$(NULL)
+UTILTEST_OBJS = $(UTILTEST_SRCS:.c=.$(OBJEXT))
+
 MAIN_PUBLIC_HEADS =		\
+	$(UTIL_PUBLIC_HEADS)	\
+	\
 	main/dependency.h	\
 	main/entry.h		\
 	main/field.h		\
-	main/gcc-attr.h		\
 	main/gvars.h		\
-	main/htable.h		\
-	main/inline.h		\
 	main/keyword.h		\
 	main/kind.h		\
 	main/lregex.h		\
@@ -31,24 +84,22 @@ MAIN_PUBLIC_HEADS =		\
 	main/param.h		\
 	main/parse.h		\
 	main/promise.h		\
-	main/ptrarray.h		\
 	main/rbtree.h		\
 	main/read.h		\
-	main/routines.h		\
 	main/selectors.h	\
 	main/strlist.h		\
 	main/subparser.h	\
 	main/tokeninfo.h	\
 	main/trace.h		\
-	main/trashbox.h 	\
 	main/types.h		\
 	main/unwindi.h  	\
-	main/vstring.h		\
 	main/xtag.h		\
 	\
 	$(NULL)
 
 LIB_PRIVATE_HEADS =		\
+	$(UTIL_PRIVATE_HEADS)	\
+	\
 	main/args_p.h		\
 	main/colprint_p.h	\
 	main/dependency_p.h	\
@@ -72,7 +123,7 @@ LIB_PRIVATE_HEADS =		\
 	main/promise_p.h	\
 	main/ptag_p.h		\
 	main/read_p.h		\
-	main/routines_p.h	\
+	main/script_p.h		\
 	main/sort_p.h		\
 	main/stats_p.h		\
 	main/subparser_p.h	\
@@ -84,14 +135,17 @@ LIB_PRIVATE_HEADS =		\
 
 LIB_HEADS =			\
 	main/ctags.h		\
-	main/general.h		\
 	\
 	$(MAIN_PUBLIC_HEADS)	\
 	$(LIB_PRIVATE_HEADS)	\
 	\
-	$(MIO_HEADS)
+	$(MIO_HEADS)		\
+	\
+	$(NULL)
 
 LIB_SRCS =			\
+	$(UTIL_SRCS)			\
+	\
 	main/args.c			\
 	main/colprint.c			\
 	main/dependency.c		\
@@ -101,10 +155,10 @@ LIB_SRCS =			\
 	main/field.c			\
 	main/flags.c			\
 	main/fmt.c			\
-	main/htable.c			\
 	main/keyword.c			\
 	main/kind.c			\
 	main/lregex.c			\
+	main/lregex-default.c		\
 	main/lxpath.c			\
 	main/main.c			\
 	main/mbcs.c			\
@@ -117,26 +171,25 @@ LIB_SRCS =			\
 	main/portable-scandir.c		\
 	main/promise.c			\
 	main/ptag.c			\
-	main/ptrarray.c			\
 	main/rbtree.c			\
 	main/read.c			\
-	main/routines.c			\
+	main/script.c			\
 	main/seccomp.c			\
 	main/selectors.c		\
 	main/sort.c			\
 	main/stats.c			\
 	main/strlist.c			\
 	main/trace.c			\
-	main/trashbox.c			\
 	main/tokeninfo.c		\
 	main/unwindi.c			\
-	main/vstring.c			\
 	main/writer.c			\
 	main/writer-etags.c		\
 	main/writer-ctags.c		\
 	main/writer-json.c		\
 	main/writer-xref.c		\
 	main/xtag.c			\
+	\
+	$(TXT2CSTR_SRCS) \
 	\
 	$(REPOINFO_SRCS) \
 	$(MIO_SRCS)      \
@@ -149,19 +202,69 @@ CMDLINE_SRCS = \
 	\
 	$(NULL)
 
+DEBUG_HEADS = main/debug.h
+DEBUG_SRCS = main/debug.c
+
 MINI_GEANY_HEADS =
 MINI_GEANY_SRCS = \
 	main/mini-geany.c \
 	\
 	$(NULL)
 
-include makefiles/optlib2c_input.mak
+OPTSCRIPT_SRCS = \
+	extra-cmds/optscript-repl.c \
+	\
+	$(NULL)
+OPTSCRIPT_OBJS = $(OPTSCRIPT_SRCS:.c=.$(OBJEXT))
+
+OPTLIB2C_PCRE2_INPUT =       \
+   optlib/rdoc.ctags         \
+   \
+   $(NULL)
+OPTLIB2C_PCRE2_SRCS = $(OPTLIB2C_PCRE2_INPUT:.ctags=.c)
+
+OPTLIB2C_INPUT = \
+	optlib/cmake.ctags			\
+	optlib/ctags-optlib.ctags		\
+	optlib/elixir.ctags			\
+	optlib/gdbinit.ctags			\
+	optlib/gperf.ctags			\
+	optlib/inko.ctags			\
+	optlib/iPythonCell.ctags		\
+	optlib/kconfig.ctags			\
+	optlib/lex.ctags			\
+	optlib/man.ctags			\
+	optlib/meson.ctags			\
+	optlib/mesonOptions.ctags		\
+	optlib/org.ctags			\
+	optlib/passwd.ctags			\
+	optlib/pod.ctags			\
+	optlib/puppetManifest.ctags		\
+	optlib/qemuhx.ctags			\
+	optlib/rpmMacros.ctags			\
+	optlib/scss.ctags			\
+	optlib/systemtap.ctags			\
+	optlib/yacc.ctags			\
+	\
+	$(NULL)
 OPTLIB2C_SRCS = $(OPTLIB2C_INPUT:.ctags=.c)
 
-include makefiles/peg_input.mak
+TXT2CSTR_INPUT = \
+	main/CommonPrelude.ps			\
+	\
+	$(NULL)
+TXT2CSTR_SRCS = $(TXT2CSTR_INPUT:.ps=.c)
+
+PEG_INPUT = \
+       peg/varlink.peg				\
+       peg/kotlin.peg				\
+       peg/thrift.peg				\
+       peg/elm.peg					\
+       \
+       $(NULL)
 PEG_SRCS = $(PEG_INPUT:.peg=.c)
 PEG_HEADS = $(PEG_INPUT:.peg=.h)
-PEG_EXTRA_HEADS = $(PEG_INPUT:.peg=_pre.h) $(PEG_INPUT:.peg=_post.h)
+PEG_EXTRA_HEADS = peg/peg_common.h $(PEG_INPUT:.peg=_pre.h) $(PEG_INPUT:.peg=_post.h)
 PEG_OBJS = $(PEG_SRCS:.c=.$(OBJEXT))
 
 PARSER_HEADS = \
@@ -179,16 +282,23 @@ PARSER_HEADS = \
 	parsers/cxx/cxx_token.h \
 	parsers/cxx/cxx_token_chain.h \
 	\
+	parsers/frontmatter.h \
 	parsers/iniconf.h \
 	parsers/m4.h \
 	parsers/make.h \
+	parsers/markdown.h \
 	parsers/perl.h \
+	parsers/r.h \
+	parsers/ruby.h \
+	parsers/sh.h \
 	parsers/tcl.h \
 	parsers/tex.h \
 	\
 	$(NULL)
 
 PARSER_SRCS =				\
+	parsers/abaqus.c		\
+	parsers/abc.c			\
 	parsers/ada.c			\
 	parsers/ant.c			\
 	parsers/asciidoc.c		\
@@ -199,8 +309,10 @@ PARSER_SRCS =				\
 	parsers/automake.c		\
 	parsers/awk.c			\
 	parsers/basic.c			\
+	parsers/bats.c			\
 	parsers/beta.c			\
 	parsers/bibtex.c		\
+	parsers/c-based.c		\
 	parsers/c.c			\
 	parsers/clojure.c		\
 	parsers/css.c			\
@@ -220,9 +332,9 @@ PARSER_SRCS =				\
 	parsers/cxx/cxx_parser_typedef.c	\
 	parsers/cxx/cxx_parser_using.c		\
 	parsers/cxx/cxx_parser_variable.c	\
-	parsers/cxx/cxx_subparser.c	\
 	parsers/cxx/cxx_qtmoc.c		\
 	parsers/cxx/cxx_scope.c		\
+	parsers/cxx/cxx_subparser.c	\
 	parsers/cxx/cxx_tag.c		\
 	parsers/cxx/cxx_token.c		\
 	parsers/cxx/cxx_token_chain.c	\
@@ -235,37 +347,51 @@ PARSER_SRCS =				\
 	parsers/falcon.c		\
 	parsers/flex.c			\
 	parsers/fortran.c		\
+	parsers/frontmatter.c		\
 	parsers/fypp.c			\
+	parsers/gdscript.c		\
+	parsers/gemspec.c		\
 	parsers/go.c			\
+	parsers/haskell.c		\
+	parsers/haxe.c			\
 	parsers/html.c			\
 	parsers/iniconf.c		\
 	parsers/itcl.c			\
 	parsers/jprop.c			\
 	parsers/jscript.c		\
 	parsers/json.c			\
+	parsers/julia.c			\
 	parsers/ldscript.c		\
 	parsers/lisp.c			\
 	parsers/lua.c			\
 	parsers/m4.c			\
 	parsers/make.c			\
+	parsers/markdown.c			\
 	parsers/matlab.c		\
-	parsers/moose.c			\
 	parsers/myrddin.c		\
 	parsers/nsis.c			\
 	parsers/objc.c			\
 	parsers/ocaml.c			\
 	parsers/pascal.c		\
 	parsers/perl.c			\
+	parsers/perl-function-parameters.c \
+	parsers/perl-moose.c		\
 	parsers/perl6.c			\
 	parsers/php.c			\
 	parsers/powershell.c		\
 	parsers/protobuf.c		\
 	parsers/python.c		\
 	parsers/pythonloggingconfig.c	\
+	parsers/quarto.c		\
+	parsers/r-r6class.c		\
+	parsers/r-s4class.c		\
 	parsers/r.c			\
+	parsers/rake.c			\
 	parsers/rexx.c			\
+	parsers/rmarkdown.c		\
 	parsers/robot.c			\
 	parsers/rpmspec.c		\
+	parsers/rspec.c			\
 	parsers/rst.c			\
 	parsers/ruby.c			\
 	parsers/rust.c			\
@@ -280,12 +406,13 @@ PARSER_SRCS =				\
 	parsers/tex.c			\
 	parsers/tex-beamer.c		\
 	parsers/ttcn.c			\
+	parsers/txt2tags.c		\
 	parsers/typescript.c		\
+	parsers/vera.c			\
 	parsers/verilog.c		\
 	parsers/vhdl.c			\
 	parsers/vim.c			\
 	parsers/windres.c		\
-	parsers/yacc.c			\
 	parsers/yumrepo.c		\
 	\
 	$(OPTLIB2C_SRCS)		\
@@ -309,36 +436,37 @@ YAML_HEADS = parsers/yaml.h
 YAML_SRCS = \
 	parsers/yaml.c		\
 	\
+	parsers/openapi.c	\
+	\
 	parsers/ansibleplaybook.c	\
+	\
+	parsers/yamlfrontmatter.c	\
 	\
 	$(NULL)
 
-DEBUG_HEADS = main/debug.h
-DEBUG_SRCS = main/debug.c
+PCRE2_HEADS =
+PCRE2_SRCS = \
+	    main/lregex-pcre2.c \
+	    \
+	    $(NULL)
 
-ALL_LIB_HEADS = $(LIB_HEADS) $(PARSER_HEADS) $(DEBUG_HEADS)
-ALL_LIB_SRCS  = $(LIB_SRCS) $(PARSER_SRCS) $(DEBUG_SRCS)
-ALL_HEADS = $(ALL_LIB_HEADS) $(CMDLINE_HEADS)
-ALL_SRCS = $(ALL_LIB_SRCS) $(CMDLINE_SRCS)
+OPTSCRIPT_DSL_HEADS = \
+	dsl/es.h \
+	dsl/optscript.h \
+	\
+	$(NULL)
 
-ENVIRONMENT_HEADS =
-ENVIRONMENT_SRCS =
-
-REGEX_HEADS = gnu_regex/regex.h
-REGEX_SRCS = gnu_regex/regex.c
-REGEX_OBJS = $(REGEX_SRCS:.c=.$(OBJEXT))
-
-FNMATCH_HEADS = fnmatch/fnmatch.h
-FNMATCH_SRCS = fnmatch/fnmatch.c
-FNMATCH_OBJS = $(FNMATCH_SRCS:.c=.$(OBJEXT))
-
-WIN32_HEADS = main/e_msoft.h
-WIN32_SRCS = win32/mkstemp/mkstemp.c
-WIN32_OBJS = $(WIN32_SRCS:.c=.$(OBJEXT))
+OPTSCRIPT_DSL_SRCS = \
+	dsl/es.c \
+	dsl/optscript.c \
+	\
+	$(NULL)
+OPTSCRIPT_DSL_OBJS = $(OPTSCRIPT_DSL_SRCS:.c=.$(OBJEXT))
 
 READTAGS_DSL_HEADS = \
-	dsl/es-lang-c-stdc99.h \
+	dsl/es.h \
 	dsl/dsl.h \
+	dsl/formatter.h \
 	dsl/qualifier.h \
 	dsl/sorter.h \
 	\
@@ -347,39 +475,88 @@ READTAGS_DSL_HEADS = \
 	$(NULL)
 
 READTAGS_DSL_SRCS = \
-	dsl/es-lang-c-stdc99.c \
+	dsl/es.c \
 	dsl/dsl.c \
+	dsl/formatter.c \
 	dsl/qualifier.c \
 	dsl/sorter.c \
 	\
 	$(MIO_SRCS) \
 	\
 	$(NULL)
-
-READTAGS_DSL_OBJS = $(QUALIFIER_SRCS:.c=.$(OBJEXT))
-
-ALL_OBJS = \
-	$(ALL_SRCS:.c=.$(OBJEXT)) \
-	$(LIBOBJS)
-
+READTAGS_DSL_OBJS = $(READTAGS_DSL_SRCS:.c=.$(OBJEXT))
 
 READTAGS_SRCS  = \
 	libreadtags/readtags.c      \
 	extra-cmds/printtags.c  \
 	extra-cmds/readtags-cmd.c  \
+	extra-cmds/readtags-stub.c \
 	\
 	$(NULL)
 READTAGS_HEADS = \
-	       libreadtags/readtags.h \
-	       extra-cmds/printtags.h  \
-	       \
-	       $(NULL)
+	libreadtags/readtags.h \
+	extra-cmds/printtags.h  \
+	extra-cmds/readtags-stub.h \
+	\
+	$(NULL)
 READTAGS_OBJS  = $(READTAGS_SRCS:.c=.$(OBJEXT))
 
-PACKCC_SRCS = \
-	misc/packcc/packcc.c \
+PACKCC_SRC = misc/packcc/src/packcc.c
+PACKCC_OBJ = $(PACKCC_SRC:.c=.$(OBJEXT))
+
+WIN32_HEADS = main/e_msoft.h
+WIN32_SRCS = win32/mkstemp/mkstemp.c
+WIN32_OBJS = $(WIN32_SRCS:.c=.$(OBJEXT))
+
+# common to MVC and MINGW
+COMMON_GNULIB_HEADS = \
+	gnulib/regex.h			\
+	gnulib/fnmatch.h		\
+	\
+	$(NULL)
+COMMON_GNULIB_SRCS = \
+	gnulib/regex.c			\
+	gnulib/nl_langinfo.c		\
+	gnulib/setlocale_null.c		\
+	gnulib/malloc/dynarray_resize.c	\
+	gnulib/fnmatch.c		\
+	gnulib/mempcpy.c		\
+	gnulib/wmempcpy.c		\
 	\
 	$(NULL)
 
-PACKCC_OBJS = $(PACKCC_SRCS:.c=.$(OBJEXT))
+MVC_GNULIB_HEADS = \
+	$(COMMON_GNULIB_HEADS)		\
+	\
+	$(NULL)
+MVC_GNULIB_SRCS = \
+	$(COMMON_GNULIB_SRCS)		\
+	\
+	$(NULL)
+
+MINGW_GNULIB_HEADS = \
+	$(COMMON_GNULIB_HEADS)		\
+	\
+	$(NULL)
+MINGW_GNULIB_SRCS = \
+	$(COMMON_GNULIB_SRCS)		\
+	gnulib/localeconv.c		\
+	\
+	$(NULL)
+
+ENVIRONMENT_HEADS =
+ENVIRONMENT_SRCS =
+
+ALL_LIB_HEADS = $(LIB_HEADS) $(PARSER_HEADS) $(DEBUG_HEADS) $(DSL_HEADS) $(OPTSCRIPT_DSL_HEADS)
+ALL_LIB_SRCS  = $(LIB_SRCS) $(PARSER_SRCS) $(DEBUG_SRCS) $(DSL_SRCS) $(OPTSCRIPT_DSL_SRCS)
+ALL_LIB_OBJS = \
+	$(ALL_LIB_SRCS:.c=.$(OBJEXT)) \
+	$(LIBOBJS)
+
+ALL_HEADS = $(ALL_LIB_HEADS) $(CMDLINE_HEADS)
+ALL_SRCS = $(ALL_LIB_SRCS) $(CMDLINE_SRCS)
+ALL_OBJS = \
+	$(ALL_SRCS:.c=.$(OBJEXT)) \
+	$(LIBOBJS)
+
 # vim: ts=8

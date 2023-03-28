@@ -25,6 +25,19 @@
 #ifdef HAVE_JANSSON
 #include <jansson.h>
 
+/* The concept of CURRENT and AGE is taken from libtool.
+ * However, we delete REVISION.
+ * We will update more CURRENT frequently than the assumption
+ * in libtool.
+ *
+ * If KEYS have been added, removed or changed since last release,
+ * increment CURRENT.
+ * If they have been added since last release, increment AGE.
+ * If they have been removed since last release, set AGE to 0
+ */
+#define JSON_WRITER_CURRENT 1
+#define JSON_WRITER_AGE 0
+
 #ifndef json_boolean /* compat with jansson < 2.4 */
 #define json_boolean(val)      ((val) ? json_true() : json_false())
 #endif
@@ -135,8 +148,31 @@ static void addParserFields (json_t *response, const tagEntryInfo *const tag)
 		if (! isFieldEnabled (ftype))
 			continue;
 
-		const char *str = escapeFieldValueRaw (tag, ftype, i);
-		json_object_set_new (response, getFieldName (ftype), json_string (str));
+		unsigned int dt = getFieldDataType (ftype);
+		json_t *o;
+		if (dt & FIELDTYPE_STRING)
+		{
+			const char *str = escapeFieldValueRaw (tag, ftype, i);
+			if (dt & FIELDTYPE_BOOL && str[0] == '\0')
+				o = json_false ();
+			else
+				o = json_string (str);
+		}
+		else if (dt & FIELDTYPE_INTEGER)
+		{
+			/* NOT IMPLEMENTED YET */
+			AssertNotReached ();
+			o = json_null ();
+		}
+		else if (dt & FIELDTYPE_BOOL)
+			o = json_true ();
+		else
+		{
+			AssertNotReached ();
+			o = json_null ();
+		}
+
+		json_object_set_new (response, getFieldName (ftype), o);
 	}
 }
 
@@ -149,18 +185,18 @@ static void addExtensionFields (json_t *response, const tagEntryInfo *const tag)
 	   That cannot be changed to keep the compatibility of tags file format.
 	   Use FIELD_KIND_KEY instead */
 	if (isFieldEnabled (FIELD_KIND) || isFieldEnabled (FIELD_KIND_LONG))
-		enableField (FIELD_KIND_KEY, true, false);
+		enableField (FIELD_KIND_KEY, true);
 
 	/* FIELD_SCOPE has no name; getFieldName (FIELD_KIND_KEY) returns NULL.
 	   That cannot be changed to keep the compatibility of tags file format.
 	   Use FIELD_SCOPE_KEY and FIELD_SCOPE_KIND_LONG instead. */
 	if (isFieldEnabled (FIELD_SCOPE))
 	{
-		enableField (FIELD_SCOPE_KEY, true, false);
-		enableField (FIELD_SCOPE_KIND_LONG, true, false);
+		enableField (FIELD_SCOPE_KEY, true);
+		enableField (FIELD_SCOPE_KIND_LONG, true);
 	}
 
-	for (k = FIELD_EXTENSION_START; k <= FIELD_BUILTIN_LAST; k++)
+	for (k = FIELD_JSON_LOOP_START; k <= FIELD_BUILTIN_LAST; k++)
 		renderExtensionFieldMaybe (k, tag, response);
 }
 
@@ -215,8 +251,23 @@ static int writeJsonPtagEntry (tagWriter *writer CTAGS_ATTR_UNUSED,
 {
 #define OPT(X) ((X)?(X):"")
 	json_t *response;
+	char *parserName0 = NULL;
 
-	if (parserName)
+	const char *rest = ((JSON_WRITER_CURRENT > 0) && parserName && desc->jsonObjectKey)
+		? strchr(parserName, '!')
+		: NULL;
+	if (rest)
+	{
+		parserName0 = eStrndup(parserName, rest - parserName);
+		response = json_pack ("{ss ss ss ss ss ss}",
+				      "_type", "ptag",
+				      "name", desc->name,
+				      "parserName", parserName0,
+				      desc->jsonObjectKey, rest + 1,
+				      "path", OPT(fileName),
+				      "pattern", OPT(pattern));
+	}
+	else if (parserName)
 	{
 		response = json_pack ("{ss ss ss ss ss}",
 				      "_type", "ptag",
@@ -238,6 +289,8 @@ static int writeJsonPtagEntry (tagWriter *writer CTAGS_ATTR_UNUSED,
 	int length = mio_printf (mio, "%s\n", buf);
 	free (buf);
 	json_decref (response);
+	if (parserName0)
+		eFree(parserName0);
 
 	return length;
 #undef OPT
@@ -247,7 +300,7 @@ extern bool ptagMakeJsonOutputVersion (ptagDesc *desc, langType language CTAGS_A
 									   const void *data CTAGS_ATTR_UNUSED)
 {
 	return writePseudoTag (desc,
-			       "0.0",
+			       STRINGIFY(JSON_WRITER_CURRENT) "." STRINGIFY(JSON_WRITER_AGE),
 			       "in development",
 			       NULL);
 }

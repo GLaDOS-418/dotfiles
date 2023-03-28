@@ -12,7 +12,7 @@
 
 #include "sorter.h"
 #include "dsl.h"
-#include "es-lang-c-stdc99.h"
+#include "es.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -59,11 +59,14 @@ DECLARE_ALT_VALUE_FN(inherits);
 DECLARE_ALT_VALUE_FN(implementation);
 DECLARE_ALT_VALUE_FN(kind);
 DECLARE_ALT_VALUE_FN(language);
+DECLARE_ALT_VALUE_FN(nth);
 DECLARE_ALT_VALUE_FN(scope);
 DECLARE_ALT_VALUE_FN(scope_kind);
 DECLARE_ALT_VALUE_FN(scope_name);
 DECLARE_ALT_VALUE_FN(signature);
 DECLARE_ALT_VALUE_FN(typeref);
+DECLARE_ALT_VALUE_FN(typeref_kind);
+DECLARE_ALT_VALUE_FN(typeref_name);
 DECLARE_ALT_VALUE_FN(roles);
 DECLARE_ALT_VALUE_FN(xpath);
 
@@ -80,14 +83,14 @@ static EsObject* sorter_sform_cmp_or (EsObject* args, DSLEnv *env);
 
 static DSLProcBind pbinds [] = {
 	{ "<>",              sorter_proc_cmp,          NULL, DSL_PATTR_CHECK_ARITY,     2,
-	  .helpstr = "(<> a b) -> -1|0|1; compare a b. The types of a and b must be the same." },
+	  .helpstr = "(<> <any:a> <any:b>) -> -1|0|1; compare a b. The types of a and b must be the same." },
 	{ "*-",              sorter_proc_flip,         NULL, DSL_PATTR_CHECK_ARITY,     1,
-	  .helpstr = "(*- n<interger>) -> -n<integer>; filp the result of comparison." },
+	  .helpstr = "(*- <interger:n>) -> -<integer:n>; filp the result of comparison." },
 	{ "<or>",            sorter_sform_cmp_or,      NULL, DSL_PATTR_CHECK_ARITY_OPT, 1,
-	  .helpstr = "(<or> args...) -> -1|0|1; evaluate arguments left to right till one of thme returns -1 or 1." },
+	  .helpstr = "(<or> <any> ...) -> -1|0|1; evaluate arguments left to right till one of thme returns -1 or 1." },
 
 	{ "&",               sorter_alt_entry_ref, NULL, DSL_PATTR_CHECK_ARITY,  1,
-	  .helpstr = "(& FIELD) -> #f|<string>" },
+	  .helpstr = "(& <string:field>) -> #f|<string>" },
 	{ "&name",           alt_value_name,           NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> <string>"},
 	{ "&input",          alt_value_input,          NULL, DSL_PATTR_MEMORABLE, 0UL,
@@ -113,6 +116,8 @@ static DSLProcBind pbinds [] = {
 	  .helpstr = "-> #f|<string>"},
 	{ "&language",       alt_value_language,       NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>" },
+	{ "&nth",            alt_value_nth,            NULL, DSL_PATTR_MEMORABLE, 0UL,
+	  .helpstr = "-> #f|<integer>"},
 	{ "&scope",          alt_value_scope,          NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>; $scope-kind:$scope-name"},
 	{ "&scope-kind",     alt_value_scope_kind,     NULL, DSL_PATTR_MEMORABLE, 0UL,
@@ -122,6 +127,10 @@ static DSLProcBind pbinds [] = {
 	{ "&signature",      alt_value_signature,      NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>" },
 	{ "&typeref",        alt_value_typeref,        NULL, DSL_PATTR_MEMORABLE, 0UL,
+	  .helpstr = "-> #f|<string>"},
+	{ "&typeref-kind",   alt_value_typeref_kind,   NULL, DSL_PATTR_MEMORABLE, 0UL,
+	  .helpstr = "-> #f|<string>"},
+	{ "&typeref-name",   alt_value_typeref_name,   NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>"},
 	{ "&roles",          alt_value_roles,          NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> <list>" },
@@ -149,11 +158,14 @@ DEFINE_ALT_VALUE_FN(inherits);
 DEFINE_ALT_VALUE_FN(implementation);
 DEFINE_ALT_VALUE_FN(kind);
 DEFINE_ALT_VALUE_FN(language);
+DEFINE_ALT_VALUE_FN(nth);
 DEFINE_ALT_VALUE_FN(scope);
 DEFINE_ALT_VALUE_FN(scope_kind);
 DEFINE_ALT_VALUE_FN(scope_name);
 DEFINE_ALT_VALUE_FN(signature);
 DEFINE_ALT_VALUE_FN(typeref);
+DEFINE_ALT_VALUE_FN(typeref_kind);
+DEFINE_ALT_VALUE_FN(typeref_name);
 DEFINE_ALT_VALUE_FN(roles);
 DEFINE_ALT_VALUE_FN(xpath);
 

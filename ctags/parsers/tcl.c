@@ -69,6 +69,7 @@ struct sCollector {
 	vString *str;
 	int depth;
 	int scopeIndex;
+	int nth;
 };
 
 /*
@@ -176,7 +177,7 @@ static void readIdentifier (vString *string)
 	while (1)
 	{
 		int c = getcFromInputFile ();
-		if (isgraph (c) && (!strchr ("{}[]", c)))
+		if (isgraph (c) && (!strchr ("{}[]\"", c)))
 			vStringPut (string, c);
 		else
 		{
@@ -376,23 +377,6 @@ static const char* getLastComponentInIdentifier(tokenInfo *const token)
 		return NULL;
 }
 
-static void notifyPackageRequirement (tokenInfo *const token)
-{
-	subparser *sub;
-
-	foreachSubparser (sub, false)
-	{
-		tclSubparser *tclsub = (tclSubparser *)sub;
-
-		if (tclsub->packageRequirementNotify)
-		{
-			enterSubparser(sub);
-			tclsub->packageRequirementNotify (tclsub, tokenString (token),
-											  TCL_PSTATE(token));
-			leaveSubparser();
-		}
-	}
-}
 
 static void notifyNamespaceImport (tokenInfo *const token)
 {
@@ -447,6 +431,7 @@ static void collectSignature (const tokenInfo *const token, collector * col)
 		tagEntryInfo e;
 		initTagEntry (&e, tokenString (token), K_PARAMETER);
 		e.extensionFields.scopeIndex = col->scopeIndex;
+		e.extensionFields.nth = col->nth++;
 		makeTagEntry (&e);
 	}
 	else if (tokenIsTypeVal (token, '{'))
@@ -561,6 +546,7 @@ static void parseProc (tokenInfo *const token,
 				.str = signature,
 				.depth = 1,
 				.scopeIndex = index,
+				.nth = 0,
 			};
 			tokenSkipOverPairFull (token, &col);
 		}
@@ -646,8 +632,9 @@ static void parseNamespace (tokenInfo *const token,
 			parseProc (token, index);
 		else if (tokenIsType (token, TCL_IDENTIFIER))
 		{
-			notifyCommand (token, index);
-			skipToEndOfCmdline(token); /* ??? */
+			int r = notifyCommand (token, index);
+			if (r == CORK_NIL)
+				skipToEndOfCmdline(token);
 		}
 		else if (token->type == '}')
 		{
@@ -673,12 +660,6 @@ static void parsePackage (tokenInfo *const token)
 		{
 			if (tokenString(token)[0] == '-')
 				goto next;
-
-			if (tokenIsType (token, TCL_IDENTIFIER)
-				&& (vStringLength (token->string) > 0))
-			{
-				notifyPackageRequirement (token);
-			}
 		}
 	}
 	skipToEndOfCmdline(token);
@@ -702,8 +683,9 @@ static void findTclTags (void)
 			parsePackage (token);
 		else if (tokenIsType (token, TCL_IDENTIFIER))
 		{
-			notifyCommand (token, CORK_NIL);
-			skipToEndOfCmdline(token); /* ??? */
+			int r = notifyCommand (token, CORK_NIL);
+			if (r == CORK_NIL)
+				skipToEndOfCmdline(token);
 		}
 		else
 			skipToEndOfCmdline(token);

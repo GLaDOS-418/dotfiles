@@ -51,6 +51,7 @@ void cxxParserNewStatement(void)
 	{
 		cxxTokenChainDestroy(g_cxx.pTemplateTokenChain);
 		g_cxx.pTemplateTokenChain = NULL;
+		g_cxx.oTemplateParameters.uCount = 0;
 	} else {
 		// we don't care about stale specializations as they
 		// are destroyed wen the base template prefix is extracted
@@ -493,10 +494,13 @@ static bool cxxParserParseEnumStructClassOrUnionFullDeclarationTrailer(
 
 	MIOPos oFilePosition = getInputFilePosition();
 	int iFileLine = getInputLineNumber();
+	int eMaybeTokenTypeOpeningBracket = (g_cxx.bConfirmedCPPLanguage
+										 ? 0
+										 : CXXTokenTypeOpeningBracket);
 
 	if(!cxxParserParseUpToOneOf(
 			CXXTokenTypeEOF | CXXTokenTypeSemicolon |
-				CXXTokenTypeOpeningBracket | CXXTokenTypeAssignment,
+				eMaybeTokenTypeOpeningBracket | CXXTokenTypeAssignment,
 			false
 		))
 	{
@@ -572,7 +576,7 @@ static bool cxxParserParseEnumStructClassOrUnionFullDeclarationTrailer(
 	}
 
 	if(uKeywordState & CXXParserKeywordStateSeenTypedef)
-		cxxParserExtractTypedef(g_cxx.pTokenChain,true);
+		cxxParserExtractTypedef(g_cxx.pTokenChain,true,false);
 	else
 		cxxParserExtractVariableDeclarations(g_cxx.pTokenChain,0);
 
@@ -660,8 +664,12 @@ bool cxxParserParseEnum(void)
 	{
 		if(uInitialKeywordState & CXXParserKeywordStateSeenTypedef)
 		{
+			bool bR;
+			g_cxx.uKeywordState &= ~CXXParserKeywordStateSeenTypedef;
 			CXX_DEBUG_LEAVE_TEXT("Found parenthesis after typedef: parsing as generic typedef");
-			return cxxParserParseGenericTypedef();
+			bR = cxxParserParseGenericTypedef();
+			cxxParserNewStatement();
+			return bR;
 		}
 		// probably a function declaration/prototype
 		// something like enum x func()....
@@ -717,7 +725,7 @@ bool cxxParserParseEnum(void)
 		{
 			 // [typedef] enum X Y; <-- typedef has been removed!
 			if(g_cxx.uKeywordState & CXXParserKeywordStateSeenTypedef)
-				cxxParserExtractTypedef(g_cxx.pTokenChain,true);
+				cxxParserExtractTypedef(g_cxx.pTokenChain,true,false);
 			else
 				cxxParserExtractVariableDeclarations(g_cxx.pTokenChain,0);
 		}
@@ -757,11 +765,30 @@ bool cxxParserParseEnum(void)
 			return false;
 		}
 
-		if(cxxTokenTypeIsOneOf(g_cxx.pToken,CXXTokenTypeEOF | CXXTokenTypeSemicolon))
+		if(cxxTokenTypeIs(g_cxx.pToken,CXXTokenTypeEOF))
 		{
 			// tolerate EOF, treat as forward declaration
 			cxxParserNewStatement();
-			CXX_DEBUG_LEAVE_TEXT("EOF or semicolon before enum block: can't decode this");
+			CXX_DEBUG_LEAVE_TEXT("EOF before enum block: can't decode this");
+			return true;
+		}
+
+		if(cxxTokenTypeIs(g_cxx.pToken,CXXTokenTypeSemicolon))
+		{
+			bool bMember = (cxxScopeGetVariableKind() == CXXTagKindMEMBER);
+			if (bMember)
+			{
+				// enum type structure member with bit-width:
+				// e.g.
+				//    sturct { enum E m: 2; } v;
+				CXX_DEBUG_PRINT("Found semicolon, member definition with bit-width");
+				cxxParserExtractVariableDeclarations(g_cxx.pTokenChain, 0);
+			}
+			cxxParserNewStatement();
+			if (bMember)
+				CXX_DEBUG_LEAVE_TEXT("Semicolon before enum block: can't decode this");
+			else
+				CXX_DEBUG_LEAVE();
 			return true;
 		}
 
@@ -830,6 +857,7 @@ bool cxxParserParseEnum(void)
 	tagEntryInfo * tag = cxxTagBegin(CXXTagKindENUM,pEnumName);
 
 	int iCorkQueueIndex = CORK_NIL;
+	int iCorkQueueIndexFQ = CORK_NIL;
 
 	if(tag)
 	{
@@ -851,7 +879,8 @@ bool cxxParserParseEnum(void)
 		if(bIsScopedEnum)
 			pszProperties = cxxTagSetProperties(CXXTagPropertyScopedEnum);
 
-		iCorkQueueIndex = cxxTagCommit();
+		iCorkQueueIndex = cxxTagCommit(&iCorkQueueIndexFQ);
+		cxxTagUseTokenAsPartOfDefTag(iCorkQueueIndex, pEnumName);
 
 		if (pszProperties)
 			vStringDelete (pszProperties);
@@ -893,7 +922,7 @@ bool cxxParserParseEnum(void)
 			if(tag)
 			{
 				tag->isFileScope = !isInputHeaderFile();
-				cxxTagCommit();
+				cxxTagCommit(NULL);
 			}
 		}
 
@@ -905,7 +934,11 @@ bool cxxParserParseEnum(void)
 	}
 
 	if(iCorkQueueIndex > CORK_NIL)
+	{
 		cxxParserMarkEndLineForTagInCorkQueue(iCorkQueueIndex);
+		if(iCorkQueueIndexFQ > CORK_NIL)
+			cxxParserMarkEndLineForTagInCorkQueue(iCorkQueueIndexFQ);
+	}
 
 	while(iPushedScopes > 0)
 	{
@@ -965,10 +998,11 @@ static bool cxxParserParseClassStructOrUnionInternal(
 
 	unsigned int uTerminatorTypes = CXXTokenTypeEOF | CXXTokenTypeSingleColon |
 			CXXTokenTypeSemicolon | CXXTokenTypeOpeningBracket |
-			CXXTokenTypeSmallerThanSign;
+			CXXTokenTypeSmallerThanSign | (cxxParserCurrentLanguageIsCPP()? CXXTokenTypeKeyword: 0) |
+			CXXTokenTypeParenthesisChain;
 
 	if(uTagKind != CXXTagCPPKindCLASS)
-		uTerminatorTypes |= CXXTokenTypeParenthesisChain | CXXTokenTypeAssignment;
+		uTerminatorTypes |= CXXTokenTypeAssignment;
 
 	bool bRet;
 
@@ -981,6 +1015,15 @@ static bool cxxParserParseClassStructOrUnionInternal(
 			cxxKeywordEnableFinal(false);
 			CXX_DEBUG_LEAVE_TEXT("Could not parse class/struct/union name");
 			return false;
+		}
+
+		if(cxxTokenTypeIs(g_cxx.pToken,CXXTokenTypeKeyword))
+		{
+			/* The statement declears or defines an operator,
+			 * not a class, struct not union. */
+			if(g_cxx.pToken->eKeyword == CXXKeywordOPERATOR)
+				return true;
+			continue;
 		}
 
 		if(
@@ -1031,8 +1074,12 @@ static bool cxxParserParseClassStructOrUnionInternal(
 	{
 		if(uInitialKeywordState & CXXParserKeywordStateSeenTypedef)
 		{
+			bool bR;
+			g_cxx.uKeywordState &= ~CXXParserKeywordStateSeenTypedef;
 			CXX_DEBUG_LEAVE_TEXT("Found parenthesis after typedef: parsing as generic typedef");
-			return cxxParserParseGenericTypedef();
+			bR = cxxParserParseGenericTypedef();
+			cxxParserNewStatement();
+			return bR;
 		}
 
 		// probably a function declaration/prototype
@@ -1087,7 +1134,7 @@ static bool cxxParserParseClassStructOrUnionInternal(
 		{
 			// [typedef] struct X Y; <-- typedef has been removed!
 			if(uInitialKeywordState & CXXParserKeywordStateSeenTypedef)
-				cxxParserExtractTypedef(g_cxx.pTokenChain,true);
+				cxxParserExtractTypedef(g_cxx.pTokenChain,true,false);
 			else if(!(g_cxx.uKeywordState & CXXParserKeywordStateSeenFriend))
 				cxxParserExtractVariableDeclarations(g_cxx.pTokenChain,0);
 		}
@@ -1250,6 +1297,7 @@ static bool cxxParserParseClassStructOrUnionInternal(
 	tagEntryInfo * tag = cxxTagBegin(uTagKind,pClassName);
 
 	int iCorkQueueIndex = CORK_NIL;
+	int iCorkQueueIndexFQ = CORK_NIL;
 
 	bool bGotTemplate = g_cxx.pTemplateTokenChain &&
 			(g_cxx.pTemplateTokenChain->iCount > 0) &&
@@ -1304,7 +1352,8 @@ static bool cxxParserParseClassStructOrUnionInternal(
 
 		tag->isFileScope = !isInputHeaderFile();
 
-		iCorkQueueIndex = cxxTagCommit();
+		iCorkQueueIndex = cxxTagCommit(&iCorkQueueIndexFQ);
+		cxxTagUseTokenAsPartOfDefTag(iCorkQueueIndex, pClassName);
 
 	}
 
@@ -1332,7 +1381,11 @@ static bool cxxParserParseClassStructOrUnionInternal(
 	}
 
 	if(iCorkQueueIndex > CORK_NIL)
+	{
 		cxxParserMarkEndLineForTagInCorkQueue(iCorkQueueIndex);
+		if(iCorkQueueIndexFQ > CORK_NIL)
+			cxxParserMarkEndLineForTagInCorkQueue(iCorkQueueIndexFQ);
+	}
 
 	iPushedScopes++;
 	while(iPushedScopes > 0)
@@ -1477,9 +1530,18 @@ void cxxParserAnalyzeOtherStatement(void)
 	}
 
 	// prefer function.
+	CXXTypedVariableSet oParamInfo;
+	const bool bPrototypeParams = cxxTagKindEnabled(CXXTagKindPROTOTYPE) && cxxTagKindEnabled(CXXTagKindPARAMETER);
 check_function_signature:
 
-	if(cxxParserLookForFunctionSignature(g_cxx.pTokenChain,&oInfo,NULL))
+	if(
+		cxxParserLookForFunctionSignature(g_cxx.pTokenChain,&oInfo,bPrototypeParams?&oParamInfo:NULL)
+		// Even if we saw "();", we cannot say it is a function prototype; a macro expansion can be used to
+		// initialize a top-level variable like:
+		//   #define INIT() 0
+		//   int i = INIT();"
+		&& ! (oInfo.pTypeEnd && cxxTokenTypeIs(oInfo.pTypeEnd,CXXTokenTypeAssignment))
+		)
 	{
 		CXX_DEBUG_PRINT("Found function prototype");
 
@@ -1492,13 +1554,19 @@ check_function_signature:
 			// out its proper scope. Better avoid emitting this one.
 			CXX_DEBUG_PRINT("But it has been preceded by the 'friend' keyword: this is not a real prototype");
 		} else {
-			int piCorkQueueIndex;
-			int iScopesPushed = cxxParserEmitFunctionTags(&oInfo,CXXTagKindPROTOTYPE,CXXEmitFunctionTagsPushScopes, &piCorkQueueIndex);
-			if (piCorkQueueIndex != CORK_NIL)
+			int iCorkQueueIndex, iCorkQueueIndexFQ;
+			int iScopesPushed = cxxParserEmitFunctionTags(&oInfo,CXXTagKindPROTOTYPE,CXXEmitFunctionTagsPushScopes,&iCorkQueueIndex,&iCorkQueueIndexFQ);
+			if (iCorkQueueIndex != CORK_NIL)
 			{
 				CXXToken * t = cxxTokenChainLast(g_cxx.pTokenChain);
-				cxxParserSetEndLineForTagInCorkQueue (piCorkQueueIndex, t->iLineNumber);
+				cxxParserSetEndLineForTagInCorkQueue (iCorkQueueIndex, t->iLineNumber);
+				if (iCorkQueueIndexFQ != CORK_NIL)
+					cxxParserSetEndLineForTagInCorkQueue (iCorkQueueIndexFQ, t->iLineNumber);
 			}
+
+			if(bPrototypeParams)
+				cxxParserEmitFunctionParameterTags(&oParamInfo);
+
 			while(iScopesPushed > 0)
 			{
 				cxxScopePop();
@@ -1831,6 +1899,7 @@ static rescanReason cxxParserMain(const unsigned int passCount)
 	int kind_for_header = CXXTagKindINCLUDE;
 	int kind_for_macro_param = CXXTagKindMACROPARAM;
 	int role_for_macro_undef = CR_MACRO_UNDEF;
+	int role_for_macro_condition = CR_MACRO_CONDITION;
 	int role_for_header_system = CR_HEADER_SYSTEM;
 	int role_for_header_local = CR_HEADER_LOCAL;
 
@@ -1843,6 +1912,7 @@ static rescanReason cxxParserMain(const unsigned int passCount)
 			false,
 			kind_for_define,
 			role_for_macro_undef,
+			role_for_macro_condition,
 			kind_for_macro_param,
 			kind_for_header,
 			role_for_header_system,

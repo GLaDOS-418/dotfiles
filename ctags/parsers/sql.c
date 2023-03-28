@@ -27,6 +27,7 @@
 #include "routines.h"
 #include "vstring.h"
 #include "xtag.h"
+#include "promise.h"
 
 /*
  *	On-line "Oracle Database PL/SQL Language Reference":
@@ -73,10 +74,12 @@ enum eKeywordId {
 	KEYWORD_call,
 	KEYWORD_case,
 	KEYWORD_check,
+	KEYWORD_commit,
 	KEYWORD_comment,
 	KEYWORD_constraint,
 	KEYWORD_create,
 	KEYWORD_cursor,
+	KEYWORD_database,
 	KEYWORD_datatype,
 	KEYWORD_declare,
 	KEYWORD_do,
@@ -84,6 +87,7 @@ enum eKeywordId {
 	KEYWORD_drop,
 	KEYWORD_else,
 	KEYWORD_elseif,
+	KEYWORD_elsif,
 	KEYWORD_end,
 	KEYWORD_endif,
 	KEYWORD_event,
@@ -100,6 +104,7 @@ enum eKeywordId {
 	KEYWORD_index,
 	KEYWORD_internal,
 	KEYWORD_is,
+	KEYWORD_language,
 	KEYWORD_local,
 	KEYWORD_loop,
 	KEYWORD_ml_conn,
@@ -117,6 +122,7 @@ enum eKeywordId {
 	KEYWORD_on,
 	KEYWORD_package,
 	KEYWORD_pragma,
+	KEYWORD_inquiry_directive,
 	KEYWORD_primary,
 	KEYWORD_procedure,
 	KEYWORD_publication,
@@ -127,6 +133,7 @@ enum eKeywordId {
 	KEYWORD_result,
 	KEYWORD_return,
 	KEYWORD_returns,
+	KEYWORD_schema,
 	KEYWORD_select,
 	KEYWORD_service,
 	KEYWORD_subtype,
@@ -171,7 +178,12 @@ typedef enum eTokenType {
 	TOKEN_CLOSE_SQUARE,
 	TOKEN_TILDE,
 	TOKEN_FORWARD_SLASH,
-	TOKEN_EQUAL
+	TOKEN_EQUAL,
+	TOKEN_PREPROC_IF,
+	TOKEN_PREPROC_ELSIF,
+	TOKEN_PREPROC_ELSE,
+	TOKEN_PREPROC_THEN,
+	TOKEN_PREPROC_END,
 } tokenType;
 
 typedef struct sTokenInfoSQL {
@@ -183,6 +195,22 @@ typedef struct sTokenInfoSQL {
 	int         begin_end_nest_lvl;
 	unsigned long lineNumber;
 	MIOPos filePosition;
+
+	/* When the "guest" extra is enabled, a promise is
+	 * made always when reading a string (literal or dollar quote).
+	 * The lexer stores the id of promise to this member.
+	 * When making the promise, the language of guest parser
+	 * may not be determined yet.
+	 *
+	 *   CREATE FUNCTION ... AS ' sub code_written_in_perl {... ' LANGUAGE plperl;
+	 *
+	 * After reading a string, the parser may find LANGUAGE keyword. In the case,
+	 * the parser updates the language of the promies.
+	 *
+	 * This field is filled only when `guest` extra is enabled.
+	 *
+	 */
+	int promise;
 } tokenInfo;
 
 /*
@@ -192,26 +220,29 @@ typedef struct sTokenInfoSQL {
 static langType Lang_sql;
 
 typedef enum {
-	SQLTAG_CURSOR,
-	SQLTAG_PROTOTYPE,
-	SQLTAG_FUNCTION,
+	SQLTAG_PLSQL_CCFLAGS,
+	SQLTAG_DOMAIN,
 	SQLTAG_FIELD,
-	SQLTAG_LOCAL_VARIABLE,
 	SQLTAG_BLOCK_LABEL,
 	SQLTAG_PACKAGE,
+	SQLTAG_SERVICE,
+	SQLTAG_SCHEMA,
+	SQLTAG_TRIGGER,
+	SQLTAG_PUBLICATION,
+	SQLTAG_VIEW,
+	SQLTAG_DATABASE,
+	SQLTAG_CURSOR,
+	SQLTAG_PROTOTYPE,
+	SQLTAG_EVENT,
+	SQLTAG_FUNCTION,
+	SQLTAG_INDEX,
+	SQLTAG_LOCAL_VARIABLE,
+	SQLTAG_SYNONYM,
 	SQLTAG_PROCEDURE,
 	SQLTAG_RECORD,
 	SQLTAG_SUBTYPE,
 	SQLTAG_TABLE,
-	SQLTAG_TRIGGER,
 	SQLTAG_VARIABLE,
-	SQLTAG_INDEX,
-	SQLTAG_EVENT,
-	SQLTAG_PUBLICATION,
-	SQLTAG_SERVICE,
-	SQLTAG_DOMAIN,
-	SQLTAG_VIEW,
-	SQLTAG_SYNONYM,
 	SQLTAG_MLTABLE,
 	SQLTAG_MLCONN,
 	SQLTAG_MLPROP,
@@ -219,29 +250,32 @@ typedef enum {
 } sqlKind;
 
 static kindDefinition SqlKinds [] = {
-	{ true,  'c', "cursor",		  "cursors"				   },
-	{ false, 'd', "prototype",	  "prototypes"			   },
-	{ true,  'f', "function",	  "functions"			   },
+	{ true,  'C', "ccflag",		  "PLSQL_CCFLAGS"          },
+	{ true,  'D', "domain",		  "domains"				   },
 	{ true,  'E', "field",		  "record fields"		   },
-	{ false, 'l', "local",		  "local variables"		   },
 	{ true,  'L', "label",		  "block label"			   },
 	{ true,  'P', "package",	  "packages"			   },
+	{ true,  'R', "service",	  "services"			   },
+	{ true,  'S', "schema",		  "schemas"			  	   },
+	{ true,  'T', "trigger",	  "triggers"			   },
+	{ true,  'U', "publication",  "publications"		   },
+	{ true,  'V', "view",		  "views"				   },
+	{ true,  'b', "database",	  "database"			   },
+	{ true,  'c', "cursor",		  "cursors"				   },
+	{ false, 'd', "prototype",	  "prototypes"			   },
+	{ true,  'e', "event",		  "events"				   },
+	{ true,  'f', "function",	  "functions"			   },
+	{ true,  'i', "index",		  "indexes"				   },
+	{ false, 'l', "local",		  "local variables"		   },
+	{ true,  'n', "synonym",	  "synonyms"			   },
 	{ true,  'p', "procedure",	  "procedures"			   },
 	{ false, 'r', "record",		  "records"				   },
 	{ true,  's', "subtype",	  "subtypes"			   },
 	{ true,  't', "table",		  "tables"				   },
-	{ true,  'T', "trigger",	  "triggers"			   },
 	{ true,  'v', "variable",	  "variables"			   },
-	{ true,  'i', "index",		  "indexes"				   },
-	{ true,  'e', "event",		  "events"				   },
-	{ true,  'U', "publication",  "publications"		   },
-	{ true,  'R', "service",	  "services"			   },
-	{ true,  'D', "domain",		  "domains"				   },
-	{ true,  'V', "view",		  "views"				   },
-	{ true,  'n', "synonym",	  "synonyms"			   },
 	{ true,  'x', "mltable",	  "MobiLink Table Scripts" },
 	{ true,  'y', "mlconn",		  "MobiLink Conn Scripts"  },
-	{ true,  'z', "mlprop",		  "MobiLink Properties "   }
+	{ true,  'z', "mlprop",		  "MobiLink Properties"    },
 };
 
 static const keywordTable SqlKeywordTable [] = {
@@ -253,10 +287,12 @@ static const keywordTable SqlKeywordTable [] = {
 	{ "call",							KEYWORD_call			      },
 	{ "case",							KEYWORD_case			      },
 	{ "check",							KEYWORD_check			      },
+	{ "commit",							KEYWORD_commit				  },
 	{ "comment",						KEYWORD_comment			      },
 	{ "constraint",						KEYWORD_constraint		      },
 	{ "create",							KEYWORD_create				  },
 	{ "cursor",							KEYWORD_cursor			      },
+	{ "database",						KEYWORD_database		      },
 	{ "datatype",						KEYWORD_datatype		      },
 	{ "declare",						KEYWORD_declare			      },
 	{ "do",								KEYWORD_do				      },
@@ -264,6 +300,7 @@ static const keywordTable SqlKeywordTable [] = {
 	{ "drop",							KEYWORD_drop			      },
 	{ "else",							KEYWORD_else			      },
 	{ "elseif",							KEYWORD_elseif			      },
+	{ "elsif",							KEYWORD_elsif			      },
 	{ "end",							KEYWORD_end				      },
 	{ "endif",							KEYWORD_endif			      },
 	{ "event",							KEYWORD_event			      },
@@ -280,6 +317,7 @@ static const keywordTable SqlKeywordTable [] = {
 	{ "index",							KEYWORD_index			      },
 	{ "internal",						KEYWORD_internal		      },
 	{ "is",								KEYWORD_is				      },
+	{ "language",						KEYWORD_language              },
 	{ "local",							KEYWORD_local			      },
 	{ "loop",							KEYWORD_loop			      },
 	{ "ml_add_connection_script",		KEYWORD_ml_conn			      },
@@ -307,6 +345,7 @@ static const keywordTable SqlKeywordTable [] = {
 	{ "result",							KEYWORD_result			      },
 	{ "return",							KEYWORD_return			      },
 	{ "returns",						KEYWORD_returns			      },
+	{ "schema",							KEYWORD_schema			      },
 	{ "select",							KEYWORD_select			      },
 	{ "service",						KEYWORD_service			      },
 	{ "subtype",						KEYWORD_subtype			      },
@@ -324,6 +363,27 @@ static const keywordTable SqlKeywordTable [] = {
 	{ "while",							KEYWORD_while			      },
 	{ "with",							KEYWORD_with			      },
 	{ "without",						KEYWORD_without			      },
+};
+
+const static struct keywordGroup predefinedInquiryDirective = {
+	.value = KEYWORD_inquiry_directive,
+	.addingUnlessExisting = false,
+	.keywords = {
+		/* https://docs.oracle.com/en/database/oracle/oracle-database/18/lnpls/plsql-language-fundamentals.html#GUID-3DABF5E1-AC84-448B-810F-31196991EA10 */
+		"PLSQL_LINE",
+		"PLSQL_UNIT",
+		"PLSQL_UNIT_OWNER",
+		"PLSQL_UNIT_TYPE",
+		/* https://docs.oracle.com/en/database/oracle/oracle-database/18/lnpls/overview.html#GUID-DF63BC59-22C2-4BA8-9240-F74D505D5102 */
+		"PLSCOPE_SETTINGS",
+		"PLSQL_CCFLAGS",
+		"PLSQL_CODE_TYPE",
+		"PLSQL_OPTIMIZE_LEVEL",
+		"PLSQL_WARNINGS",
+		"NLS_LENGTH_SEMANTICS",
+		"PERMIT_92_WRAP_FORMAT",
+		NULL
+	},
 };
 
 /* A table representing whether a keyword is "reserved word" or not.
@@ -350,12 +410,14 @@ struct SqlReservedWord {
  * ORACLE11g, PLSQL
  * => https://docs.oracle.com/cd/B28359_01/appdev.111/b31231/appb.htm#CJHIIICD
  * SQLANYWERE
- * => http://dcx.sap.com/1200/en/dbreference/alhakeywords.html
+ * => http://dcx.sap.com/1200/en/dbreference/alhakeywords.html <the page is gone>
  */
 static bool SqlReservedWordPredicatorForIsOrAs (tokenInfo *const token);
 static struct SqlReservedWord SqlReservedWord [SQLKEYWORD_COUNT] = {
 	/*
 	 * RESERVED_BIT: MYSQL & POSTGRESQL&SQL2016&SQL2011&SQL92 & ORACLE11g&PLSQL & SQLANYWERE
+	 *
+	 * {  0  } means we have not inspect whether the keyword is reserved or not.
 	 */
 	[KEYWORD_at]            = {0 & 0&1&1&1 & 0&1 & 0},
 	[KEYWORD_begin]         = {0 & 0&1&1&1 & 0&1 & 1},
@@ -363,10 +425,12 @@ static struct SqlReservedWord SqlReservedWord [SQLKEYWORD_COUNT] = {
 	[KEYWORD_call]          = {1 & 0&1&1&0 & 0&0 & 1},
 	[KEYWORD_case]          = {1 & 1&1&1&1 & 0&1 & 1},
 	[KEYWORD_check]         = {1 & 1&1&1&1 & 1&1 & 1},
+	[KEYWORD_commit]        = {0 & 0&1&1&1 & 0&0 & 0}, /* SQLANYWERE:??? */
 	[KEYWORD_comment]       = {0 & 0&0&0&0 & 1&1 & 1},
 	[KEYWORD_constraint]    = {1 & 1&1&1&1 & 0&1 & 1},
 	[KEYWORD_create]        = {1 & 1&1&1&1 & 1&1 & 1},
 	[KEYWORD_cursor]        = {1 & 0&1&1&1 & 0&1 & 1},
+	[KEYWORD_database]      = {         0           },
 	[KEYWORD_datatype]      = {0 & 0&0&0&0 & 0&0 & 0},
 	[KEYWORD_declare]       = {1 & 0&1&1&1 & 0&1 & 1},
 	[KEYWORD_do]            = {0 & 1&0&0&0 & 0&1 & 1},
@@ -374,6 +438,7 @@ static struct SqlReservedWord SqlReservedWord [SQLKEYWORD_COUNT] = {
 	[KEYWORD_drop]          = {1 & 0&1&1&1 & 1&1 & 1},
 	[KEYWORD_else]          = {1 & 1&1&1&1 & 1&1 & 1},
 	[KEYWORD_elseif]        = {1 & 0&0&0&0 & 0&0 & 1},
+	[KEYWORD_elsif]         = {0 & 0&0&0&0 & 0&1 & 0},
 	[KEYWORD_end]           = {0 & 1&1&1&1 & 0&1 & 1},
 	[KEYWORD_endif]         = {0 & 0&0&0&0 & 0&0 & 1},
 	[KEYWORD_event]         = {0 & 0&0&0&0 & 0&0 & 0},
@@ -388,8 +453,10 @@ static struct SqlReservedWord SqlReservedWord [SQLKEYWORD_COUNT] = {
 	[KEYWORD_handler]       = {0 & 0&0&0&0 & 0&0 & 0},
 	[KEYWORD_if]            = {1 & 0&0&0&0 & 0&1 & 1},
 	[KEYWORD_index]         = {1 & 0&0&0&0 & 1&1 & 1},
+	[KEYWORD_inquiry_directive] = {        0        },
 	[KEYWORD_internal]      = {1 & 0&1&1&0 & 0&0 & 0},
 	[KEYWORD_is]            = {0, SqlReservedWordPredicatorForIsOrAs},
+	[KEYWORD_language]      = {            0        },
 	[KEYWORD_local]         = {0 & 0&1&1&1 & 0&0 & 0},
 	[KEYWORD_loop]          = {1 & 1&1&1&1 & 0&1 & 0},
 	[KEYWORD_ml_conn]       = {0 & 0&0&0&0 & 0&0 & 0},
@@ -417,6 +484,7 @@ static struct SqlReservedWord SqlReservedWord [SQLKEYWORD_COUNT] = {
 	[KEYWORD_result]        = {0 & 0&1&1&0 & 0&0 & 0},
 	[KEYWORD_return]        = {1 & 0&1&1&0 & 0&1 & 1},
 	[KEYWORD_returns]       = {0 & 0&0&0&0 & 0&0 & 0},
+	[KEYWORD_schema]        = {0 & 0&0&0&0 & 0&0 & 0},
 	[KEYWORD_select]        = {1 & 1&1&1&1 & 1&1 & 1},
 	[KEYWORD_service]       = {0 & 0&0&0&0 & 0&0 & 0},
 	[KEYWORD_subtype]       = {0 & 0&0&0&0 & 0&1 & 0},
@@ -442,8 +510,9 @@ static struct SqlReservedWord SqlReservedWord [SQLKEYWORD_COUNT] = {
 
 /* Recursive calls */
 static void parseBlock (tokenInfo *const token, const bool local);
+static void parseBlockFull (tokenInfo *const token, const bool local, langType lang);
 static void parseDeclare (tokenInfo *const token, const bool local);
-static void parseKeywords (tokenInfo *const token);
+static void parseKeywords (tokenInfo *const token, enum eKeywordId precedingKeyword);
 static tokenType parseSqlFile (tokenInfo *const token);
 
 /*
@@ -529,6 +598,7 @@ static tokenInfo *newToken (void)
 	token->begin_end_nest_lvl = 0;
 	token->lineNumber         = getInputLineNumber ();
 	token->filePosition       = getInputFilePosition ();
+	token->promise            = -1;
 
 	return token;
 }
@@ -584,8 +654,26 @@ static void makeSqlTag (tokenInfo *const token, const sqlKind kind)
  *	 Parsing functions
  */
 
-static void parseString (vString *const string, const int delimiter)
+static void parseString (vString *const string, const int delimiter, int *promise)
 {
+	int offset[2];
+	unsigned long linenum[3];
+	enum { START, END, SOURCE };
+
+	int c0;
+
+	if (promise && !isXtagEnabled(XTAG_GUEST))
+		promise = NULL;
+
+	if (promise)
+	{
+		c0 = getcFromInputFile ();
+		linenum[START] = getInputLineNumber ();
+		offset[START]  = getInputLineOffset ();
+		linenum[SOURCE] = getSourceLineNumber ();
+		ungetcToInputFile(c0);
+	}
+
 	bool end = false;
 	while (! end)
 	{
@@ -600,7 +688,20 @@ static void parseString (vString *const string, const int delimiter)
 		}
 		*/
 		else if (c == delimiter)
+		{
+			if (promise)
+			{
+				ungetcToInputFile(c);
+				linenum[END] = getInputLineNumber ();
+				offset[END]  = getInputLineOffset ();
+				(void)getcFromInputFile ();
+				*promise = makePromise (NULL,
+										linenum [START], offset [START],
+										linenum [END], offset [END],
+										linenum [SOURCE]);
+			}
 			end = true;
+		}
 		else
 			vStringPut (string, c);
 	}
@@ -621,10 +722,28 @@ static void parseIdentifier (vString *const string, const int firstChar)
 		ungetcToInputFile (c);		/* unget non-identifier character */
 }
 
-/* Parse a PostgreSQL: dollar-quoted string
- * https://www.postgresql.org/docs/current/static/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING */
-static tokenType parseDollarQuote (vString *const string, const int delimiter)
+static bool isCCFlag(const char *str)
 {
+	return (anyKindEntryInScope(CORK_NIL, str, SQLTAG_PLSQL_CCFLAGS, false) != 0);
+}
+
+/* Parse a PostgreSQL: dollar-quoted string
+ * https://www.postgresql.org/docs/current/static/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
+ *
+ * The syntax for dollar-quoted string ca collide with PL/SQL inquiry directive ($$name).
+ * https://docs.oracle.com/en/database/oracle/oracle-database/18/lnpls/plsql-language-fundamentals.html#GUID-E918087C-D5A8-4CEE-841B-5333DE6D4C15
+ * https://github.com/universal-ctags/ctags/issues/3006
+
+ * In addition, it can also collide with variable checks in PL/SQL selection directives such as:
+ * $IF $$my_var > 1 $THEN ... $END
+ * https://docs.oracle.com/en/database/oracle/oracle-database/19/lnpls/plsql-language-fundamentals.html#GUID-78F2074C-C799-4CF9-9290-EB8473D0C8FB
+ */
+static tokenType parseDollarQuote (vString *const string, const int delimiter, int *promise)
+{
+	int offset[2];
+	unsigned long linenum[3];
+	enum { START, END, SOURCE };
+
 	unsigned int len = 0;
 	char tag[32 /* arbitrary limit */] = {0};
 	int c = 0;
@@ -641,17 +760,62 @@ static tokenType parseDollarQuote (vString *const string, const int delimiter)
 	}
 	tag[len] = 0;
 
+	bool empty_tag = (len == 2);
+
 	if (c != delimiter)
 	{
-		/* damn that's not valid, what can we do? */
+		/* not a dollar quote */
+		keywordId kw = lookupCaseKeyword (tag+1, Lang_sql);
+		ungetcToInputFile (c);
+
+		if (kw == KEYWORD_if)
+			return TOKEN_PREPROC_IF;
+		else if (kw == KEYWORD_elsif)
+			return TOKEN_PREPROC_ELSIF;
+		else if (kw == KEYWORD_else)
+			return TOKEN_PREPROC_ELSE;
+		else if (kw == KEYWORD_then)
+			return TOKEN_PREPROC_THEN;
+		else if (kw == KEYWORD_end)
+			return TOKEN_PREPROC_END;
 		return TOKEN_UNDEFINED;
+	}
+
+	if (promise && !isXtagEnabled(XTAG_GUEST))
+		promise = NULL;
+
+	if (promise)
+	{
+		linenum[START] = getInputLineNumber ();
+		offset[START]  = getInputLineOffset ();
+		linenum[SOURCE] = getSourceLineNumber ();
 	}
 
 	/* and read the content (until a matching end tag) */
 	while ((c = getcFromInputFile ()) != EOF)
 	{
 		if (c != delimiter)
+		{
 			vStringPut (string, c);
+			if (empty_tag
+				&& (KEYWORD_inquiry_directive == lookupCaseKeyword (vStringValue (string),
+																	Lang_sql)
+					|| isCCFlag(vStringValue (string))))
+			{
+				/* PL/SQL inquiry directives */
+				int c0 = getcFromInputFile ();
+
+				if (c0 != delimiter && (isalnum(c0) || c0 == '_'))
+				{
+					vStringPut (string, c0);
+					continue;
+				}
+
+				ungetcToInputFile (c0);
+				/* Oracle PL/SQL's inquiry directive ($$name) */
+				return TOKEN_UNDEFINED;
+			}
+		}
 		else
 		{
 			char *end_p = tag;
@@ -662,26 +826,40 @@ static tokenType parseDollarQuote (vString *const string, const int delimiter)
 				end_p++;
 			}
 
-			if (! *end_p) /* full tag match */
-				break;
-			else
-			{
+			if (c != EOF)
 				ungetcToInputFile (c);
-				vStringNCatS (string, tag, (size_t) (end_p - tag));
+
+			if (! *end_p) /* full tag match */
+			{
+				if (promise)
+				{
+					linenum[END] = getInputLineNumber ();
+					offset[END]  = getInputLineOffset ();
+					if (offset[END] > len)
+						offset[END] -= len;
+					*promise = makePromise (NULL,
+											linenum [START], offset [START],
+											linenum [END], offset [END],
+											linenum [SOURCE]);
+				}
+				break;
 			}
+			else
+				vStringNCatS (string, tag, (size_t) (end_p - tag));
 		}
 	}
 
 	return TOKEN_STRING;
 }
 
-static void readToken (tokenInfo *const token)
+static void readTokenFull (tokenInfo *const token, bool skippingPreproc)
 {
 	int c;
 
 	token->type			= TOKEN_UNDEFINED;
 	token->keyword		= KEYWORD_NONE;
 	vStringClear (token->string);
+	token->promise      = -1;
 
 getNextChar:
 	do
@@ -720,7 +898,7 @@ getNextChar:
 		case '\'':
 		case '"':
 				  token->type = TOKEN_STRING;
-				  parseString (token->string, c);
+				  parseString (token->string, c, &token->promise);
 				  token->lineNumber = getInputLineNumber ();
 				  token->filePosition = getInputFilePosition ();
 				  break;
@@ -798,10 +976,39 @@ getNextChar:
 				  }
 
 		case '$':
-				  token->type = parseDollarQuote (token->string, c);
-				  token->lineNumber = getInputLineNumber ();
-				  token->filePosition = getInputFilePosition ();
-				  break;
+				  {
+					  tokenType t;
+					  if (skippingPreproc)
+					  {
+						  int d = getcFromInputFile ();
+						  if (d != '$')
+							  ungetcToInputFile (d);
+					  }
+					  t = parseDollarQuote (token->string, c, &token->promise);
+					  if (t == TOKEN_PREPROC_IF)
+					  {
+						  /* skip until $THEN and keep the content of this branch */
+						  readTokenFull (token, true);
+						  while (!isType (token, TOKEN_PREPROC_THEN) && !isType (token, TOKEN_EOF))
+							  readTokenFull (token, true);
+						  readTokenFull (token, false);
+					  }
+					  else if (!skippingPreproc && (t == TOKEN_PREPROC_ELSIF || t == TOKEN_PREPROC_ELSE))
+					  {
+						  /* skip until $END and drop $ELSIF and $ELSE branches */
+						  readTokenFull (token, true);
+						  while (!isType (token, TOKEN_PREPROC_END) && !isType (token, TOKEN_EOF))
+							  readTokenFull (token, true);
+						  readTokenFull (token, false);
+					  }
+					  else
+					  {
+						  token->type = t;
+						  token->lineNumber = getInputLineNumber ();
+						  token->filePosition = getInputFilePosition ();
+					  }
+					  break;
+				  }
 
 		default:
 				  if (! isIdentChar1 (c))
@@ -825,6 +1032,11 @@ getNextChar:
 				  }
 				  break;
 	}
+}
+
+static void readToken (tokenInfo *const token)
+{
+	readTokenFull (token, false);
 }
 
 /*
@@ -1003,6 +1215,28 @@ static void skipArgumentList (tokenInfo *const token)
 	}
 }
 
+static langType getNamedLanguageFromToken(tokenInfo *const token)
+{
+	langType lang = LANG_IGNORE;
+
+	if (isType (token, TOKEN_IDENTIFIER))
+	{
+		if (vStringLength (token->string) > 2
+			&& vStringValue (token->string) [0] == 'p'
+			&& vStringValue (token->string) [1] == 'l')
+		{
+			/* Remove first 'pl' and last 'u' for extracting the
+			 * name of the language. */
+			bool unsafe = (vStringLast(token->string) == 'u');
+			lang = getNamedLanguageOrAlias (vStringValue (token->string) + 2,
+											vStringLength (token->string)
+											- 2
+											- (unsafe? 1: 0));
+		}
+	}
+	return lang;
+}
+
 static void parseSubProgram (tokenInfo *const token)
 {
 	tokenInfo *const name  = newToken ();
@@ -1120,6 +1354,8 @@ static void parseSubProgram (tokenInfo *const token)
 	}
 	else
 	{
+		langType lang = LANG_IGNORE;
+
 		while (! isKeyword (token, KEYWORD_is) &&
 			   ! isKeyword (token, KEYWORD_begin) &&
 			   ! isKeyword (token, KEYWORD_at) &&
@@ -1138,6 +1374,12 @@ static void parseSubProgram (tokenInfo *const token)
 					/* Reads to the next token after the TOKEN_CLOSE_PAREN */
 					skipArgumentList(token);
 				}
+			} else if (lang == LANG_IGNORE
+					   && isKeyword (token, KEYWORD_language)) {
+				readToken (token);
+				lang = getNamedLanguageFromToken (token);
+				if (lang != LANG_IGNORE)
+					readToken (token);
 			} else {
 				readToken (token);
 			}
@@ -1175,7 +1417,7 @@ static void parseSubProgram (tokenInfo *const token)
 				makeSqlTag (name, kind);
 			}
 
-			parseBlock (token, true);
+			parseBlockFull (token, true, lang);
 			vStringClear (token->scope);
 			token->scopeKind = SQLTAG_COUNT;
 		}
@@ -1361,14 +1603,7 @@ static void parseDeclare (tokenInfo *const token, const bool local)
 			default:
 				if (isType (token, TOKEN_IDENTIFIER))
 				{
-					if (local)
-					{
-						makeSqlTag (token, SQLTAG_LOCAL_VARIABLE);
-					}
-					else
-					{
-						makeSqlTag (token, SQLTAG_VARIABLE);
-					}
+					makeSqlTag (token, local? SQLTAG_LOCAL_VARIABLE: SQLTAG_VARIABLE);
 				}
 				break;
 		}
@@ -1421,10 +1656,7 @@ static void parseDeclareANSI (tokenInfo *const token, const bool local)
 		else if (isType (token, TOKEN_IDENTIFIER) ||
 				 isType (token, TOKEN_STRING))
 		{
-			if (local)
-				makeSqlTag (token, SQLTAG_LOCAL_VARIABLE);
-			else
-				makeSqlTag (token, SQLTAG_VARIABLE);
+			makeSqlTag (token, local? SQLTAG_LOCAL_VARIABLE: SQLTAG_VARIABLE);
 		}
 		findToken (token, TOKEN_SEMICOLON);
 		readToken (token);
@@ -1682,7 +1914,7 @@ static void parseStatements (tokenInfo *const token, const bool exit_on_endif )
 
 				case KEYWORD_create:
 					readToken (token);
-					parseKeywords(token);
+					parseKeywords(token, KEYWORD_create);
 					break;
 
 				case KEYWORD_declare:
@@ -1784,6 +2016,13 @@ static void parseStatements (tokenInfo *const token, const bool exit_on_endif )
 
 static void parseBlock (tokenInfo *const token, const bool local)
 {
+	parseBlockFull (token, local, LANG_IGNORE);
+}
+
+static void parseBlockFull (tokenInfo *const token, const bool local, langType lang)
+{
+	int promise = -1;
+
 	if (isType (token, TOKEN_BLOCK_LABEL_BEGIN))
 	{
 		parseLabel (token);
@@ -1796,6 +2035,27 @@ static void parseBlock (tokenInfo *const token, const bool local)
 		{
 			/* Likely a PostgreSQL FUNCTION name AS '...'
 			 * https://www.postgresql.org/docs/current/static/sql-createfunction.html */
+			promise = token->promise;
+			token->promise = -1;
+
+			readToken (token);
+			while (! isCmdTerm (token)
+				   && !isType (token, TOKEN_EOF))
+			{
+				if (lang == LANG_IGNORE &&
+					isKeyword (token, KEYWORD_language))
+				{
+					readToken (token);
+					lang = getNamedLanguageFromToken (token);
+					if (lang != LANG_IGNORE)
+						readToken (token);
+				}
+				else
+					readToken (token);
+			}
+
+			if (promise != -1 && lang != LANG_IGNORE)
+				promiseUpdateLanguage(promise, lang);
 		}
 		else
 		{
@@ -1808,15 +2068,51 @@ static void parseBlock (tokenInfo *const token, const bool local)
 	}
 	if (isKeyword (token, KEYWORD_begin))
 	{
+		bool is_transaction = false;
+
 		readToken (token);
-		/*
-		 * Check for ANSI declarations which always follow
-		 * a BEGIN statement.  This routine will not advance
-		 * the token if none are found.
+
+		/* BEGIN of Postgresql initiates a transaction.
+		 *
+		 *   BEGIN [ WORK | TRANSACTION ] [ transaction_mode [, ...] ]
+		 *
+		 * BEGIN of MySQL does the same.
+		 *
+		 *   BEGIN [WORK]
+		 *
+		 * BEGIN of SQLite does the same.
+		 *
+		 *   BEGIN [[DEFERRED | IMMEDIATE | EXCLUSIVE] TRANSACTION]
+		 *
 		 */
-		parseDeclareANSI (token, local);
+		if (isCmdTerm(token))
+		{
+			is_transaction = true;
+			readToken (token);
+		}
+		else if (isType (token, TOKEN_IDENTIFIER)
+				 && (strcasecmp (vStringValue(token->string), "work") == 0
+					 || strcasecmp (vStringValue(token->string), "transaction") == 0
+					 || (
+						 strcasecmp (vStringValue(token->string), "deferred") == 0
+						 || strcasecmp (vStringValue(token->string), "immediate") == 0
+						 || strcasecmp (vStringValue(token->string), "exclusive") == 0
+						 )
+					 ))
+			is_transaction = true;
+		else
+		{
+			/*
+			 * Check for ANSI declarations which always follow
+			 * a BEGIN statement.  This routine will not advance
+			 * the token if none are found.
+			 */
+			parseDeclareANSI (token, local);
+		}
+
 		token->begin_end_nest_lvl++;
 		while (! isKeyword (token, KEYWORD_end) &&
+			   ! (is_transaction && isKeyword(token, KEYWORD_commit)) &&
 			   ! isType (token, TOKEN_EOF))
 		{
 			parseStatements (token, false);
@@ -1859,7 +2155,7 @@ static void parsePackage (tokenInfo *const token)
 	 * or by specifying a package body
 	 *	   CREATE OR REPLACE PACKAGE BODY pkg_name AS
 	 *	   CREATE OR REPLACE PACKAGE BODY owner.pkg_name AS
- */
+	 */
 	tokenInfo *const name = newToken ();
 	readIdentifier (name);
 	if (isKeyword (name, KEYWORD_body))
@@ -1982,6 +2278,44 @@ static void parseColumnsAndAliases (tokenInfo *const token)
 	deleteToken (lastId);
 }
 
+/* Skip "IF NOT EXISTS"
+ * https://dev.mysql.com/doc/refman/8.0/en/create-table.html
+ * https://www.postgresql.org/docs/current/sql-createtable.html
+ * https://sqlite.org/lang_createtable.html
+ */
+static bool parseIdAfterIfNotExists(tokenInfo *const name,
+									tokenInfo *const token,
+									bool authorization_following)
+{
+	if (isKeyword (name, KEYWORD_if)
+		&& (isType (token, TOKEN_IDENTIFIER)
+			&& vStringLength (token->string) == 3
+			&& strcasecmp ("not", vStringValue (token->string)) == 0))
+	{
+		readToken (token);
+		if (isType (token, TOKEN_IDENTIFIER)
+			&& vStringLength (token->string) == 6
+			&& strcasecmp ("exists", vStringValue (token->string)) == 0)
+		{
+			readIdentifier (name);
+			if (authorization_following
+				&& isType (name, TOKEN_IDENTIFIER)
+				&& vStringLength (name->string) == 13
+				&& strcasecmp("authorization", vStringValue(name->string)) == 0)
+			{
+				/*
+				 * PostgreSQL:
+				 * - CREATE SCHEMA IF NOT EXISTS AUTHORIZATION role_specification
+				 */
+				readIdentifier (name);
+			}
+			readToken (token);
+			return true;
+		}
+	}
+	return false;
+}
+
 static void parseTable (tokenInfo *const token)
 {
 	tokenInfo *const name = newToken ();
@@ -2011,11 +2345,17 @@ static void parseTable (tokenInfo *const token)
 	 * MySQL allows omitting "as" like:
 	 *     create table FOO select...
 	 *     create table FOO (...) select...
+	 * (At least) MYSQL, PostgreSQL, and SQLite takes "IF NOT EXISTS"
+	 * between "table" and a table name:
+	 *     create table if not exists foo ...
 	 */
 
 	/* This could be a database, owner or table name */
 	readIdentifier (name);
 	readToken (token);
+
+	parseIdAfterIfNotExists(name, token, false);
+
 	if (isType (token, TOKEN_PERIOD))
 	{
 		/*
@@ -2648,14 +2988,128 @@ static void parseComment (tokenInfo *const token)
 	findCmdTerm (token, true);
 }
 
+static void parseCCFLAGS (tokenInfo *const token)
+{
+	readToken(token);
+	if (!isType (token, TOKEN_EQUAL))
+	{
+		findCmdTerm (token, true);
+		return;
+	}
 
-static void parseKeywords (tokenInfo *const token)
+	readToken(token);
+	if (!isType (token, TOKEN_STRING))
+	{
+		findCmdTerm (token, true);
+		return;
+	}
+
+	bool in_var = true;
+	const char *s = vStringValue(token->string);
+	vString *ccflag = vStringNew();
+	/* http://web.deu.edu.tr/doc/oracle/B19306_01/server.102/b14237/initparams158.htm#REFRN10261 */
+	while (*s)
+	{
+		if (in_var && isIdentChar1((int)*s))
+			vStringPut(ccflag, *s);
+		else if (*s == ':' && !vStringIsEmpty(ccflag))
+		{
+			if (lookupCaseKeyword(vStringValue(ccflag), Lang_sql)
+				!= KEYWORD_inquiry_directive)
+			{
+				int index = makeSimpleTag(ccflag, SQLTAG_PLSQL_CCFLAGS);
+				registerEntry(index);
+				vStringClear(ccflag);
+				in_var = false;
+			}
+		}
+		else if (*s == ',')
+			in_var = true;
+		s++;
+	}
+	vStringDelete(ccflag);
+
+}
+
+static void parseDatabase (tokenInfo *const token, enum eKeywordId keyword)
+{
+	tokenInfo * name;
+
+	/*
+	 * In MySQL and HPL/SQL, "CREATE DATABASE" and "CREATE SCHEMA"
+	 * are the same. However, In PostgreSQL, they are different.
+	 * Too support PostgreSQL, we prepare different kinds for them.
+	 *
+	 * MySQL
+	 * A. CREATE {DATABASE | SCHEMA} [IF NOT EXISTS] db_name ...;
+	 *
+	 * PostgreSQL
+	 *
+	 * B. CREATE DATABASE name ...;
+	 *
+	 * C. CREATE SCHEMA schema_name [ AUTHORIZATION role_specification ] [ schema_element [ ... ] ]
+	 * D. CREATE SCHEMA AUTHORIZATION role_specification [ schema_element [ ... ] ]
+	 * E. CREATE SCHEMA IF NOT EXISTS schema_name [ AUTHORIZATION role_specification ]
+	 * F. CREATE SCHEMA IF NOT EXISTS AUTHORIZATION role_specification
+	 *
+	 * HPL/SQL
+	 * G. CREATE DATABASE | SCHEMA [IF NOT EXISTS] dbname_expr...;
+	 */
+	readIdentifier (token);
+	if (keyword == KEYWORD_schema
+		&& isType (token, TOKEN_IDENTIFIER)
+		&& vStringLength (token->string) == 13
+		&& strcasecmp("authorization", vStringValue(token->string)) == 0)
+	{
+		/* D. */
+		readIdentifier (token);
+		makeSqlTag (token, SQLTAG_SCHEMA);
+		findCmdTerm (token, false);
+		return;
+	}
+
+	name = newToken ();
+	copyToken (name, token);
+	readIdentifier (token);
+	parseIdAfterIfNotExists (name, token, true);
+
+	makeSqlTag (name,
+				keyword == KEYWORD_database
+				? SQLTAG_DATABASE: SQLTAG_SCHEMA);
+	deleteToken (name);
+
+	/* TODO:
+	 *
+	 * In PostgreSQL, CREATE FOO can follow to CREATE SCHEMA like:
+	 *
+	 * -- https://www.postgresql.org/docs/current/sql-createschema.html
+	 *
+	 *     CREATE SCHEMA hollywood
+	 *         CREATE TABLE films (title text, release date, awards text[])
+	 *         CREATE VIEW winners AS
+	 *             SELECT title, release FROM films WHERE awards IS NOT NULL;
+	 *
+	 * In above example, "hollywood.films" and "hollywood.winners" should be
+	 * tagged.
+	 */
+	findCmdTerm (token, true);
+}
+
+static void parseKeywords (tokenInfo *const token, enum eKeywordId precedingKeyword)
 {
 		switch (token->keyword)
 		{
 			case KEYWORD_begin:			parseBlock (token, false); break;
+			case KEYWORD_inquiry_directive:
+				if (strcasecmp(vStringValue(token->string), "PLSQL_CCFLAGS") == 0)
+					parseCCFLAGS (token);
+				break;
 			case KEYWORD_comment:		parseComment (token); break;
 			case KEYWORD_cursor:		parseSimple (token, SQLTAG_CURSOR); break;
+			case KEYWORD_database:
+				if (precedingKeyword == KEYWORD_create)
+					parseDatabase (token, KEYWORD_database);
+				break;
 			case KEYWORD_datatype:		parseDomain (token); break;
 			case KEYWORD_declare:		parseBlock (token, false); break;
 			case KEYWORD_domain:		parseDomain (token); break;
@@ -2679,6 +3133,10 @@ static void parseKeywords (tokenInfo *const token)
 			case KEYWORD_package:		parsePackage (token); break;
 			case KEYWORD_procedure:		parseSubProgram (token); break;
 			case KEYWORD_publication:	parsePublication (token); break;
+			case KEYWORD_schema:
+				if (precedingKeyword == KEYWORD_create)
+					parseDatabase (token, KEYWORD_schema);
+				break;
 			case KEYWORD_service:		parseService (token); break;
 			case KEYWORD_subtype:		parseSimple (token, SQLTAG_SUBTYPE); break;
 			case KEYWORD_synonym:		parseSynonym (token); break;
@@ -2697,12 +3155,13 @@ static tokenType parseSqlFile (tokenInfo *const token)
 {
 	do
 	{
+		enum eKeywordId k = token->keyword;
 		readToken (token);
 
 		if (isType (token, TOKEN_BLOCK_LABEL_BEGIN))
 			parseLabel (token);
 		else
-			parseKeywords (token);
+			parseKeywords (token, k);
 	} while (! isKeyword (token, KEYWORD_end) &&
 			 ! isType (token, TOKEN_EOF));
 
@@ -2713,6 +3172,7 @@ static void initialize (const langType language)
 {
 	Assert (ARRAY_SIZE (SqlKinds) == SQLTAG_COUNT);
 	Lang_sql = language;
+	addKeywordGroup (&predefinedInquiryDirective, language);
 }
 
 static void findSqlTags (void)
@@ -2727,13 +3187,16 @@ static void findSqlTags (void)
 extern parserDefinition* SqlParser (void)
 {
 	static const char *const extensions [] = { "sql", NULL };
+	static const char *const aliases [] = {"pgsql", NULL };
 	parserDefinition* def = parserNew ("SQL");
 	def->kindTable	= SqlKinds;
 	def->kindCount	= ARRAY_SIZE (SqlKinds);
 	def->extensions = extensions;
+	def->aliases    = aliases;
 	def->parser		= findSqlTags;
 	def->initialize = initialize;
 	def->keywordTable = SqlKeywordTable;
 	def->keywordCount = ARRAY_SIZE (SqlKeywordTable);
+	def->useCork = CORK_QUEUE | CORK_SYMTAB;
 	return def;
 }
