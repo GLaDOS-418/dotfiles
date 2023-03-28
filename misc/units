@@ -1,5 +1,10 @@
 #!/bin/sh
 #
+###################################################################
+# Use units.py instead of this shell script.
+# Only minor parts of this script are still used.
+###################################################################
+#
 # units - Units test harness for ctags
 #
 # Copyright (C) 2014 Masatake YAMATO
@@ -60,6 +65,11 @@ readonly _NOISE_REPORT_MAX_COLUMN=50
 readonly _VALIDATION_EXIT_INVALID=2
 readonly _NOOP_VALIDATOR="NONE"
 readonly _KNOWN_INVALIDATION_VALIDATOR="KNOWN-INVALIDATION"
+if stat --help >/dev/null 2>&1; then
+    readonly _FSIZE="stat -c %s" # GNU coreutils
+else
+    readonly _FSIZE="stat -f %z" # BSD based OSes including macOS
+fi
 
 _RUNNABLE_VALIDATORS=
 _UNAVAILABLE_VALIDATORS=
@@ -593,7 +603,7 @@ run_tcase ()
     #
     # Build _CMDLINE
     #
-    _CMDLINE="${CTAGS} --verbose --options=NONE $PRETENSE_OPTS --optlib-dir=+$t/optlib -o -"
+    _CMDLINE="${CTAGS} --verbose --options=NONE --fields=-T $PRETENSE_OPTS --optlib-dir=+$t/optlib -o -"
     [ -f "${fargs}" ] && _CMDLINE="${_CMDLINE} --options=${fargs}"
 
     if [ -f "${fargs}" ] && ! ${_CMDLINE} --_force-quit=0 > /dev/null 2>&1; then
@@ -767,19 +777,11 @@ run_tcase ()
 failure_in_globing ()
 {
     # skip if globing failed, also ignore backup files
-    local file=$1
-    local pat='~$|\*'
-    # use [[ if it is available in the shell implementation.
-    if type '[[' > /dev/null 2>&1; then
-	if [[ "$file" =~ $pat ]]; then
-	    return 0
-	fi
-    else
-	if echo "$file" | grep -q '~$\|\*'; then
-	    return 0
-	fi
-    fi
-    return 1
+    case $1 in
+        *\~)  return 0 ;;
+        *\**) return 0 ;;
+         *)   return 1 ;;
+     esac
 }
 
 run_dir ()
@@ -1394,7 +1396,7 @@ shrink_main ()
 	fi
     fi
 
-    len=$(stat -c %s "${input}")
+    len=$(${_FSIZE} "${input}")
 
     if shrink_test "${cmdline}" "${input}" 0 "${len}" "${output}"; then
 	printf "the target command line exits normally against the original input\n" 1>&2
@@ -1863,7 +1865,7 @@ noise_lang_file ()
 
     local cmdline
     local cmdline_for_shirking
-    local len=$(stat -c %s "${input}")
+    local len=$(${_FSIZE} "${input}")
     local r
     local i
     local c
@@ -1988,8 +1990,8 @@ tmain_compare()
     msg=$(printf '%-60s' "${aspect}")
     generated=${build_subdir}/${aspect}-diff.txt
     if diff -U 0 --strip-trailing-cr \
-	    ${build_subdir}/${aspect}-actual.txt \
 	    ${subdir}/${aspect}-expected.txt \
+	    ${build_subdir}/${aspect}-actual.txt \
 	    > ${generated} 2>&1; then
 	run_result ok "${msg}" '/dev/null'
 	rm ${generated}
@@ -2400,7 +2402,7 @@ chop_lang_file ()
     local r
     local cmdline
     local cmdline_for_shirking
-    local len=$(stat -c %s "${input}")
+    local len=$(${_FSIZE} "${input}")
 
     local guessed_lang
     guessed_lang=$( ${_CMDLINE_FOR_SHRINKING} --print-language "${input}" 2>/dev/null | sed -n 's/^.*: //p')
@@ -2539,7 +2541,7 @@ is_validator_runnable ()
     local d=$2
     shift 2
 
-    "$d/"validator-"$v" is_runnable
+    "$d/"validator-"$v" is_runnable unused $d
 }
 
 update_validator_list ()
@@ -2722,7 +2724,7 @@ validate_file ()
     local validators_dir=$3
     shift 3
 
-    ${validators_dir}/validator-${validator} validate $input
+    ${validators_dir}/validator-${validator} validate $input ${validators_dir}
     return $?
 }
 
@@ -2801,7 +2803,8 @@ validate_dir ()
 	     done | sort)
 
     for f in $inputs; do
-	t=${f#input}; t=${t%.*}
+	t=$(basename $f)
+	t=${t#input}; t=${t%.*}
 	v=$(resolve_validator "${base_dir}"/validator"$t" \
 			     "$default_validator" \
 			     "$has_expected_tags" \

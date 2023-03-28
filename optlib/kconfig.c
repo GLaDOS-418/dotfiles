@@ -14,6 +14,7 @@ typedef enum {
 	K_MAINMENU,
 	K_KCONFIG,
 	K_CHOICE,
+	K_VARIABLE,
 } KconfigKind;
 
 
@@ -56,6 +57,9 @@ extern parserDefinition* KconfigParser (void)
 		{
 		  true, 'C', "choice", "choices",
 		},
+		{
+		  true, 'v', "variable", "macro variables",
+		},
 	};
 	static xtagDefinition KconfigXtagTable [] = {
 		{
@@ -70,12 +74,14 @@ extern parserDefinition* KconfigParser (void)
 		{"^[ \t]*(menu)?config[ \t]+([A-Za-z0-9_]+)[ \t]*$", "\\2",
 		"c", "{scope=ref}", NULL, false},
 		{"^[ \t]*(menu)?config[ \t]+([A-Za-z0-9_]+)[ \t]*$", "CONFIG_\\2",
+		"c", "{scope=ref}{_extra=configPrefixed}", NULL, false},
+		{"^[ \t]*(menu)?config[ \t]+([A-Za-z0-9_]+)[ \t]*$", "CONFIG_\\2_MODULE",
 		"c", "{scope=ref}{_extra=configPrefixed}{exclusive}", NULL, false},
 		{"^[ \t]*menu[ \t]+\"([^\"]+)\"[ \t]*", "\\1",
 		"m", "{scope=push}{exclusive}", NULL, false},
 		{"^[ \t]*endmenu[ \t]*", "",
 		"", "{scope=pop}{placeholder}{exclusive}", NULL, false},
-		{"^[ \t]*source[ \t]+\"([^\"]+)\"[ \t]*", "\\1",
+		{"^[ \t]*source[ \t]+\"?([^\"]+)\"?[ \t]*", "\\1",
 		"k", "{_role=source}{exclusive}{scope=ref}", NULL, false},
 		{"^[ \t]*choice[ \t]+([A-Za-z0-9_]+)[ \t]*", "\\1",
 		"C", "{scope=push}{exclusive}", NULL, false},
@@ -85,11 +91,15 @@ extern parserDefinition* KconfigParser (void)
 		"", "{scope=pop}{placeholder}{exclusive}", NULL, false},
 		{"^[ \t]*mainmenu[ \t]+\"([^\"]+)\"[ \t]*", "\\1",
 		"M", "{exclusive}", NULL, false},
+		{"^([-a-zA-Z0-9_$]+)[ \t]*:?=", "\\1",
+		"v", "{exclusive}", NULL, false},
 	};
 
 
 	parserDefinition* const def = parserNew ("Kconfig");
 
+	def->versionCurrent= 1;
+	def->versionAge    = 1;
 	def->enabled       = true;
 	def->extensions    = extensions;
 	def->patterns      = patterns;

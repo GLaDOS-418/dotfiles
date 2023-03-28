@@ -47,6 +47,9 @@ bool cxxParserParseBlockHandleOpeningBracket(void)
 				cxxTokenTypeIs(g_cxx.pToken->pPrev,CXXTokenTypeAssignment) &&
 				(
 					(eScopeType == CXXScopeTypeFunction) ||
+					(eScopeType == CXXScopeTypeClass)    ||
+					(eScopeType == CXXScopeTypeStruct)   ||
+					(eScopeType == CXXScopeTypeUnion)    ||
 					(eScopeType == CXXScopeTypeNamespace)
 				)
 			) || (
@@ -138,6 +141,7 @@ bool cxxParserParseBlockHandleOpeningBracket(void)
 
 	int iScopes;
 	int iCorkQueueIndex = CORK_NIL;
+	int iCorkQueueIndexFQ = CORK_NIL;
 
 	CXXFunctionSignatureInfo oInfo;
 
@@ -145,7 +149,7 @@ bool cxxParserParseBlockHandleOpeningBracket(void)
 	{
 		// very likely a function definition
 		// (but may be also a toplevel block, like "extern "C" { ... }")
-		iScopes = cxxParserExtractFunctionSignatureBeforeOpeningBracket(&oInfo,&iCorkQueueIndex);
+		iScopes = cxxParserExtractFunctionSignatureBeforeOpeningBracket(&oInfo,&iCorkQueueIndex,&iCorkQueueIndexFQ);
 
 		// FIXME: Handle syntax (5) of list initialization:
 		//        Class::Class() : member { arg1, arg2, ... } {...
@@ -234,8 +238,11 @@ bool cxxParserParseBlockHandleOpeningBracket(void)
  	}
 
 	if(iCorkQueueIndex > CORK_NIL)
+	{
 		cxxParserSetEndLineForTagInCorkQueue(iCorkQueueIndex,uEndPosition);
-
+		if(iCorkQueueIndexFQ > CORK_NIL)
+			cxxParserSetEndLineForTagInCorkQueue(iCorkQueueIndexFQ,uEndPosition);
+	}
 	while(iScopes > 0)
 	{
 		cxxScopePop();
@@ -392,24 +399,45 @@ process_token:
 						}
 					break;
 					case CXXKeywordCLASS:
-						if(!cxxParserParseClassStructOrUnion(CXXKeywordCLASS,CXXTagCPPKindCLASS,CXXScopeTypeClass))
+						if(
+							// do not trigger on X<class Y>
+							(!g_cxx.pToken->pPrev) ||
+							(!cxxTokenTypeIsOneOf(g_cxx.pToken->pPrev,CXXTokenTypeSmallerThanSign | CXXTokenTypeComma))
+						)
 						{
-							CXX_DEBUG_LEAVE_TEXT("Failed to parse class/struct/union");
-							return false;
+							if(!cxxParserParseClassStructOrUnion(CXXKeywordCLASS,CXXTagCPPKindCLASS,CXXScopeTypeClass))
+							{
+								CXX_DEBUG_LEAVE_TEXT("Failed to parse class/struct/union");
+								return false;
+							}
 						}
 					break;
 					case CXXKeywordSTRUCT:
-						if(!cxxParserParseClassStructOrUnion(CXXKeywordSTRUCT,CXXTagKindSTRUCT,CXXScopeTypeStruct))
+						if(
+							// do not trigger on X<struct Y>
+							(!g_cxx.pToken->pPrev) ||
+							(!cxxTokenTypeIsOneOf(g_cxx.pToken->pPrev,CXXTokenTypeSmallerThanSign | CXXTokenTypeComma))
+						)
 						{
-							CXX_DEBUG_LEAVE_TEXT("Failed to parse class/struct/union");
-							return false;
+							if(!cxxParserParseClassStructOrUnion(CXXKeywordSTRUCT,CXXTagKindSTRUCT,CXXScopeTypeStruct))
+							{
+								CXX_DEBUG_LEAVE_TEXT("Failed to parse class/struct/union");
+								return false;
+							}
 						}
 					break;
 					case CXXKeywordUNION:
-						if(!cxxParserParseClassStructOrUnion(CXXKeywordUNION,CXXTagKindUNION,CXXScopeTypeUnion))
+						if(
+							// do not trigger on X<union Y>
+							(!g_cxx.pToken->pPrev) ||
+							(!cxxTokenTypeIsOneOf(g_cxx.pToken->pPrev,CXXTokenTypeSmallerThanSign | CXXTokenTypeComma))
+						)
 						{
-							CXX_DEBUG_LEAVE_TEXT("Failed to parse class/struct/union");
-							return false;
+							if(!cxxParserParseClassStructOrUnion(CXXKeywordUNION,CXXTagKindUNION,CXXScopeTypeUnion))
+							{
+								CXX_DEBUG_LEAVE_TEXT("Failed to parse class/struct/union");
+								return false;
+							}
 						}
 					break;
 					case CXXKeywordPUBLIC:
@@ -609,6 +637,21 @@ process_token:
 					case CXXKeywordCONST:
 						g_cxx.uKeywordState |= CXXParserKeywordStateSeenConst;
 					break;
+					case CXXKeywordCONSTEXPR:
+						g_cxx.uKeywordState |= CXXParserKeywordStateSeenConstexpr;
+					break;
+					case CXXKeywordCONSTEVAL:
+						g_cxx.uKeywordState |= CXXParserKeywordStateSeenConsteval;
+					break;
+					case CXXKeywordCONSTINIT:
+						g_cxx.uKeywordState |= CXXParserKeywordStateSeenConstinit;
+					break;
+					case CXXKeywordTHREAD_LOCAL:
+					case CXXKeyword__THREAD:
+					case CXXKeyword_THREAD_LOCAL:
+						g_cxx.uKeywordState |= CXXParserKeywordStateSeenThreadLocal;
+					break;
+
 					default:
 						if(g_cxx.uKeywordState & CXXParserKeywordStateSeenTypedef)
 						{
@@ -678,7 +721,7 @@ process_token:
 					if(tag)
 					{
 						tag->isFileScope = true;
-						cxxTagCommit();
+						cxxTagCommit(NULL);
 					}
 				} else {
 					// what is this? (default: and similar things have been handled at keyword level)

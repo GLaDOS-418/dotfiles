@@ -30,10 +30,14 @@ enum PerlKindType {
 	KIND_PERL_SUBROUTINE,
 	KIND_PERL_SUBROUTINE_DECLARATION,
 	KIND_PERL_MODULE,
+	KIND_PERL_HEREDOCMARKER,
 };
 
 struct sPerlSubparser {
 	subparser subparser;
+	void (* findingQuotedWordNotify) (perlSubparser *,
+									  int moduleIndex,
+									  const char *qwd);
 	void (* enteringPodNotify) (perlSubparser *);
 	void (* leavingPodNotify)    (perlSubparser *);
 };

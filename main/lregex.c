@@ -23,7 +23,6 @@
 #ifdef HAVE_SYS_TYPES_H
 # include <sys/types.h>  /* declare off_t (not known to regex.h on FreeBSD) */
 #endif
-#include <regex.h>
 
 #include <inttypes.h>
 
@@ -35,12 +34,15 @@
 #include "htable.h"
 #include "kind.h"
 #include "options.h"
+#include "optscript.h"
 #include "parse_p.h"
 #include "promise.h"
 #include "read.h"
 #include "read_p.h"
 #include "routines.h"
 #include "routines_p.h"
+#include "script_p.h"
+#include "trace.h"
 #include "trashbox.h"
 #include "xtag_p.h"
 
@@ -49,9 +51,6 @@ static bool regexAvailable = false;
 /*
 *   MACROS
 */
-
-/* Back-references \0 through \9 */
-#define BACK_REFERENCE_COUNT 10
 
 /* The max depth of taction=enter/leave stack */
 #define MTABLE_STACK_MAX_DEPTH 64
@@ -64,6 +63,7 @@ static bool regexAvailable = false;
    Tmain cases. */
 #define MTABLE_MOTIONLESS_MAX (MTABLE_STACK_MAX_DEPTH + 1)
 
+#define DEFAULT_REGEX_BACKEND "e"
 
 /*
 *   DATA DECLARATIONS
@@ -76,7 +76,8 @@ enum scopeAction {
 	SCOPE_POP     = 1UL << 1,
 	SCOPE_PUSH    = 1UL << 2,
 	SCOPE_CLEAR   = 1UL << 3,
-	SCOPE_PLACEHOLDER = 1UL << 4,
+	SCOPE_REF_AFTER_POP = 1UL << 4,
+	SCOPE_PLACEHOLDER = 1UL << 5,
 };
 
 enum tableAction {
@@ -137,7 +138,7 @@ struct mTableActionSpec {
 };
 
 typedef struct {
-	regex_t *pattern;
+	regexCompiledCode pattern;
 	enum pType type;
 	bool exclusive;
 	bool accept_empty_name;
@@ -171,6 +172,9 @@ typedef struct {
 		errorSelection selection;
 		char *message_string;
 	} message;
+
+	char *optscript_src;
+	EsObject *optscript;
 
 	int refcount;
 } regexPattern;
@@ -206,6 +210,17 @@ struct guestRequest {
 	struct boundaryInRequest boundary[2];
 };
 
+typedef struct {
+	const char *line;
+	const char *start;
+	const regexPattern* const patbuf;
+	const regmatch_t* const pmatch;
+	int nmatch;
+	struct mTableActionSpec taction;
+	bool advanceto;
+	unsigned int advanceto_delta;
+} scriptWindow;
+
 struct lregexControlBlock {
 	int currentScope;
 	ptrArray *entries [2];
@@ -215,12 +230,22 @@ struct lregexControlBlock {
 
 	struct guestRequest *guest_req;
 
+	EsObject *local_dict;
+	hashTable*param_dict;
+
+	ptrArray *hook[SCRIPT_HOOK_MAX];
+	ptrArray *hook_code[SCRIPT_HOOK_MAX];
+
 	langType owner;
+
+	scriptWindow *window;
 };
 
 /*
 *   DATA DEFINITIONS
 */
+static OptVM *optvm;
+static EsObject *lregex_dict = es_nil;
 
 /*
 *   FUNCTION DEFINITIONS
@@ -236,6 +261,15 @@ static void   guestRequestDelete (struct guestRequest *);
 static bool   guestRequestIsFilled(struct guestRequest *);
 static void   guestRequestClear (struct guestRequest *);
 static void   guestRequestSubmit (struct guestRequest *);
+
+static EsObject *scriptRead (OptVM *vm, const char *src);
+static void scriptSetup (OptVM *vm, struct lregexControlBlock *lcb, int corkIndex, scriptWindow *window);
+static EsObject* scriptEval (OptVM *vm, EsObject *optscript);
+static void scriptEvalHook (OptVM *vm, struct lregexControlBlock *lcb, enum scriptHook hook);
+static void scriptTeardown (OptVM *vm, struct lregexControlBlock *lcb);
+
+static char* make_match_string (scriptWindow *window, int group);
+static matchLoc *make_mloc (scriptWindow *window, int group, bool start);
 
 static void deleteTable (void *ptrn)
 {
@@ -261,9 +295,7 @@ static void deletePattern (regexPattern *p)
 	if (p->refcount > 0)
 		return;
 
-	regfree (p->pattern);
-	eFree (p->pattern);
-	p->pattern = NULL;
+	p->pattern.backend->delete_code (p->pattern.code);
 
 	if (p->type == PTRN_TAG)
 	{
@@ -285,6 +317,11 @@ static void deletePattern (regexPattern *p)
 	if (p->anonymous_tag_prefix)
 		eFree (p->anonymous_tag_prefix);
 
+	if (p->optscript)
+		es_object_unref (p->optscript);
+	if (p->optscript_src)
+		eFree (p->optscript_src);
+
 	eFree (p);
 }
 
@@ -304,6 +341,15 @@ extern struct lregexControlBlock* allocLregexControlBlock (parserDefinition *par
 	lcb->tables = ptrArrayNew(deleteTable);
 	lcb->tstack = ptrArrayNew(NULL);
 	lcb->guest_req = guestRequestNew ();
+	lcb->local_dict = es_nil;
+	lcb->param_dict = hashTableNew (3, hashCstrhash, hashCstreq,
+									eFree, eFree);
+
+	for (int i = 0; i< SCRIPT_HOOK_MAX; i++)
+	{
+		lcb->hook[i] = ptrArrayNew (eFree);
+		lcb->hook_code[i] = ptrArrayNew ((ptrArrayDeleteFunc)es_object_unref);
+	}
 	lcb->owner = parser->id;
 
 	return lcb;
@@ -327,6 +373,21 @@ extern void freeLregexControlBlock (struct lregexControlBlock* lcb)
 	guestRequestDelete (lcb->guest_req);
 	lcb->guest_req = NULL;
 
+	es_object_unref (lcb->local_dict);
+	lcb->local_dict = es_nil;
+
+	hashTableDelete (lcb->param_dict);
+	lcb->param_dict = NULL;
+
+	for (int i = 0; i < SCRIPT_HOOK_MAX; i++)
+	{
+		ptrArrayDelete (lcb->hook[i]);
+		lcb->hook[i] = NULL;
+
+		ptrArrayDelete (lcb->hook_code[i]);
+		lcb->hook_code[i] = NULL;
+	}
+
 	eFree (lcb);
 }
 
@@ -335,11 +396,11 @@ extern void freeLregexControlBlock (struct lregexControlBlock* lcb)
 */
 
 static void initRegexTag (tagEntryInfo *e,
-		const vString* const name, int kindIndex, int roleIndex, int scopeIndex, int placeholder,
+		const char * name, int kindIndex, int roleIndex, int scopeIndex, int placeholder,
 		unsigned long line, MIOPos *pos, int xtag_type)
 {
-	Assert (name != NULL  &&  ((vStringLength (name) > 0) || placeholder));
-	initRefTagEntry (e, vStringValue (name), kindIndex, roleIndex);
+	Assert (name != NULL  &&  ((name[0] != '\0') || placeholder));
+	initRefTagEntry (e, name, kindIndex, roleIndex);
 	e->extensionFields.scopeIndex = scopeIndex;
 	e->placeholder = !!placeholder;
 	if (line)
@@ -364,7 +425,7 @@ static void initRegexTag (tagEntryInfo *e,
  * Returns pointer to terminating separator.  Works in place.  Null
  * terminates name string.
  */
-static char* scanSeparators (char* name, enum regexParserType regptype)
+static char* scanSeparators (char* name, bool multiline)
 {
 	char sep = name [0];
 	char *copyto = name;
@@ -378,9 +439,7 @@ static char* scanSeparators (char* name, enum regexParserType regptype)
 				*copyto++ = sep;
 			else if (*name == 't')
 				*copyto++ = '\t';
-			else if ((regptype == REG_PARSER_MULTI_LINE
-					  || (regptype == REG_PARSER_MULTI_TABLE))
-					 && *name == 'n')
+			else if (multiline && *name == 'n')
 				*copyto++ = '\n';
 			else
 			{
@@ -420,7 +479,8 @@ static bool parseTagRegex (
 	bool result = false;
 	const int separator = (unsigned char) regexp [0];
 
-	*name = scanSeparators (regexp, regptype);
+	*name = scanSeparators (regexp, (regptype == REG_PARSER_MULTI_LINE
+									 || regptype == REG_PARSER_MULTI_TABLE));
 	if (*regexp == '\0')
 		error (WARNING, "empty regexp");
 	else if (**name != separator)
@@ -436,9 +496,27 @@ static bool parseTagRegex (
 		{
 			/*
 			 * first----------V third------------V
-			 * --regex-<LANG>=/regexp/replacement/[kind-spec/][flags]
+			 * --regex-<LANG>=/regexp/replacement/[kind-spec/][flags][{{\n...\n}}]
 			 * second----------------^ fourth---------------^
 			 */
+
+			/*
+			 * The following code assumes "{{\n" is never used in flags.
+			 * If the input comes from the command line or an optlib file,
+			 * this assumption is always correct; a new line character is never
+			 * put at the middle (or end) of the input.
+			 *
+			 * TODO: How about the input comes from the source code translated
+			 * by optlib2c?
+			 */
+			char *script = strstr (third, "{{\n");
+			if (script)
+			{
+				/* The script part should not be unescaed by scanSeparators().
+				 * By spitting the string, we can hide the script part from
+				 * scanSeparators(). */
+				script [0] = '\0';
+			}
 
 			char* const fourth = scanSeparators (third, false);
 			if (*fourth == separator)
@@ -452,6 +530,21 @@ static bool parseTagRegex (
 				*flags = third;
 				*kinds = NULL;
 			}
+
+			if (script)
+			{
+				Assert (*flags);
+
+				char *end = *flags + strlen (*flags);
+				script [0] = '{';
+				if (end != script)
+				{
+					size_t len = strlen (script);
+					memmove (end, script, len);
+					end [len] = '\0';
+				}
+			}
+
 			result = true;
 		}
 	}
@@ -490,6 +583,8 @@ static void scope_ptrn_flag_eval (const char* const f  CTAGS_ATTR_UNUSED,
 		*bfields |= SCOPE_CLEAR;
 	else if (strcmp (v, "set") == 0)
 		*bfields |= (SCOPE_CLEAR | SCOPE_PUSH);
+	else if (strcmp (v, "replace") == 0)
+		*bfields |= (SCOPE_POP|SCOPE_REF_AFTER_POP|SCOPE_PUSH);
 	else
 		error (FATAL, "Unexpected value for scope flag in regex definition: scope=%s", v);
 }
@@ -503,7 +598,7 @@ static void placeholder_ptrn_flag_eval (const char* const f  CTAGS_ATTR_UNUSED,
 
 static flagDefinition scopePtrnFlagDef[] = {
 	{ '\0', "scope",     NULL, scope_ptrn_flag_eval,
-	  "ACTION", "use scope stack: ACTION = ref|push|pop|clear|set"},
+	  "ACTION", "use scope stack: ACTION = ref|push|pop|clear|set|replace"},
 	{ '\0', "placeholder",  NULL, placeholder_ptrn_flag_eval,
 	  NULL, "don't put this tag to tags file."},
 };
@@ -552,12 +647,14 @@ static regexPattern * refPattern (regexPattern * ptrn)
 	return ptrn;
 }
 
-static regexPattern * newPattern (regex_t* const pattern,
+static regexPattern * newPattern (regexCompiledCode* const pattern,
 								  enum regexParserType regptype)
 {
 	regexPattern *ptrn = xCalloc(1, regexPattern);
 
-	ptrn->pattern = pattern;
+	ptrn->pattern.backend = pattern->backend;
+	ptrn->pattern.code = pattern->code;
+
 	ptrn->exclusive = false;
 	ptrn->accept_empty_name = false;
 	ptrn->regptype = regptype;
@@ -571,6 +668,10 @@ static regexPattern * newPattern (regex_t* const pattern,
 
 	ptrn->u.tag.roleBits = 0;
 	ptrn->refcount = 1;
+
+	ptrn->optscript = NULL;
+	ptrn->optscript_src = NULL;
+
 	return ptrn;
 }
 
@@ -584,7 +685,7 @@ static regexTableEntry * newRefPatternEntry (regexTableEntry * other)
 	return entry;
 }
 
-static regexTableEntry * newEntry (regex_t* const pattern,
+static regexTableEntry * newEntry (regexCompiledCode* const pattern,
 								   enum regexParserType regptype)
 {
 	regexTableEntry *entry = xCalloc (1, regexTableEntry);
@@ -594,7 +695,7 @@ static regexTableEntry * newEntry (regex_t* const pattern,
 
 static regexPattern* addCompiledTagCommon (struct lregexControlBlock *lcb,
 										   int table_index,
-										   regex_t* const pattern,
+										   regexCompiledCode* const pattern,
 										   enum regexParserType regptype)
 {
 	regexTableEntry *entry = newEntry (pattern, regptype);
@@ -744,7 +845,7 @@ static void pre_ptrn_flag_guest_long (const char* const s, const char* const v, 
 	}
 	else
 	{
-		guest->lang.spec.lang = getNamedLanguage (v, (tmp - v));
+		guest->lang.spec.lang = getNamedLanguageOrAlias (v, (tmp - v));
 		if (guest->lang.spec.lang == LANG_IGNORE)
 		{
 			error (WARNING, "no parser found for the guest spec: %s", v);
@@ -1200,10 +1301,20 @@ static void patternEvalFlags (struct lregexControlBlock *lcb,
 	if (regptype == REG_PARSER_SINGLE_LINE)
 		flagsEval (flags, prePtrnFlagDef, ARRAY_SIZE(prePtrnFlagDef), &ptrn->exclusive);
 
-	flagsEval (flags, commonSpecFlagDef, ARRAY_SIZE(commonSpecFlagDef), &commonFlagData);
+	const char * optscript = flagsEval (flags, commonSpecFlagDef, ARRAY_SIZE(commonSpecFlagDef), &commonFlagData);
+	if (optscript)
+	{
+		ptrn->optscript = scriptRead (optvm, optscript);
+		ptrn->optscript_src = eStrdup (optscript);
+	}
 
 	if (regptype == REG_PARSER_SINGLE_LINE || regptype == REG_PARSER_MULTI_TABLE)
+	{
 		flagsEval (flags, scopePtrnFlagDef, ARRAY_SIZE(scopePtrnFlagDef), &ptrn->scopeActions);
+		if ((ptrn->scopeActions & (SCOPE_REF|SCOPE_REF_AFTER_POP)) == (SCOPE_REF|SCOPE_REF_AFTER_POP))
+			error (WARNING, "%s: don't combine \"replace\" with the other scope action.",
+				   getLanguageName (lcb->owner));
+	}
 
 	if (regptype == REG_PARSER_MULTI_LINE || regptype == REG_PARSER_MULTI_TABLE)
 	{
@@ -1224,7 +1335,7 @@ static void patternEvalFlags (struct lregexControlBlock *lcb,
 
 static regexPattern *addCompiledTagPattern (struct lregexControlBlock *lcb,
 											int table_index,
-											enum regexParserType regptype, regex_t* const pattern,
+											enum regexParserType regptype, regexCompiledCode* const pattern,
 					    const char* const name, char kindLetter, const char* kindName,
 					    char *const description, const char* flags,
 					    bool kind_explicitly_defined,
@@ -1242,7 +1353,7 @@ static regexPattern *addCompiledTagPattern (struct lregexControlBlock *lcb,
 	return ptrn;
 }
 
-static regexPattern *addCompiledCallbackPattern (struct lregexControlBlock *lcb, regex_t* const pattern,
+static regexPattern *addCompiledCallbackPattern (struct lregexControlBlock *lcb, regexCompiledCode* const pattern,
 					const regexCallback callback, const char* flags,
 					bool *disabled,
 					void *userData)
@@ -1259,33 +1370,35 @@ static regexPattern *addCompiledCallbackPattern (struct lregexControlBlock *lcb,
 	return ptrn;
 }
 
-
-static void regex_flag_basic_short (char c CTAGS_ATTR_UNUSED, void* data)
+#ifndef HAVE_PCRE2
+static void no_pcre2_regex_flag_short (char c, void* data)
 {
-	int* cflags = data;
-	*cflags &= ~REG_EXTENDED;
+	error (WARNING, "'p' flag is specied but pcre2 regex engine is not linked.");
 }
-
-static void regex_flag_basic_long (const char* const s CTAGS_ATTR_UNUSED, const char* const unused CTAGS_ATTR_UNUSED, void* data)
+static void no_pcre2_regex_flag_long (const char* const s, const char* const unused CTAGS_ATTR_UNUSED, void* data)
 {
-	regex_flag_basic_short ('b', data);
+	error (WARNING, "{pcre2} flag is specied but pcre2 regex engine is not linked.");
 }
+#endif
 
-static void regex_flag_extend_short (char c CTAGS_ATTR_UNUSED, void* data)
-{
-	int* cflags = data;
-	*cflags |= REG_EXTENDED;
-}
-
-static void regex_flag_extend_long (const char* const c CTAGS_ATTR_UNUSED, const char* const unused CTAGS_ATTR_UNUSED, void* data)
-{
-	regex_flag_extend_short('e', data);
-}
+static flagDefinition backendFlagDefs[] = {
+	{ 'b', "basic",  basic_regex_flag_short,  basic_regex_flag_long,
+	  NULL, "interpreted as a Posix basic regular expression."},
+	{ 'e', "extend", extend_regex_flag_short, extend_regex_flag_long,
+	  NULL, "interpreted as a Posix extended regular expression (default)"},
+#ifdef HAVE_PCRE2
+	{ 'p', "pcre2",  pcre2_regex_flag_short, pcre2_regex_flag_long,
+	  NULL, "use pcre2 regex engine"},
+#else
+	{ 'p', "pcre2",  no_pcre2_regex_flag_short, no_pcre2_regex_flag_long,
+	  NULL, "pcre2 is NOT linked!"},
+#endif
+};
 
 static void regex_flag_icase_short (char c CTAGS_ATTR_UNUSED, void* data)
 {
-	int* cflags = data;
-	*cflags |= REG_ICASE;
+	struct flagDefsDescriptor *desc = data;
+	desc->backend->set_icase_flag (&desc->flags);
 }
 
 static void regex_flag_icase_long (const char* s CTAGS_ATTR_UNUSED, const char* const unused CTAGS_ATTR_UNUSED, void* data)
@@ -1293,44 +1406,57 @@ static void regex_flag_icase_long (const char* s CTAGS_ATTR_UNUSED, const char* 
 	regex_flag_icase_short ('i', data);
 }
 
-
-static flagDefinition regexFlagDefs[] = {
-	{ 'b', "basic",  regex_flag_basic_short,  regex_flag_basic_long,
-	  NULL, "interpreted as a Posix basic regular expression."},
-	{ 'e', "extend", regex_flag_extend_short, regex_flag_extend_long,
-	  NULL, "interpreted as a Posix extended regular expression (default)"},
+static flagDefinition backendCommonRegexFlagDefs[] = {
 	{ 'i', "icase",  regex_flag_icase_short,  regex_flag_icase_long,
 	  NULL, "applied in a case-insensitive manner"},
 };
 
-static regex_t* compileRegex (enum regexParserType regptype,
-							  const char* const regexp, const char* const flags)
+
+static struct flagDefsDescriptor choose_backend (const char *flags, enum regexParserType regptype, bool error_if_no_backend)
 {
-	int cflags = REG_EXTENDED | REG_NEWLINE;
+	struct flagDefsDescriptor desc = {
+		.backend  = NULL,
+		.flags = 0,
+		.regptype = regptype,
+	};
 
-	if (regptype == REG_PARSER_MULTI_TABLE)
-		cflags &= ~REG_NEWLINE;
+	if (flags)
+		flagsEval (flags,
+				   backendFlagDefs,
+				   ARRAY_SIZE(backendFlagDefs),
+				   &desc);
 
-	regex_t *result;
-	int errcode;
+	/* Choose the default backend. */
+	if (desc.backend == NULL)
+	{
+		if (flags && error_if_no_backend)
+			error (FATAL, "No sunch backend for the name: \"%s\"", flags);
+
+		flagsEval (DEFAULT_REGEX_BACKEND,
+				   backendFlagDefs,
+				   ARRAY_SIZE(backendFlagDefs),
+				   &desc);
+	}
+	return desc;
+}
+
+static regexCompiledCode compileRegex (enum regexParserType regptype,
+									   const char* const regexp, const char* const flags)
+{
+	struct flagDefsDescriptor desc = choose_backend (flags, regptype, false);
+
+	/* Evaluate backend specific flags */
+	flagsEval (flags,
+			   desc.backend->fdefs,
+			   desc.backend->fdef_count,
+			   &desc.flags);
 
 	flagsEval (flags,
-		   regexFlagDefs,
-		   ARRAY_SIZE(regexFlagDefs),
-		   &cflags);
+			   backendCommonRegexFlagDefs,
+			   ARRAY_SIZE (backendCommonRegexFlagDefs),
+			   &desc);
 
-	result = xMalloc (1, regex_t);
-	errcode = regcomp (result, regexp, cflags);
-	if (errcode != 0)
-	{
-		char errmsg[256];
-		regerror (errcode, result, errmsg, 256);
-		error (WARNING, "regcomp %s: %s", regexp, errmsg);
-		regfree (result);
-		eFree (result);
-		result = NULL;
-	}
-	return result;
+	return desc.backend->compile (desc.backend, regexp, desc.flags);
 }
 
 
@@ -1446,11 +1572,27 @@ static void fillEndLineFieldOfUpperScopes (struct lregexControlBlock *lcb, unsig
 	}
 }
 
+static bool hasNameSlot (const regexPattern* const patbuf)
+{
+	return (patbuf->u.tag.name_pattern[0] != '\0'
+			|| patbuf->anonymous_tag_prefix);
+}
+
+static int scopeActionRef (int currentScope)
+{
+	int scope = currentScope;
+	tagEntryInfo *entry;
+	while ((entry = getEntryInCorkQueue (scope)) && entry->placeholder)
+		/* Look at parent */
+		scope = entry->extensionFields.scopeIndex;
+	return scope;
+}
+
 static void matchTagPattern (struct lregexControlBlock *lcb,
 		const char* line,
 		const regexPattern* const patbuf,
 		const regmatch_t* const pmatch,
-			     off_t offset)
+			     off_t offset, scriptWindow *window)
 {
 	vString *const name =
 		(patbuf->u.tag.name_pattern[0] != '\0') ? substitute (line,
@@ -1467,17 +1609,20 @@ static void matchTagPattern (struct lregexControlBlock *lcb,
 	vStringStripTrailing (name);
 
 	if (patbuf->scopeActions & SCOPE_REF)
-	{
-		tagEntryInfo *entry;
-
-		scope = lcb->currentScope;
-		while ((entry = getEntryInCorkQueue (scope)) && entry->placeholder)
-			/* Look at parent */
-			scope = entry->extensionFields.scopeIndex;
-	}
+		scope = scopeActionRef (lcb->currentScope);
 	if (patbuf->scopeActions & SCOPE_CLEAR)
 	{
 		unsigned long endline = getInputLineNumberInRegPType(patbuf->regptype, offset);
+
+		/*
+		 * SCOPE_CLEAR|SCOPE_PUSH implies that "set" was specified as the scope action.
+		 * If the specified action is "set", getInputLineNumberInRegPType()
+		 * returns the start line of the NEW scope. The cleared scopes are ended BEFORE
+		 * the new scope. There is a gap. We must adjust the "end:" field here.
+		 */
+		if (patbuf->scopeActions & SCOPE_PUSH && endline > 0)
+			endline--;
+
 		fillEndLineFieldOfUpperScopes (lcb, endline);
 		lcb->currentScope = CORK_NIL;
 	}
@@ -1486,10 +1631,24 @@ static void matchTagPattern (struct lregexControlBlock *lcb,
 		tagEntryInfo *entry = getEntryInCorkQueue (lcb->currentScope);
 
 		if (entry && (entry->extensionFields.endLine == 0))
+		{
 			entry->extensionFields.endLine = getInputLineNumberInRegPType(patbuf->regptype, offset);
+
+			/*
+			 * SCOPE_POP|SCOPE_REF_AFTER_POP implies that "replace" was specified as the
+			 * scope action. If the specified action is "replace", getInputLineNumberInRegPType()
+			 * returns the start line of the NEW scope. The popped scope is ended BEFORE
+			 * the new scope. There is a gap. We must adjust the "end:" field here.
+			 */
+			if ((patbuf->scopeActions & SCOPE_REF_AFTER_POP) &&
+				entry->extensionFields.endLine > 1)
+				entry->extensionFields.endLine--;
+		}
 
 		lcb->currentScope = entry? entry->extensionFields.scopeIndex: CORK_NIL;
 	}
+	if (patbuf->scopeActions & SCOPE_REF_AFTER_POP)
+		scope = scopeActionRef (lcb->currentScope);
 
 	if (vStringLength (name) == 0 && (placeholder == false))
 	{
@@ -1520,7 +1679,7 @@ static void matchTagPattern (struct lregexControlBlock *lcb,
 		kind = patbuf->u.tag.kindIndex;
 		roleBits = patbuf->u.tag.roleBits;
 
-		initRegexTag (&e, name, kind, ROLE_DEFINITION_INDEX, scope, placeholder,
+		initRegexTag (&e, vStringValue (name), kind, ROLE_DEFINITION_INDEX, scope, placeholder,
 					  ln, ln == 0? NULL: &pos, patbuf->xtagType);
 
 		if (field_trashbox == NULL)
@@ -1568,6 +1727,18 @@ static void matchTagPattern (struct lregexControlBlock *lcb,
 
 	if (patbuf->scopeActions & SCOPE_PUSH)
 		lcb->currentScope = n;
+
+	if (n != CORK_NIL && window)
+	{
+		scriptSetup (optvm, lcb, n, window);
+		EsObject *e = scriptEval (optvm, patbuf->optscript);
+		if (es_error_p (e))
+			error (WARNING, "error when evaluating: %s %% input: %s, line:%lu", patbuf->optscript_src,
+				   getInputFileName (),
+				   getInputLineNumberInRegPType(patbuf->regptype, offset));
+		es_object_unref (e);
+		scriptTeardown (optvm, lcb);
+	}
 
 	vStringDelete (name);
 }
@@ -1647,7 +1818,7 @@ static bool fillGuestRequest (const char *start,
 			- pmatch [guest_spec->lang.spec.patternGroup].rm_so;
 		if (size > 0)
 		{
-			guest_req->lang = getNamedLanguage (name, size);
+			guest_req->lang = getNamedLanguageOrAlias (name, size);
 			guest_req->lang_set = true;
 		}
 	}
@@ -1694,19 +1865,42 @@ static bool matchRegexPattern (struct lregexControlBlock *lcb,
 	if (patbuf->disabled && *(patbuf->disabled))
 		return false;
 
-	match = regexec (patbuf->pattern, vStringValue (line),
-			 BACK_REFERENCE_COUNT, pmatch, 0);
+	match = patbuf->pattern.backend->match (patbuf->pattern.backend,
+											patbuf->pattern.code, vStringValue (line),
+											vStringLength (line),
+											pmatch);
+
 	if (match == 0)
 	{
 		result = true;
 		entry->statistics.match++;
+		scriptWindow window = {
+			.line = vStringValue (line),
+			.start = 0,
+			.patbuf = patbuf,
+			.pmatch = pmatch,
+			.nmatch = BACK_REFERENCE_COUNT,
+			.advanceto = false,
+		};
+
+		if (patbuf->optscript && (! hasNameSlot (patbuf)))
+		{
+			scriptSetup (optvm, lcb, CORK_NIL, &window);
+			EsObject *e = scriptEval (optvm, patbuf->optscript);
+			if (es_error_p (e))
+				error (WARNING, "error when evaluating: %s %% input: %s", patbuf->optscript_src,
+					   getInputFileName ());
+			es_object_unref (e);
+			scriptTeardown (optvm, lcb);
+		}
 
 		if (hasMessage(patbuf))
 			printMessage(lcb->owner, patbuf, 0, vStringValue (line), pmatch);
 
 		if (patbuf->type == PTRN_TAG)
 		{
-			matchTagPattern (lcb, vStringValue (line), patbuf, pmatch, 0);
+			matchTagPattern (lcb, vStringValue (line), patbuf, pmatch, 0,
+							 (patbuf->optscript && hasNameSlot (patbuf))? &window: NULL);
 
 			if (guest->lang.type != GUEST_LANG_UNKNOWN)
 			{
@@ -1741,7 +1935,6 @@ static bool matchMultilineRegexPattern (struct lregexControlBlock *lcb,
 {
 	const char *start;
 	const char *current;
-	off_t offset = 0;
 	regexPattern* patbuf = entry->pattern;
 	struct mGroupSpec *mgroup = &patbuf->mgroup;
 	struct guestSpec  *guest = &patbuf->guest;
@@ -1759,8 +1952,11 @@ static bool matchMultilineRegexPattern (struct lregexControlBlock *lcb,
 	current = start = vStringValue (allLines);
 	do
 	{
-		match = regexec (patbuf->pattern, current,
-						 BACK_REFERENCE_COUNT, pmatch, 0);
+		match = patbuf->pattern.backend->match (patbuf->pattern.backend,
+												patbuf->pattern.code, current,
+												vStringLength (allLines) - (current - start),
+												pmatch);
+
 		if (match != 0)
 		{
 			entry->statistics.unmatch++;
@@ -1770,13 +1966,34 @@ static bool matchMultilineRegexPattern (struct lregexControlBlock *lcb,
 		if (hasMessage(patbuf))
 			printMessage(lcb->owner, patbuf, (current + pmatch[0].rm_so) - start, current, pmatch);
 
-		offset = (current + pmatch [mgroup->forLineNumberDetermination].rm_so)
-				 - start;
-
 		entry->statistics.match++;
+		scriptWindow window = {
+			.line = current,
+			.start = start,
+			.patbuf = patbuf,
+			.pmatch = pmatch,
+			.nmatch = BACK_REFERENCE_COUNT,
+			.advanceto = false,
+		};
+
+		if (patbuf->optscript && (! hasNameSlot (patbuf)))
+		{
+			scriptSetup (optvm, lcb, CORK_NIL, &window);
+			EsObject *e = scriptEval (optvm, patbuf->optscript);
+			if (es_error_p (e))
+				error (WARNING, "error when evaluating: %s %% input: %s", patbuf->optscript_src,
+					   getInputFileName ());
+			es_object_unref (e);
+			scriptTeardown (optvm, lcb);
+		}
+
 		if (patbuf->type == PTRN_TAG)
 		{
-			matchTagPattern (lcb, current, patbuf, pmatch, offset);
+			Assert (mgroup->forLineNumberDetermination != NO_MULTILINE);
+			off_t offset = (current + pmatch [mgroup->forLineNumberDetermination].rm_so)
+				- start;
+			matchTagPattern (lcb, current, patbuf, pmatch, offset,
+							 (patbuf->optscript && hasNameSlot (patbuf))? &window: NULL);
 			result = true;
 		}
 		else if (patbuf->type == PTRN_CALLBACK)
@@ -1852,10 +2069,22 @@ extern void notifyRegexInputStart (struct lregexControlBlock *lcb)
 
 	ptrArrayClear (lcb->tstack);
 	guestRequestClear (lcb->guest_req);
+
+	opt_vm_dstack_push (optvm, lregex_dict);
+
+	if (es_null (lcb->local_dict))
+		lcb->local_dict = opt_dict_new (23);
+	opt_vm_dstack_push (optvm, lcb->local_dict);
+	opt_vm_set_app_data (optvm, lcb);
+	scriptEvalHook (optvm, lcb, SCRIPT_HOOK_PRELUDE);
 }
 
 extern void notifyRegexInputEnd (struct lregexControlBlock *lcb)
 {
+	scriptEvalHook (optvm, lcb, SCRIPT_HOOK_SEQUEL);
+	opt_vm_set_app_data (optvm, NULL);
+	opt_vm_clear (optvm);
+	opt_dict_clear (lcb->local_dict);
 	unsigned long endline = getInputLineNumber ();
 	fillEndLineFieldOfUpperScopes (lcb, endline);
 }
@@ -1877,30 +2106,36 @@ extern void findRegexTags (void)
 	findRegexTagsMainloop (fileReadLineDriver);
 }
 
-static bool hasScopeActionInRegex0(ptrArray *entries)
+static bool doesExpectCorkInRegex0(ptrArray *entries)
 {
 	for (unsigned int i = 0; i < ptrArrayCount(entries); i++)
 	{
 		regexTableEntry *entry = ptrArrayItem(entries, i);
 		Assert (entry && entry->pattern);
-		if (entry->pattern->scopeActions)
+		if (entry->pattern->scopeActions
+			|| entry->pattern->optscript
+			)
 			return true;
 	}
 	return false;
 }
 
-extern bool hasScopeActionInRegex (struct lregexControlBlock *lcb)
+extern bool doesExpectCorkInRegex (struct lregexControlBlock *lcb)
 {
 	ptrArray *entries;
 
 	entries = lcb->entries[REG_PARSER_SINGLE_LINE];
-	if (hasScopeActionInRegex0 (entries))
+	if (doesExpectCorkInRegex0 (entries))
+		return true;
+
+	entries = lcb->entries[REG_PARSER_MULTI_LINE];
+	if (doesExpectCorkInRegex0 (entries))
 		return true;
 
 	for (unsigned int i = 0; i < ptrArrayCount(lcb->tables); i++)
 	{
 		struct regexTable *table = ptrArrayItem(lcb->tables, i);
-		if (hasScopeActionInRegex0 (table->entries))
+		if (doesExpectCorkInRegex0 (table->entries))
 			return true;
 	}
 
@@ -1944,9 +2179,21 @@ static regexPattern *addTagRegexInternal (struct lregexControlBlock *lcb,
 	if (!regexAvailable)
 		return NULL;
 
-	regex_t* const cp = compileRegex (regptype, regex, flags);
-	if (cp == NULL)
+	regexCompiledCode cp = compileRegex (regptype, regex, flags);
+	if (cp.code == NULL)
+	{
+		error (WARNING, "pattern: %s", regex);
+		if (table_index != TABLE_INDEX_UNUSED)
+		{
+			struct regexTable *table = ptrArrayItem (lcb->tables, table_index);
+			error (WARNING, "table: %s[%u]", table->name, ptrArrayCount (table->entries));
+			error (WARNING, "language: %s", getLanguageName (lcb->owner));
+		}
+		else
+			error (WARNING, "language: %s[%u]", getLanguageName (lcb->owner),
+				   ptrArrayCount (lcb->entries[regptype]));
 		return NULL;
+	}
 
 	char kindLetter;
 	char* kindName;
@@ -2011,7 +2258,7 @@ static regexPattern *addTagRegexInternal (struct lregexControlBlock *lcb,
 	}
 
 	regexPattern *rptr = addCompiledTagPattern (lcb, table_index,
-												regptype, cp, name,
+												regptype, &cp, name,
 												kindLetter, kindName, description, flags,
 												explictly_defined,
 												disabled);
@@ -2027,6 +2274,7 @@ static regexPattern *addTagRegexInternal (struct lregexControlBlock *lcb,
 			|| rptr->anonymous_tag_prefix
 			|| regptype == REG_PARSER_MULTI_TABLE
 			|| rptr->guest.lang.type != GUEST_LANG_UNKNOWN
+			|| rptr->optscript
 			)
 			rptr->accept_empty_name = true;
 		else
@@ -2051,8 +2299,16 @@ extern void addTagMultiLineRegex (struct lregexControlBlock *lcb, const char* co
 								  const char* const name, const char* const kinds, const char* const flags,
 								  bool *disabled)
 {
-	addTagRegexInternal (lcb, TABLE_INDEX_UNUSED,
-						 REG_PARSER_MULTI_LINE, regex, name, kinds, flags, disabled);
+	regexPattern *ptrn = addTagRegexInternal (lcb, TABLE_INDEX_UNUSED,
+											  REG_PARSER_MULTI_LINE, regex, name, kinds, flags, disabled);
+	if (ptrn->mgroup.forLineNumberDetermination == NO_MULTILINE)
+	{
+		if (hasNameSlot(ptrn))
+			error (WARNING, "%s: no {mgroup=N} flag given in --mline-regex-<LANG>=/%s/... (%s)",
+				   regex,
+				   getLanguageName (lcb->owner), ASSERT_FUNCTION);
+		ptrn->mgroup.forLineNumberDetermination = 0;
+	}
 }
 
 extern void addTagMultiTableRegex(struct lregexControlBlock *lcb,
@@ -2083,13 +2339,17 @@ extern void addCallbackRegex (struct lregexControlBlock *lcb,
 		return;
 
 
-	regex_t* const cp = compileRegex (REG_PARSER_SINGLE_LINE, regex, flags);
-	if (cp != NULL)
+	regexCompiledCode cp = compileRegex (REG_PARSER_SINGLE_LINE, regex, flags);
+	if (cp.code == NULL)
 	{
-		regexPattern *rptr = addCompiledCallbackPattern (lcb, cp, callback, flags,
-														 disabled, userData);
-		rptr->pattern_string = escapeRegexPattern(regex);
+		error (WARNING, "pattern: %s", regex);
+		error (WARNING, "language: %s", getLanguageName (lcb->owner));
+		return;
 	}
+
+	regexPattern *rptr = addCompiledCallbackPattern (lcb, &cp, callback, flags,
+													 disabled, userData);
+	rptr->pattern_string = escapeRegexPattern(regex);
 }
 
 static void addTagRegexOption (struct lregexControlBlock *lcb,
@@ -2140,8 +2400,19 @@ static void addTagRegexOption (struct lregexControlBlock *lcb,
 		regex_pat = eStrdup (pattern);
 
 	if (parseTagRegex (regptype, regex_pat, &name, &kinds, &flags))
-		addTagRegexInternal (lcb, table_index, regptype, regex_pat, name, kinds, flags,
-							 NULL);
+	{
+		regexPattern *ptrn = addTagRegexInternal (lcb, table_index, regptype, regex_pat, name, kinds, flags,
+												  NULL);
+		if (regptype == REG_PARSER_MULTI_LINE
+			&& ptrn->mgroup.forLineNumberDetermination == NO_MULTILINE)
+		{
+			if (hasNameSlot(ptrn))
+				error (WARNING, "%s: no {mgroup=N} flag given in --mline-regex-<LANG>=%s... (%s)",
+					   getLanguageName (lcb->owner),
+					   pattern, ASSERT_FUNCTION);
+			ptrn->mgroup.forLineNumberDetermination = 0;
+		}
+	}
 
 	eFree (regex_pat);
 }
@@ -2182,49 +2453,79 @@ extern void processTagRegexOption (struct lregexControlBlock *lcb,
 *   Regex option parsing
 */
 
-extern void printRegexFlags (bool withListHeader, bool machinable, FILE *fp)
+extern void printRegexFlags (bool withListHeader, bool machinable, const char *flags, FILE *fp)
 {
-	struct colprintTable * table;
+	struct colprintTable * table = flagsColprintTableNew ();
 
-	table = flagsColprintTableNew ();
-
-	flagsColprintAddDefinitions (table, regexFlagDefs,  ARRAY_SIZE (regexFlagDefs));
-	flagsColprintAddDefinitions (table, prePtrnFlagDef, ARRAY_SIZE (prePtrnFlagDef));
-	flagsColprintAddDefinitions (table, guestPtrnFlagDef, ARRAY_SIZE (guestPtrnFlagDef));
-	flagsColprintAddDefinitions (table, scopePtrnFlagDef, ARRAY_SIZE (scopePtrnFlagDef));
-	flagsColprintAddDefinitions (table, commonSpecFlagDef, ARRAY_SIZE (commonSpecFlagDef));
+	if (flags && *flags != '\0')
+	{
+		/* Print backend specific flags.
+		 * This code is just stub because there is no backend having a specific flag.
+		 * The help message for this option is not updated. */
+		struct flagDefsDescriptor desc = choose_backend (flags, REG_PARSER_SINGLE_LINE, true);
+		flagsColprintAddDefinitions (table, desc.backend->fdefs, desc.backend->fdef_count);
+	}
+	else
+	{
+		flagsColprintAddDefinitions (table, backendFlagDefs, ARRAY_SIZE(backendFlagDefs));
+		flagsColprintAddDefinitions (table, backendCommonRegexFlagDefs, ARRAY_SIZE(backendCommonRegexFlagDefs));
+		flagsColprintAddDefinitions (table, prePtrnFlagDef, ARRAY_SIZE (prePtrnFlagDef));
+		flagsColprintAddDefinitions (table, guestPtrnFlagDef, ARRAY_SIZE (guestPtrnFlagDef));
+		flagsColprintAddDefinitions (table, scopePtrnFlagDef, ARRAY_SIZE (scopePtrnFlagDef));
+		flagsColprintAddDefinitions (table, commonSpecFlagDef, ARRAY_SIZE (commonSpecFlagDef));
+	}
 
 	flagsColprintTablePrint (table, withListHeader, machinable, fp);
 	colprintTableDelete(table);
 }
 
-extern void printMultilineRegexFlags (bool withListHeader, bool machinable, FILE *fp)
+extern void printMultilineRegexFlags (bool withListHeader, bool machinable, const char *flags, FILE *fp)
 {
-	struct colprintTable * table;
+	struct colprintTable * table = flagsColprintTableNew ();
 
-	table = flagsColprintTableNew ();
-
-	flagsColprintAddDefinitions (table, regexFlagDefs,  ARRAY_SIZE (regexFlagDefs));
-	flagsColprintAddDefinitions (table, multilinePtrnFlagDef, ARRAY_SIZE (multilinePtrnFlagDef));
-	flagsColprintAddDefinitions (table, guestPtrnFlagDef, ARRAY_SIZE (guestPtrnFlagDef));
-	flagsColprintAddDefinitions (table, commonSpecFlagDef, ARRAY_SIZE (commonSpecFlagDef));
+	if (flags && *flags != '\0')
+	{
+		/* Print backend specific flags.
+		 * This code is just stub because there is no backend having a specific flag.
+		 * The help message for this option is not updated. */
+		struct flagDefsDescriptor desc = choose_backend (flags, REG_PARSER_MULTI_LINE, true);
+		flagsColprintAddDefinitions (table, desc.backend->fdefs, desc.backend->fdef_count);
+	}
+	else
+	{
+		flagsColprintAddDefinitions (table, backendFlagDefs, ARRAY_SIZE(backendFlagDefs));
+		flagsColprintAddDefinitions (table, backendCommonRegexFlagDefs, ARRAY_SIZE(backendCommonRegexFlagDefs));
+		flagsColprintAddDefinitions (table, multilinePtrnFlagDef, ARRAY_SIZE (multilinePtrnFlagDef));
+		flagsColprintAddDefinitions (table, guestPtrnFlagDef, ARRAY_SIZE (guestPtrnFlagDef));
+		flagsColprintAddDefinitions (table, commonSpecFlagDef, ARRAY_SIZE (commonSpecFlagDef));
+	}
 
 	flagsColprintTablePrint (table, withListHeader, machinable, fp);
 	colprintTableDelete(table);
 }
 
-extern void printMultitableRegexFlags (bool withListHeader, bool machinable, FILE *fp)
+extern void printMultitableRegexFlags (bool withListHeader, bool machinable, const char *flags, FILE *fp)
 {
-	struct colprintTable * table;
+	struct colprintTable * table = flagsColprintTableNew ();
 
-	table = flagsColprintTableNew ();
-
-	flagsColprintAddDefinitions (table, regexFlagDefs,  ARRAY_SIZE (regexFlagDefs));
-	flagsColprintAddDefinitions (table, multilinePtrnFlagDef, ARRAY_SIZE (multilinePtrnFlagDef));
-	flagsColprintAddDefinitions (table, multitablePtrnFlagDef, ARRAY_SIZE (multitablePtrnFlagDef));
-	flagsColprintAddDefinitions (table, guestPtrnFlagDef, ARRAY_SIZE (guestPtrnFlagDef));
-	flagsColprintAddDefinitions (table, scopePtrnFlagDef, ARRAY_SIZE (scopePtrnFlagDef));
-	flagsColprintAddDefinitions (table, commonSpecFlagDef, ARRAY_SIZE (commonSpecFlagDef));
+	if (flags && *flags != '\0')
+	{
+		/* Print backend specific flags.
+		 * This code is just stub because there is no backend having a specific flag.
+		 * The help message for this option is not updated. */
+		struct flagDefsDescriptor desc = choose_backend (flags, REG_PARSER_MULTI_TABLE, true);
+		flagsColprintAddDefinitions (table, desc.backend->fdefs, desc.backend->fdef_count);
+	}
+	else
+	{
+		flagsColprintAddDefinitions (table, backendFlagDefs, ARRAY_SIZE(backendFlagDefs));
+		flagsColprintAddDefinitions (table, backendCommonRegexFlagDefs, ARRAY_SIZE(backendCommonRegexFlagDefs));
+		flagsColprintAddDefinitions (table, multilinePtrnFlagDef, ARRAY_SIZE (multilinePtrnFlagDef));
+		flagsColprintAddDefinitions (table, multitablePtrnFlagDef, ARRAY_SIZE (multitablePtrnFlagDef));
+		flagsColprintAddDefinitions (table, guestPtrnFlagDef, ARRAY_SIZE (guestPtrnFlagDef));
+		flagsColprintAddDefinitions (table, scopePtrnFlagDef, ARRAY_SIZE (scopePtrnFlagDef));
+		flagsColprintAddDefinitions (table, commonSpecFlagDef, ARRAY_SIZE (commonSpecFlagDef));
+	}
 
 	flagsColprintTablePrint (table, withListHeader, machinable, fp);
 	colprintTableDelete(table);
@@ -2232,7 +2533,8 @@ extern void printMultitableRegexFlags (bool withListHeader, bool machinable, FIL
 
 extern void freeRegexResources (void)
 {
-	/* TODO: SHOULD BE REMOVED */
+	es_object_unref (lregex_dict);
+	opt_vm_delete (optvm);
 }
 
 extern bool regexNeedsMultilineBuffer (struct lregexControlBlock *lcb)
@@ -2406,6 +2708,10 @@ static struct regexTable * matchMultitableRegexTable (struct lregexControlBlock 
 	for (unsigned int i = 0; i < ptrArrayCount(table->entries); i++)
 	{
 		regexTableEntry *entry = ptrArrayItem(table->entries, i);
+		if ((entry->pattern->xtagType != XTAG_UNKNOWN)
+			&& (!isXtagEnabled (entry->pattern->xtagType)))
+			continue;
+
 		regexPattern *ptrn = entry->pattern;
 		struct guestSpec  *guest = &ptrn->guest;
 
@@ -2453,21 +2759,46 @@ static struct regexTable * matchMultitableRegexTable (struct lregexControlBlock 
 		if (ptrn->disabled && *(ptrn->disabled))
 			continue;
 
-		match = regexec (ptrn->pattern, current,
-						 BACK_REFERENCE_COUNT, pmatch, 0);
-
+		match = ptrn->pattern.backend->match (ptrn->pattern.backend,
+											  ptrn->pattern.code, current,
+											  vStringLength(start) - (current - cstart),
+											  pmatch);
 		if (match == 0)
 		{
 			entry->statistics.match++;
+			scriptWindow window = {
+				.line = current,
+				.start = cstart,
+				.patbuf = ptrn,
+				.pmatch = pmatch,
+				.nmatch = BACK_REFERENCE_COUNT,
+				.advanceto = false,
+			};
+			initTaction (&window.taction);
+
+			if (ptrn->optscript && (! hasNameSlot (ptrn)))
+			{
+				scriptSetup (optvm, lcb, CORK_NIL, &window);
+				EsObject *e = scriptEval (optvm, ptrn->optscript);
+				if (es_error_p (e))
+					error (WARNING, "error when evaluating: %s", ptrn->optscript_src);
+				es_object_unref (e);
+				scriptTeardown (optvm, lcb);
+			}
 
 			if (ptrn->type == PTRN_TAG)
 			{
-				struct mTableActionSpec *taction = &(ptrn->taction);
+				Assert (ptrn->mgroup.forLineNumberDetermination != NO_MULTILINE);
+				off_t offset_for_tag = (current
+										+ pmatch [ptrn->mgroup.forLineNumberDetermination].rm_so)
+					- cstart;
+				matchTagPattern (lcb, current, ptrn, pmatch, offset_for_tag,
+								 (ptrn->optscript && hasNameSlot (ptrn))? &window: NULL);
 
-				matchTagPattern (lcb, current, ptrn, pmatch,
-								 (current
-								  + pmatch [ptrn->mgroup.forLineNumberDetermination].rm_so)
-								 - cstart);
+				struct mTableActionSpec *taction = (window.taction.action == TACTION_NOP)
+					? &(ptrn->taction)
+					: &window.taction;
+
 				BEGIN_VERBOSE(vfp);
 				{
 					fprintf(vfp, "result: matched %d bytes\n", (int)(pmatch[0].rm_eo));
@@ -2487,9 +2818,12 @@ static struct regexTable * matchMultitableRegexTable (struct lregexControlBlock 
 					guestRequestClear (lcb->guest_req);
 				}
 
-				delta = (ptrn->mgroup.nextFromStart
-						 ? pmatch [ptrn->mgroup.forNextScanning].rm_so
-						 : pmatch [ptrn->mgroup.forNextScanning].rm_eo);
+				if (window.advanceto)
+					delta = window.advanceto_delta;
+				else
+					delta = (ptrn->mgroup.nextFromStart
+							 ? pmatch [ptrn->mgroup.forNextScanning].rm_so
+							 : pmatch [ptrn->mgroup.forNextScanning].rm_eo);
 				*offset += delta;
 
 				switch (taction->action)
@@ -2719,6 +3053,9 @@ static int  makePromiseForAreaSpecifiedWithOffsets (const char *parser,
 	unsigned long startLineOffset = getInputFileOffsetForLine (startLine);
 	unsigned long endLineOffset = getInputFileOffsetForLine (endLine);
 
+	Assert(startOffset >= startLineOffset);
+	Assert(endOffset >= endLineOffset);
+
 	return makePromise (parser,
 						startLine, startOffset - startLineOffset,
 						endLine, endOffset - endLineOffset,
@@ -2764,6 +3101,79 @@ static void   guestRequestSubmit (struct guestRequest *r)
 											r->boundary[BOUNDARY_END].offset);
 }
 
+/*
+ * Script related functions
+ */
+
+/* This functions expects { code }} as input.
+ * Be care that curly brackets must be unbalanced.
+ */
+static EsObject *scriptRead (OptVM *vm, const char *src)
+{
+	size_t len = strlen (src);
+	Assert (len > 2);
+	Assert (src[len - 1] == '}');
+	Assert (src[len - 2] == '}');
+
+	EsObject *obj = optscriptRead (vm, src + 1, len - 1 - 1);
+	if (es_error_p (obj))
+		error (FATAL, "failed in loading an optscript: %s", src);
+	return obj;
+}
+
+extern EsObject* scriptEval (OptVM *vm, EsObject *optscript)
+{
+	return optscriptEval (vm, optscript);
+}
+
+static void scriptEvalHook (OptVM *vm, struct lregexControlBlock *lcb, enum scriptHook hook)
+{
+	if (ptrArrayCount (lcb->hook_code[hook]) == 0)
+	{
+		for (int i = 0; i < ptrArrayCount (lcb->hook[hook]); i++)
+		{
+			const char *src = ptrArrayItem (lcb->hook[hook], i);
+			EsObject *code = scriptRead (vm, src);
+			if (es_error_p (code))
+				error (FATAL, "error when reading hook[%d] code: %s", hook, src);
+			ptrArrayAdd (lcb->hook_code[hook], es_object_ref (code));
+			es_object_unref (code);
+		}
+	}
+	for (int i = 0; i < ptrArrayCount (lcb->hook_code[hook]); i++)
+	{
+		EsObject *code = ptrArrayItem (lcb->hook_code[hook], i);
+		EsObject * e = optscriptEval (vm, code);
+		if (es_error_p (e))
+			error (WARNING, "error when evaluating hook[%d] code: %s",
+				   hook, (char *)ptrArrayItem (lcb->hook[i], i));
+	}
+}
+
+static void scriptSetup (OptVM *vm, struct lregexControlBlock *lcb, int corkIndex, scriptWindow *window)
+{
+	lcb->window = window;
+	optscriptSetup (vm, lcb->local_dict, corkIndex);
+}
+
+static void scriptTeardown (OptVM *vm, struct lregexControlBlock *lcb)
+{
+	optscriptTeardown (vm, lcb->local_dict);
+	lcb->window = NULL;
+}
+
+extern void	addOptscriptToHook (struct lregexControlBlock *lcb, enum scriptHook hook, const char *code)
+{
+	ptrArrayAdd (lcb->hook[hook], eStrdup (code));
+}
+
+extern void propagateParamToOptscript (struct lregexControlBlock *lcb, const char *param, const char *value)
+{
+	Assert (param);
+	Assert (value);
+	hashTablePutItem (lcb->param_dict, eStrdup (param), eStrdup (value));
+}
+
 /* Return true if available. */
 extern bool checkRegex (void)
 {
@@ -2781,5 +3191,1135 @@ extern bool checkRegex (void)
 	/* We are using bundled regex engine. */
 	regexAvailable = true;
 #endif
+
 	return regexAvailable;
+}
+
+static EsObject *OPTSCRIPT_ERR_UNKNOWNKIND;
+
+/* name:str kind:name loc _TAG tag
+ * name:str kind:name     _TAG tag */
+static EsObject* lrop_make_tag (OptVM *vm, EsObject *name)
+{
+	matchLoc *loc;
+
+	if (opt_vm_ostack_count (vm) < 1)
+		return OPT_ERR_UNDERFLOW;
+
+	int index;
+	EsObject *top = opt_vm_ostack_top (vm);
+	if (es_object_get_type (top) == OPT_TYPE_MATCHLOC)
+	{
+		if (opt_vm_ostack_count (vm) < 3)
+			return OPT_ERR_UNDERFLOW;
+		loc = es_pointer_get (top);
+		index = 1;
+	}
+	else
+	{
+		struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+		if (lcb->window->patbuf->regptype != REG_PARSER_SINGLE_LINE)
+			return OPT_ERR_TYPECHECK;
+		if (opt_vm_ostack_count (vm) < 2)
+			return OPT_ERR_UNDERFLOW;
+		loc = NULL;
+		index = 0;
+	}
+
+	EsObject *kind = opt_vm_ostack_peek (vm, index++);
+	if (es_object_get_type (kind) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+	EsObject *kind_sym = es_pointer_get (kind);
+	const char *kind_str = es_symbol_get (kind_sym);
+	kindDefinition* kind_def = getLanguageKindForName (getInputLanguage (),
+													   kind_str);
+	if (!kind_def)
+		return OPTSCRIPT_ERR_UNKNOWNKIND;
+	int kind_index = kind_def->id;
+
+	EsObject *tname = opt_vm_ostack_peek (vm, index++);
+	if (es_object_get_type (tname) != OPT_TYPE_STRING)
+		return OPT_ERR_TYPECHECK;
+	const char *n = opt_string_get_cstr (tname);
+	if (n [0] == '\0')
+		return OPT_ERR_RANGECHECK; /* TODO */
+
+	tagEntryInfo *e = xMalloc (1, tagEntryInfo);
+	initRegexTag (e, eStrdup (n),
+				  kind_index, ROLE_DEFINITION_INDEX, CORK_NIL, 0,
+				  loc? loc->line: 0, loc? &loc->pos: NULL, XTAG_UNKNOWN);
+	EsObject *obj = es_pointer_new (OPT_TYPE_TAG, e);
+	if (es_error_p (obj))
+		return obj;
+
+	while (index-- > 0)
+		opt_vm_ostack_pop (vm);
+
+	opt_vm_ostack_push (vm, obj);
+	es_object_unref (obj);
+	return es_false;
+}
+
+static EsObject *OPTSCRIPT_ERR_UNKNOWNROLE;
+
+static EsObject* lrop_make_reftag (OptVM *vm, EsObject *name)
+{
+	matchLoc *loc;
+
+	if (opt_vm_ostack_count (vm) < 1)
+		return OPT_ERR_UNDERFLOW;
+
+	int index;
+	EsObject *top = opt_vm_ostack_top (vm);
+	if (es_object_get_type (top) == OPT_TYPE_MATCHLOC)
+	{
+		if (opt_vm_ostack_count (vm) < 4)
+			return OPT_ERR_UNDERFLOW;
+		loc = es_pointer_get (top);
+		index = 1;
+	}
+	else
+	{
+		struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+		if (lcb->window->patbuf->regptype != REG_PARSER_SINGLE_LINE)
+			return OPT_ERR_TYPECHECK;
+		if (opt_vm_ostack_count (vm) < 3)
+			return OPT_ERR_UNDERFLOW;
+		loc = NULL;
+		index = 0;
+	}
+
+	EsObject *role = opt_vm_ostack_peek (vm, index++);
+	if (es_object_get_type (role) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+
+	EsObject *kind = opt_vm_ostack_peek (vm, index++);
+	if (es_object_get_type (kind) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+	EsObject *kind_sym = es_pointer_get (kind);
+	const char *kind_str = es_symbol_get (kind_sym);
+	langType lang = getInputLanguage ();
+	kindDefinition* kind_def = getLanguageKindForName (lang, kind_str);
+	if (!kind_def)
+		return OPTSCRIPT_ERR_UNKNOWNKIND;
+	int kind_index = kind_def->id;
+
+	EsObject *role_sym = es_pointer_get (role);
+	const char *role_str = es_symbol_get (role_sym);
+	roleDefinition* role_def = getLanguageRoleForName (lang, kind_index, role_str);
+	if (!role_def)
+		return OPTSCRIPT_ERR_UNKNOWNROLE;
+	int role_index = role_def->id;
+
+	EsObject *tname = opt_vm_ostack_peek (vm, index++);
+	if (es_object_get_type (tname) != OPT_TYPE_STRING)
+		return OPT_ERR_TYPECHECK;
+	const char *n = opt_string_get_cstr (tname);
+	if (n [0] == '\0')
+		return OPT_ERR_RANGECHECK; /* TODO */
+
+	tagEntryInfo *e = xMalloc (1, tagEntryInfo);
+	initRegexTag (e, eStrdup (n),
+				  kind_index, role_index, CORK_NIL, 0,
+				  loc? loc->line: 0, loc? &loc->pos: NULL,
+				  role_index == ROLE_DEFINITION_INDEX
+				  ? XTAG_UNKNOWN
+				  : XTAG_REFERENCE_TAGS);
+	EsObject *obj = es_pointer_new (OPT_TYPE_TAG, e);
+	if (es_error_p (obj))
+		return obj;
+
+	while (index-- > 0)
+		opt_vm_ostack_pop (vm);
+
+	opt_vm_ostack_push (vm, obj);
+	es_object_unref (obj);
+	return es_false;
+}
+
+static EsObject* lrop_assign_role_common (OptVM *vm, EsObject *name, bool assign)
+{
+	EsObject *tag = opt_vm_ostack_peek (vm, 1);
+	tagEntryInfo *e;
+	if (es_integer_p (tag))
+	{
+		int n = es_integer_get (tag);
+		if (! (CORK_NIL < n && n < countEntryInCorkQueue()))
+			return OPT_ERR_RANGECHECK;
+		e = getEntryInCorkQueue (n);
+	}
+	else if (es_object_get_type (tag) == OPT_TYPE_TAG)
+		e = es_pointer_get (tag);
+	else
+		return OPT_ERR_TYPECHECK;
+
+	if (e == NULL)
+		return OPTSCRIPT_ERR_NOTAGENTRY;
+
+	langType lang = e->langType;
+	int kind_index = e->kindIndex;
+	EsObject *role = opt_vm_ostack_top (vm);
+	if (es_object_get_type (role) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+	EsObject *role_sym = es_pointer_get (role);
+	const char *role_str = es_symbol_get (role_sym);
+	roleDefinition* role_def = getLanguageRoleForName (lang, kind_index, role_str);
+	if (!role_def)
+		return OPTSCRIPT_ERR_UNKNOWNROLE;
+	int role_index = role_def->id;
+
+	(assign? assignRole: unassignRole) (e, role_index);
+
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_pop (vm);
+
+	return es_false;
+}
+
+static EsObject* lrop_assign_role (OptVM *vm, EsObject *name)
+{
+	return lrop_assign_role_common (vm, name, true);
+}
+
+static EsObject* lrop_unassign_role (OptVM *vm, EsObject *name)
+{
+	return lrop_assign_role_common (vm, name, false);
+}
+
+/* tag COMMIT int */
+static EsObject* lrop_commit_tag (OptVM *vm, EsObject *name)
+{
+	EsObject *tag = opt_vm_ostack_top (vm);
+	if (es_object_get_type (tag) != OPT_TYPE_TAG)
+		return OPT_ERR_TYPECHECK;
+
+	tagEntryInfo *e = es_pointer_get (tag);
+	int corkIndex = makeTagEntry (e);
+	EsObject *n = es_integer_new (corkIndex);
+	if (es_error_p (n))
+		return n;
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_push (vm, n);
+	es_object_unref (n);
+	return es_false;
+}
+
+static EsObject* lrop_get_match_loc (OptVM *vm, EsObject *name)
+{
+
+	bool start;
+	EsObject *group;
+
+	if (opt_vm_ostack_count (vm) < 1)
+		return OPT_ERR_UNDERFLOW;
+
+	EsObject *tmp = opt_vm_ostack_top (vm);
+
+	if (es_object_get_type (tmp) == ES_TYPE_INTEGER)
+	{
+		group = tmp;
+		start = true;
+	}
+	else
+	{
+		EsObject *pos = tmp;
+
+		static EsObject *start_name, *end_name;
+		if (!start_name)
+		{
+			start_name = opt_name_new_from_cstr ("start");
+			end_name = opt_name_new_from_cstr ("end");
+		}
+
+		if (es_object_equal (pos, start_name))
+			start = true;
+		else if (es_object_equal (pos, end_name))
+			start = false;
+		else
+			return OPT_ERR_TYPECHECK;
+
+		if (opt_vm_ostack_count (vm) < 2)
+			return OPT_ERR_UNDERFLOW;
+
+		group = opt_vm_ostack_peek (vm, 1);
+		if (es_object_get_type (group) != ES_TYPE_INTEGER)
+			return OPT_ERR_TYPECHECK;
+	}
+
+	int g = es_integer_get (group);
+	if (g < 1)
+		return OPT_ERR_RANGECHECK;
+
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	scriptWindow *window = lcb->window;
+
+	matchLoc *mloc = make_mloc (window, g, start);
+	if (mloc == NULL)
+		return OPT_ERR_RANGECHECK;
+
+	EsObject * mlocobj = es_pointer_new (OPT_TYPE_MATCHLOC, mloc);
+	if (es_error_p (mlocobj))
+	{
+		eFree (mloc);
+		return mlocobj;
+	}
+
+	if (group != tmp)
+		opt_vm_ostack_pop (vm);
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_push (vm, mlocobj);
+	es_object_unref (mlocobj);
+	return es_false;
+}
+
+static EsObject* ldrop_get_line_from_matchloc (OptVM *vm, EsObject *name)
+{
+	EsObject *mlocobj = opt_vm_ostack_top (vm);
+	if (es_object_get_type (mlocobj) != OPT_TYPE_MATCHLOC)
+		return OPT_ERR_TYPECHECK;
+
+	matchLoc *mloc = es_pointer_get (mlocobj);
+	EsObject *lineobj = es_integer_new (mloc->line);
+	if (es_error_p (lineobj))
+		return lineobj;
+
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_push (vm, lineobj);
+	es_object_unref (lineobj);
+	return es_false;
+}
+
+static matchLoc* make_mloc_from_tagEntryInfo(tagEntryInfo *e)
+{
+	matchLoc *mloc = xMalloc (1, matchLoc);
+	mloc->delta = 0;
+	mloc->line = e->lineNumber;
+	mloc->pos = e->filePosition;
+
+	return mloc;
+}
+
+static EsObject* lrop_get_tag_loc (OptVM *vm, EsObject *name)
+{
+	EsObject *nobj = opt_vm_ostack_top (vm);
+
+	if (es_object_get_type (nobj) != ES_TYPE_INTEGER)
+		return OPT_ERR_TYPECHECK;
+
+	int n = es_integer_get(nobj);
+	if (! (CORK_NIL < n && n < countEntryInCorkQueue()))
+			return OPT_ERR_RANGECHECK;
+
+	tagEntryInfo *e = getEntryInCorkQueue (n);
+	if (e == NULL)
+		return OPT_ERR_TYPECHECK; /* ??? */
+
+	matchLoc *mloc = make_mloc_from_tagEntryInfo (e);
+	EsObject * mlocobj = es_pointer_new (OPT_TYPE_MATCHLOC, mloc);
+	if (es_error_p (mlocobj))
+	{
+		eFree (mloc);
+		return mlocobj;
+	}
+
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_push (vm, mlocobj);
+	es_object_unref (mlocobj);
+	return es_false;
+}
+
+static EsObject* lrop_get_match_string_common (OptVM *vm, int i, int npop)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	scriptWindow *window = lcb->window;
+	const char *cstr = make_match_string (window, i);
+	if (!cstr)
+	{
+		for (; npop > 0; npop--)
+			opt_vm_ostack_pop (vm);
+		opt_vm_ostack_push (vm, es_false);
+		return es_false;
+	}
+	EsObject *str = opt_string_new_from_cstr (cstr);
+	eFree ((void *)cstr);
+
+	for (; npop > 0; npop--)
+		opt_vm_ostack_pop (vm);
+
+	opt_vm_ostack_push (vm, str);
+	es_object_unref (str);
+	return es_false;
+}
+
+/* Handles \1, \2, ... */
+static EsObject* lrop_get_match_string_named_group (OptVM *vm, EsObject *name)
+{
+	void * data = es_symbol_get_data (name);
+	int i = HT_PTR_TO_INT (data);
+
+	return lrop_get_match_string_common (vm, i, 0);
+}
+
+static EsObject* lrop_get_match_string_group_on_stack (OptVM *vm, EsObject *name)
+{
+	EsObject *group = opt_vm_ostack_top (vm);
+	if (!es_integer_p (group))
+		return OPT_ERR_TYPECHECK;
+
+	int g = es_integer_get (group);
+	if (g < 1)
+		return OPT_ERR_RANGECHECK;
+
+	EsObject *r = lrop_get_match_string_common (vm, g, 1);
+	if (es_error_p (r))
+		return r;
+
+	r = opt_vm_ostack_top (vm);
+	if (es_object_get_type (r) == OPT_TYPE_STRING)
+		opt_vm_ostack_push (vm, es_true);
+	return es_false;
+}
+
+static char* make_match_string (scriptWindow *window, int group)
+{
+	if (window == NULL
+		|| 0 >= group
+		|| window->nmatch <= group
+		|| window->pmatch [group].rm_so == -1)
+		return NULL;
+
+	const int len = window->pmatch [group].rm_eo - window->pmatch [group].rm_so;
+	const char *start = window->line + window->pmatch [group].rm_so;
+
+	return eStrndup (start, len);
+}
+
+static matchLoc *make_mloc (scriptWindow *window, int group, bool start)
+{
+	if (window == NULL
+		|| 0 > group
+		|| window->nmatch <= group
+		|| window->pmatch [group].rm_so == -1)
+		return NULL;
+
+	matchLoc *mloc = xMalloc (1, matchLoc);
+	if (window->patbuf->regptype == REG_PARSER_SINGLE_LINE)
+	{
+		mloc->base  = 0;
+		mloc->delta = 0;
+		mloc->line = getInputLineNumber ();
+		mloc->pos = getInputFilePosition ();
+	}
+	else
+	{
+		mloc->base  = window->line - window->start;
+		mloc->delta = (start
+					   ? window->pmatch [group].rm_so
+					   : window->pmatch [group].rm_eo);
+		mloc->line = getInputLineNumberForFileOffset (mloc->base + mloc->delta);
+		mloc->pos  = getInputFilePositionForLine (mloc->line);
+	}
+	return mloc;
+}
+
+static EsObject* lrop_set_scope (OptVM *vm, EsObject *name)
+{
+	EsObject *corkIndex = opt_vm_ostack_top (vm);
+	if (!es_integer_p (corkIndex))
+		return OPT_ERR_TYPECHECK;
+
+	int n = es_integer_get (corkIndex);
+	if (n < 0)
+		return OPT_ERR_RANGECHECK;
+
+	if (n >= countEntryInCorkQueue())
+		return OPT_ERR_RANGECHECK;
+
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	lcb->currentScope = n;
+
+	opt_vm_ostack_pop (vm);
+
+	return es_false;
+}
+
+static EsObject* lrop_pop_scope (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	if (lcb->currentScope != CORK_NIL)
+	{
+		tagEntryInfo *e = getEntryInCorkQueue (lcb->currentScope);
+		if (e)
+			lcb->currentScope = e->extensionFields.scopeIndex;
+	}
+	return es_false;
+}
+
+static EsObject* lrop_clear_scope (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	lcb->currentScope = CORK_NIL;
+	return es_false;
+}
+
+static EsObject* lrop_ref0_scope (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+
+	if (lcb->currentScope == 0)
+	{
+		opt_vm_ostack_push (vm, es_false);
+		return es_false;
+	}
+
+	EsObject *q = es_integer_new (lcb->currentScope);
+
+	if (es_error_p (q))
+		return q;
+
+	opt_vm_ostack_push (vm, q);
+	es_object_unref (q);
+	opt_vm_ostack_push (vm, es_true);
+	return es_false;
+}
+
+static EsObject* lrop_refN_scope (OptVM *vm, EsObject *name)
+{
+	EsObject *nobj = opt_vm_ostack_top (vm);
+	if (!es_integer_p (nobj))
+		return OPT_ERR_TYPECHECK;
+
+	int n = es_integer_get(nobj);
+
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	int scope = lcb->currentScope;
+
+	while (n--)
+	{
+		if (scope == CORK_NIL)
+			break;
+		tagEntryInfo *e = getEntryInCorkQueue (scope);
+		if (e == NULL)
+			break;
+
+		scope = e->extensionFields.scopeIndex;
+	}
+
+	EsObject *q = es_integer_new (scope);
+	if (es_error_p(q))
+		return q;
+
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_push (vm, q);
+	es_object_unref (q);
+
+	return es_false;
+}
+
+static EsObject* lrop_get_scope_depth (OptVM *vm, EsObject *name)
+{
+	int n = 0;
+
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	int scope = lcb->currentScope;
+
+	while (scope != CORK_NIL)
+	{
+		tagEntryInfo *e = getEntryInCorkQueue (scope);
+		if (!e)
+			break;
+
+		scope = e->extensionFields.scopeIndex;
+		n++;
+	}
+
+	EsObject *q = es_integer_new (scope);
+	if (es_error_p(q))
+		return q;
+
+	opt_vm_ostack_push (vm, q);
+	es_object_unref (q);
+	return es_false;
+}
+
+static EsObject* lrop_repl (OptVM *vm, EsObject *name)
+{
+	char *old_prompt = opt_vm_set_prompt (vm, "\n% type \"quit\" for exiting from repl\nOPT");
+
+	opt_vm_print_prompt (vm);
+	opt_vm_set_prompt (vm, "OPT");
+
+	while (true)
+	{
+		EsObject *o = opt_vm_read (vm, NULL);
+		if (es_object_equal (o, ES_READER_EOF))
+		{
+			es_object_unref (o);
+			break;
+		}
+		EsObject *e = opt_vm_eval (vm, o);
+		es_object_unref (o);
+
+		if (es_error_p (e))
+		{
+			if (!es_object_equal (e, OPT_ERR_QUIT))
+				opt_vm_report_error (vm, e, NULL);
+			break;
+		}
+	}
+
+	opt_vm_set_prompt (vm, old_prompt);
+	return es_false;
+}
+
+static EsObject *OPTSCRIPT_ERR_UNKNOWNTABLE;
+static EsObject *OPTSCRIPT_ERR_NOTMTABLEPTRN;
+
+static struct regexTable *getRegexTableForOptscriptName (struct lregexControlBlock *lcb,
+														 EsObject *tableName)
+{
+	EsObject *table_sym = es_pointer_get (tableName);
+	const char *table_str = es_symbol_get (table_sym);
+	int n = getTableIndexForName (lcb, table_str);
+	if (n < 0)
+		return NULL;
+	return ptrArrayItem (lcb->tables, n);
+}
+
+static EsObject* lrop_tenter_common (OptVM *vm, EsObject *name, enum tableAction action)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	if (lcb->window->patbuf->regptype != REG_PARSER_MULTI_TABLE)
+	{
+		error (WARNING, "Use table related operators only with mtable regular expression");
+		return OPTSCRIPT_ERR_NOTMTABLEPTRN;
+	}
+
+	EsObject *table = opt_vm_ostack_top (vm);
+	if (es_object_get_type (table) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+
+	struct regexTable *t = getRegexTableForOptscriptName (lcb, table);
+	if (t == NULL)
+		return OPTSCRIPT_ERR_UNKNOWNTABLE;
+
+	lcb->window->taction = (struct mTableActionSpec){
+		.action             = action,
+		.table              = t,
+		.continuation_table = NULL,
+	};
+
+	opt_vm_ostack_pop (vm);
+	return es_false;
+}
+
+static EsObject* lrop_tenter (OptVM *vm, EsObject *name)
+{
+	return lrop_tenter_common (vm, name, TACTION_ENTER);
+}
+
+static EsObject* lrop_tenter_with_continuation (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	if (lcb->window->patbuf->regptype != REG_PARSER_MULTI_TABLE)
+	{
+		error (WARNING, "Use table related operators only with mtable regular expression");
+		return OPTSCRIPT_ERR_NOTMTABLEPTRN;
+	}
+
+	EsObject *cont = opt_vm_ostack_top (vm);
+	EsObject *table = opt_vm_ostack_peek (vm, 1);
+
+	if (es_object_get_type (table) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+	if (es_object_get_type (cont) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+
+	struct regexTable *t = getRegexTableForOptscriptName (lcb, table);
+	if (t == NULL)
+		return OPTSCRIPT_ERR_UNKNOWNTABLE;
+	struct regexTable *c = getRegexTableForOptscriptName (lcb, cont);
+	if (c == NULL)
+		return OPTSCRIPT_ERR_UNKNOWNTABLE;
+
+	lcb->window->taction = (struct mTableActionSpec){
+		.action             = TACTION_ENTER,
+		.table              = t,
+		.continuation_table = c,
+	};
+
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_pop (vm);
+	return es_false;
+}
+
+static EsObject* lrop_tleave (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	if (lcb->window->patbuf->regptype != REG_PARSER_MULTI_TABLE)
+	{
+		error (WARNING, "Use table related operators only with mtable regular expression");
+		return OPTSCRIPT_ERR_NOTMTABLEPTRN;
+	}
+
+	lcb->window->taction.action = TACTION_LEAVE;
+	return es_false;
+}
+
+static EsObject* lrop_tjump (OptVM *vm, EsObject *name)
+{
+	return lrop_tenter_common (vm, name, TACTION_JUMP);
+}
+
+static EsObject* lrop_treset (OptVM *vm, EsObject *name)
+{
+	return lrop_tenter_common (vm, name, TACTION_RESET);
+}
+
+static EsObject* lrop_tquit (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	if (lcb->window->patbuf->regptype != REG_PARSER_MULTI_TABLE)
+	{
+		error (WARNING, "Use table related operators only with mtable regular expression");
+		return OPTSCRIPT_ERR_NOTMTABLEPTRN;
+	}
+
+	lcb->window->taction.action = TACTION_QUIT;
+	return es_false;
+}
+
+static EsObject* lrop_traced (OptVM *vm, EsObject *name)
+{
+#ifdef DO_TRACING
+	langType lang = getInputLanguage ();
+	if (isLanguageTraced (lang))
+		opt_vm_ostack_push (vm, es_true);
+	else
+		opt_vm_ostack_push (vm, es_false);
+#else
+	opt_vm_ostack_push (vm, es_false);
+#endif
+	return false;
+}
+
+EsObject *OPTSCRIPT_ERR_UNKNOWNEXTRA;
+static EsObject* lrop_extraenabled (OptVM *vm, EsObject *name)
+{
+	EsObject *extra = opt_vm_ostack_top (vm);
+	if (es_object_get_type (extra) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+
+	xtagType xt = optscriptGetXtagType (extra);
+	if (xt == XTAG_UNKNOWN)
+		return OPTSCRIPT_ERR_UNKNOWNEXTRA;
+
+	EsObject *r = isXtagEnabled (xt)? es_true: es_false;
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_push (vm, r);
+	return es_false;
+}
+
+static EsObject *lrop_markextra (OptVM *vm, EsObject *name)
+{
+	EsObject *tag = opt_vm_ostack_peek (vm, 1);
+	tagEntryInfo *e;
+	if (es_integer_p (tag))
+	{
+		int n = es_integer_get (tag);
+		if (! (CORK_NIL < n && n < countEntryInCorkQueue()))
+			return OPT_ERR_RANGECHECK;
+		e = getEntryInCorkQueue (n);
+	}
+	else if (es_object_get_type (tag) == OPT_TYPE_TAG)
+		e = es_pointer_get (tag);
+	else
+		return OPT_ERR_TYPECHECK;
+
+	if (e == NULL)
+		return OPTSCRIPT_ERR_NOTAGENTRY;
+
+	EsObject *extra = opt_vm_ostack_top (vm);
+	if (es_object_get_type (extra) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+
+	xtagType xt = optscriptGetXtagType (extra);
+	if (xt == XTAG_UNKNOWN)
+		return OPTSCRIPT_ERR_UNKNOWNEXTRA;
+
+	langType lang = getXtagOwner (xt);
+	if (lang != LANG_IGNORE && e->langType != lang)
+	{
+		error (WARNING,
+			   "mismatch in the language of the tag (%s) and the language of field (%s)",
+			   getLanguageName (e->langType), getLanguageName (lang));
+		return OPTSCRIPT_ERR_UNKNOWNEXTRA;
+	}
+
+	markTagExtraBit (e, xt);
+
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_pop (vm);
+
+	return es_false;
+}
+
+static EsObject *lrop_advanceto (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	if (lcb->window->patbuf->regptype == REG_PARSER_SINGLE_LINE)
+	{
+		error (WARNING, "don't use `%s' operator in --regex-<LANG> option",
+			   es_symbol_get (name));
+		return OPTSCRIPT_ERR_NOTMTABLEPTRN; /* TODO */
+	}
+
+	EsObject *mlocobj = opt_vm_ostack_top (vm);
+	if (es_object_get_type (mlocobj) != OPT_TYPE_MATCHLOC)
+		return OPT_ERR_TYPECHECK;
+
+	matchLoc *loc = es_pointer_get (mlocobj);
+	lcb->window->advanceto = true;
+	lcb->window->advanceto_delta = loc->delta;
+
+	return es_true;
+}
+
+static EsObject *lrop_markplaceholder (OptVM *vm, EsObject *name)
+{
+	EsObject *tag = opt_vm_ostack_top (vm);
+
+	if (!es_integer_p (tag))
+		return OPT_ERR_TYPECHECK;
+
+	int n = es_integer_get (tag);
+	if (! (CORK_NIL < n && n < countEntryInCorkQueue()))
+		return OPT_ERR_RANGECHECK;
+
+	tagEntryInfo *e = getEntryInCorkQueue (n);
+	if (e == NULL)
+		return OPTSCRIPT_ERR_NOTAGENTRY;
+
+	markTagAsPlaceholder (e, true);
+
+	opt_vm_ostack_pop (vm);
+	return es_false;
+}
+
+static EsObject *lrop_makepromise (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	if (lcb->window->patbuf->regptype == REG_PARSER_SINGLE_LINE)
+	{
+		error (WARNING, "don't use `%s' operator in --regex-<LANG> option",
+			   es_symbol_get (name));
+		return OPTSCRIPT_ERR_NOTMTABLEPTRN; /* TODO */
+	}
+
+	EsObject *endobj = opt_vm_ostack_top (vm);
+	if (es_object_get_type (endobj) != OPT_TYPE_MATCHLOC)
+		return OPT_ERR_TYPECHECK;
+	matchLoc *end = es_pointer_get (endobj);
+	off_t end_off = (off_t)(end->base + end->delta);
+
+	EsObject *startobj = opt_vm_ostack_peek (vm, 1);
+	if (es_object_get_type (startobj) != OPT_TYPE_MATCHLOC)
+		return OPT_ERR_TYPECHECK;
+	matchLoc *start = es_pointer_get (startobj);
+	off_t start_off = (off_t)(start->base + start->delta);
+
+	if (! (start_off < end_off))
+		return OPT_ERR_RANGECHECK;
+
+	EsObject *lang = opt_vm_ostack_peek (vm, 2);
+	const char *langc = opt_string_get_cstr (lang);
+	langType t = getNamedLanguageOrAlias (langc, 0);
+	if (t == LANG_IGNORE)
+		return OPTSCRIPT_ERR_UNKNOWNLANGUAGE;
+
+	if (start_off == end_off)
+	{
+		opt_vm_ostack_pop (vm);
+		opt_vm_ostack_pop (vm);
+		opt_vm_ostack_pop (vm);
+		opt_vm_ostack_push (vm, es_false);
+		return es_false;
+	}
+
+	int promise = makePromiseForAreaSpecifiedWithOffsets (langc,
+														  start_off,
+														  end_off);
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_pop (vm);
+	opt_vm_ostack_pop (vm);
+
+	if (promise >= 0)
+	{
+		EsObject *promise_obj = es_integer_new (promise);
+		opt_vm_ostack_push (vm, promise_obj);
+		opt_vm_ostack_push (vm, es_true);
+		es_object_unref(promise_obj);
+	}
+	else
+		opt_vm_ostack_push (vm, es_false);
+
+	return es_false;
+}
+
+static EsObject *lrop_param (OptVM *vm, EsObject *name)
+{
+	struct lregexControlBlock *lcb = opt_vm_get_app_data (vm);
+	EsObject *key = opt_vm_ostack_top (vm);
+	if (es_object_get_type (key) != OPT_TYPE_NAME)
+		return OPT_ERR_TYPECHECK;
+	EsObject *key_sym = es_pointer_get (key);
+	const char *keyc = es_symbol_get (key_sym);
+	const char *valuec = hashTableGetItem (lcb->param_dict, keyc);
+
+	if (valuec)
+	{
+		opt_vm_ostack_pop (vm);
+		EsObject *value = opt_string_new_from_cstr (valuec);
+		opt_vm_ostack_push (vm, value);
+		es_object_unref (value);
+		opt_vm_ostack_push (vm, es_true);
+	}
+	else
+	{
+		opt_vm_ostack_pop (vm);
+		opt_vm_ostack_push (vm, es_false);
+	}
+	return false;
+}
+
+static struct optscriptOperatorRegistration lropOperators [] = {
+	{
+		.name     = "_matchstr",
+		.fn       = lrop_get_match_string_group_on_stack,
+		.arity    = 1,
+		.help_str = "group:int _MATCHSTR string true%"
+		"group:int _MATCHSTR false",
+	},
+	{
+		.name     = "_matchloc",
+		.fn       = lrop_get_match_loc,
+		.arity    = -1,
+		.help_str = "group:int /start|/end _MATCHLOC matchloc%"
+		"group:int _MATCHLOC matchloc",
+	},
+	{
+		.name     = "_matchloc2line",
+		.fn       = ldrop_get_line_from_matchloc,
+		.arity    = 1,
+		.help_str = "matchloc _MATCHLOC2LINE int:line",
+	},
+	{
+		.name     = "_tagloc",
+		.fn       = lrop_get_tag_loc,
+		.arity    = 1,
+		.help_str = "index:int _TAGLOC matchloc",
+	},
+	{
+		.name     = "_tag",
+		.fn       = lrop_make_tag,
+		.arity    = -1,
+		.help_str = "name:str kind:name matchloc _TAG tag%"
+		"name:str kind:name _TAG tag",
+	},
+	{
+		.name     = "_reftag",
+		.fn       = lrop_make_reftag,
+		.arity    = -1,
+		.help_str = "name:str kind:name role:name matchloc _REFTAG tag%"
+		"name:str kind:name role:name _REFTAG tag%",
+	},
+	{
+		.name     = "_commit",
+		.fn       = lrop_commit_tag,
+		.arity    = 1,
+		.help_str = "tag _COMMIT int",
+	},
+	{
+		.name     = "_scopeset",
+		.fn       = lrop_set_scope,
+		.arity    = 1,
+		.help_str = "int _SCOPESET -",
+	},
+	{
+		.name     = "_scopepop",
+		.fn       = lrop_pop_scope,
+		.arity    = 0,
+		.help_str = "- _SCOPEPOP -",
+	},
+	{
+		.name     = "_scopeclear",
+		.fn       = lrop_clear_scope,
+		.arity    = 0,
+		.help_str = "- _SCOPECLEAR -",
+	},
+	{
+		.name     = "_scopetop",
+		.fn       = lrop_ref0_scope,
+		.arity    = 0,
+		.help_str = "- _SCOPETOP int true%"
+		"- _SCOPETOP false",
+	},
+	{
+		.name     = "_scopeNth",
+		.fn       = lrop_refN_scope,
+		.arity    = 1,
+		.help_str = "index:int _SCOPENTH int",
+	},
+	{
+		.name     = "_scopedepth",
+		.fn       = lrop_get_scope_depth,
+		.arity    = 0,
+		.help_str = "- _SCOPEDEPTH int",
+	},
+	{
+		.name     = "_repl",
+		.fn       = lrop_repl,
+		.arity    = 0,
+		.help_str = "- _repl -",
+	},
+	{
+		.name     = "_tenter",
+		.fn       = lrop_tenter,
+		.arity    = 1,
+		.help_str = "table:name _TENTER -",
+	},
+	{
+		.name     = "_tentercont",
+		.fn       = lrop_tenter_with_continuation,
+		.arity    = 2,
+		.help_str = "table:name cont:name _TENTERCONT -",
+	},
+	{
+		.name     = "_tleave",
+		.fn       = lrop_tleave,
+		.arity    = 0,
+		.help_str = "- _TLEAVE -",
+	},
+	{
+		.name     = "_tjump",
+		.fn       = lrop_tjump,
+		.arity    = 1,
+		.help_str = "table:name _TJUMP -",
+	},
+	{
+		.name     = "_treset",
+		.fn       = lrop_treset,
+		.arity    = 1,
+		.help_str = "table:name _TRESET -",
+	},
+	{
+		.name     = "_tquit",
+		.fn       = lrop_tquit,
+		.arity    = 0,
+		.help_str = "- _TQUIT -",
+	},
+	{
+		.name     = "_extraenabled",
+		.fn       = lrop_extraenabled,
+		.arity    = 1,
+		.help_str = "extra:name _extraenabled bool%"
+		"language.extra _extraenabled bool",
+	},
+	{
+		.name     = "_markextra",
+		.fn       = lrop_markextra,
+		.arity    = 2,
+		.help_str = "tag:int|tag:tag extra:name _MARKEXTRA -%"
+		"tag:int|tag:tag lang.extra:name _MARKEXTRA -",
+	},
+	{
+		.name     = "_advanceto",
+		.fn       = lrop_advanceto,
+		.arity    = 1,
+		.help_str = "matchloc _ADVANCETO -%"
+	},
+	{
+		.name     = "_traced",
+		.fn       = lrop_traced,
+		.arity    = 0,
+		.help_str = "- _TRACED true|false",
+	},
+	{
+		.name     = "_markplaceholder",
+		.fn       = lrop_markplaceholder,
+		.arity    = 1,
+		.help_str = "tag:int _MARKPLACEHOLDER -",
+	},
+	{
+		.name     = "_makepromise",
+		.fn       = lrop_makepromise,
+		.arity    = 3,
+		.help_str = "lang:string start:matchloc end:matchloc _MAKEPROMISE promise:int true%"
+		"lang:string start:matchloc end:matchloc _MAKEPROMISE false",
+	},
+	{
+		.name     = "_param",
+		.fn       = lrop_param,
+		.arity    = 1,
+		.help_str = "param:name _PARAM value:string true%"
+		"param:name _PARAM false",
+	},
+	{
+		.name     = "_assignrole",
+		.fn       = lrop_assign_role,
+		.arity    = 2,
+		.help_str = "tag:int|tag:tag role:name _ASSIGNROLE -",
+	},
+	{
+		.name     = "_unassignrole",
+		.fn       = lrop_unassign_role,
+		.arity    = 2,
+		.help_str = "tag:int|tag:tag role:name _UNASSIGNROLE -",
+	},
+};
+
+extern void initRegexOptscript (void)
+{
+	if (!regexAvailable)
+		return;
+
+	if (optvm)
+		return;
+
+	optvm = optscriptInit ();
+	lregex_dict = opt_dict_new (17);
+
+	OPTSCRIPT_ERR_UNKNOWNTABLE = es_error_intern ("unknowntable");
+	OPTSCRIPT_ERR_NOTMTABLEPTRN = es_error_intern ("notmtableptrn");
+	OPTSCRIPT_ERR_UNKNOWNEXTRA = es_error_intern ("unknownextra");
+	OPTSCRIPT_ERR_UNKNOWNLANGUAGE = es_error_intern ("unknownlanguage");
+	OPTSCRIPT_ERR_UNKNOWNKIND = es_error_intern ("unknownkind");
+	OPTSCRIPT_ERR_UNKNOWNROLE = es_error_intern ("unknownrole");
+
+	optscriptInstallProcs (lregex_dict, lrop_get_match_string_named_group);
+
+	optscriptRegisterOperators (lregex_dict,
+								lropOperators, ARRAY_SIZE(lropOperators));
+
+	extern const char ctagsCommonPrelude[];
+	opt_vm_dstack_push (optvm, lregex_dict);
+	MIO *mio = mio_new_memory ((unsigned char*)ctagsCommonPrelude, strlen (ctagsCommonPrelude), NULL, NULL);
+	EsObject *e = optscriptLoad (optvm, mio);
+	if (es_error_p (e))
+		error (FATAL, "failed in loading built-in procedures");
+	mio_unref (mio);
+	opt_vm_dstack_pop (optvm);
+}
+
+extern void	listRegexOpscriptOperators (FILE *fp)
+{
+	EsObject *procdocs;
+	if (!opt_dict_known_and_get_cstr (lregex_dict,
+									  "__procdocs",
+									  &procdocs))
+		procdocs = NULL;
+
+	opt_vm_dstack_push (optvm, lregex_dict);
+	optscriptHelp (optvm, fp, procdocs);
+	opt_vm_dstack_pop (optvm);
 }

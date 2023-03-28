@@ -77,7 +77,26 @@ static int printTagField (fmtSpec* fspec, MIO* fp, const tagEntryInfo * tag)
 		if (findex == tag->usedParserFields)
 			str = "";
 		else if (isFieldEnabled (f->ftype))
-			str = renderField (f->ftype, tag, findex);
+		{
+			unsigned int dt = getFieldDataType (f->ftype);
+			if (dt & FIELDTYPE_STRING)
+			{
+				str = renderField (f->ftype, tag, findex);
+				if ((dt & FIELDTYPE_BOOL) && str[0] == '\0')
+				{
+					/* TODO: FIELD_NULL_LETTER_STRING */
+					str = "-";
+				}
+			}
+			else if (dt & FIELDTYPE_BOOL)
+				str = getFieldName (f->ftype);
+			else
+			{
+				/* Not implemented */
+				AssertNotReached ();
+				str = "CTAGS INTERNAL BUG!";
+			}
+		}
 	}
 
 	if (str == NULL)
@@ -211,13 +230,13 @@ static fmtElement** queueTagField (fmtElement **last, long width, bool truncatio
 	else
 		cur->spec.field.raw_fmtstr = NULL;
 
-	enableField (ftype, true, false);
+	enableField (ftype, true);
 	if (language == LANG_AUTO)
 	{
 		fieldType ftype_next = ftype;
 
 		while ((ftype_next = nextSiblingField (ftype_next)) != FIELD_UNKNOWN)
-			enableField (ftype_next, true, false);
+			enableField (ftype_next, true);
 	}
 
 	cur->printer = printTagField;

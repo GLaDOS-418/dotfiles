@@ -21,6 +21,7 @@
 #include "xtag.h"
 #include "xtag_p.h"
 
+#include <string.h>
 
 #define CTAGS_FILE  "tags"
 
@@ -35,7 +36,7 @@ static int writeCtagsPtagEntry (tagWriter *writer CTAGS_ATTR_UNUSED,
 								const char *const parserName,
 								void *clientData);
 static bool treatFieldAsFixed (int fieldType);
-static void checkCtagsOptions (tagWriter *writer);
+static void checkCtagsOptions (tagWriter *writer, bool fieldsWereReset);
 
 #ifdef WIN32
 static enum filenameSepOp overrideFilenameSeparator (enum filenameSepOp currentSetting);
@@ -244,7 +245,7 @@ static int addExtensionFields (tagWriter *writer, MIO *mio, const tagEntryInfo *
 	char sep [] = {';', '"', '\0'};
 	int length = 0;
 
-	const char *str = NULL;;
+	const char *str = NULL;
 	kindDefinition *kdef = getLanguageKind(tag->langType, tag->kindIndex);
 	const char kind_letter_str[2] = {kdef->letter, '\0'};
 
@@ -305,14 +306,10 @@ static int addExtensionFields (tagWriter *writer, MIO *mio, const tagEntryInfo *
 		sep [0] = '\0';
 	}
 
-	length += renderExtensionFieldMaybe (writer, FIELD_INHERITANCE, tag, sep, mio);
-	length += renderExtensionFieldMaybe (writer, FIELD_ACCESS, tag, sep, mio);
-	length += renderExtensionFieldMaybe (writer, FIELD_IMPLEMENTATION, tag, sep, mio);
-	length += renderExtensionFieldMaybe (writer, FIELD_SIGNATURE, tag, sep, mio);
-	length += renderExtensionFieldMaybe (writer, FIELD_ROLES, tag, sep, mio);
-	length += renderExtensionFieldMaybe (writer, FIELD_EXTRAS, tag, sep, mio);
-	length += renderExtensionFieldMaybe (writer, FIELD_XPATH, tag, sep, mio);
-	length += renderExtensionFieldMaybe (writer, FIELD_END_LINE, tag, sep, mio);
+	for (int k = FIELD_ECTAGS_LOOP_START; k <= FIELD_ECTAGS_LOOP_LAST; k++)
+		length += renderExtensionFieldMaybe (writer, k, tag, sep, mio);
+	for (int k = FIELD_UCTAGS_LOOP_START; k <= FIELD_BUILTIN_LAST; k++)
+		length += renderExtensionFieldMaybe (writer, k, tag, sep, mio);
 
 	return length;
 }
@@ -345,7 +342,7 @@ static int writeCtagsEntry (tagWriter *writer,
 	else
 	{
 		if (Option.locate == EX_COMBINE)
-			length += mio_printf(mio, "%lu;", tag->lineNumber + (Option.backward? 1: -1));
+			length += mio_printf(mio, "%lu;", tag->lineNumber);
 		length += mio_puts(mio, escapeFieldValue(writer, tag, FIELD_PATTERN));
 	}
 
@@ -360,7 +357,7 @@ static int writeCtagsEntry (tagWriter *writer,
 	return length;
 }
 
-static int writeCtagsPtagEntry (tagWriter *writer CTAGS_ATTR_UNUSED,
+static int writeCtagsPtagEntry (tagWriter *writer,
 				MIO * mio, const ptagDesc *desc,
 				const char *const fileName,
 				const char *const pattern,
@@ -374,34 +371,92 @@ static int writeCtagsPtagEntry (tagWriter *writer CTAGS_ATTR_UNUSED,
 	const char *fieldx = extras? getFieldName (FIELD_EXTRAS): "";
 	const char *xptag = extras? getXtagName (XTAG_PSEUDO_TAGS): "";
 
-	return parserName
+	/* Escaping:
+	 *
+	 * NAME:
+	 *    Defined in ctags. As far as we give a good pseudo tag name,
+	 *    we can print the name as is.
+	 *
+	 * parserName:
+	 *    This can be a part of NAME. An optlib can give a
+	 *    parserName but the characters that can be used in the name are
+	 *    limited in [a-zA-Z0-9+#]. We can print the name as is.
+	 *
+	 * fileName:
+	 *    Any characters can be used. Escaping is needed.
+	 *
+	 * pattern:
+	 *    Any characters can be used. Escaping is needed always.
+	 *
+	 * fieldx:
+	 *    No escaping is needed.
+	 *
+	 * xptag:
+	 *    No escaping is needed.
+	 *
+	 */
 
-#define OPT(X) ((X)?(X):"")
+	vString *vfileName = vStringNew ();
+	if (writer->type == WRITER_U_CTAGS
+#ifdef WIN32
+		&& getFilenameSeparator(Option.useSlashAsFilenameSeparator) == FILENAME_SEP_USE_SLASH
+#endif
+		)
+	{
+		if (fileName)
+			vStringCatSWithEscaping (vfileName, fileName);
+	}
+	else if (fileName)
+	{
+		char *c = NULL;
+		if ((c = strchr (fileName, '\t')) || (c = strchr (fileName, '\n')))
+		{
+			vStringDelete (vfileName);
+			error (WARNING, "skip priting %s%s pseudo tag; the input field of the pseudo tag includes a %s character: %s",
+				   PSEUDO_TAG_PREFIX, desc->name,
+				   *c == '\t'? "tab": "newline",
+				   fileName);
+			return 0;
+		}
+		vStringCatS (vfileName, fileName);
+	}
+
+	vString *vpattern = vStringNew ();
+	if (pattern)
+		vStringCatSWithEscapingAsPattern (vpattern, pattern);
+
+	int r = parserName
 		? mio_printf (mio, "%s%s%s%s\t%s\t/%s/%s%s%s%s\n",
 			      PSEUDO_TAG_PREFIX, desc->name, PSEUDO_TAG_SEPARATOR, parserName,
-			      OPT(fileName), OPT(pattern),
+			      vStringValue (vfileName), vStringValue (vpattern),
 				  xsep, fieldx, fsep, xptag)
 		: mio_printf (mio, "%s%s\t%s\t/%s/%s%s%s%s\n",
 			      PSEUDO_TAG_PREFIX, desc->name,
-			      OPT(fileName), OPT(pattern),
+			      vStringValue (vfileName), vStringValue (vpattern),
 			      xsep, fieldx, fsep, xptag);
-#undef OPT
+
+	vStringDelete (vpattern);
+	vStringDelete (vfileName);
+
+	return r;
 }
+
+static fieldType fixedFields [] = {
+	FIELD_NAME,
+	FIELD_INPUT_FILE,
+	FIELD_PATTERN,
+};
 
 static bool treatFieldAsFixed (int fieldType)
 {
-	switch (fieldType)
-	{
-	case FIELD_NAME:
-	case FIELD_INPUT_FILE:
-	case FIELD_PATTERN:
-		return true;
-	default:
-		return false;
-	}
+	for (int i = 0; i < ARRAY_SIZE(fixedFields); i++)
+		if (fixedFields [i] == fieldType)
+			return true;
+	return false;
 }
 
-static void checkCtagsOptions (tagWriter *writer CTAGS_ATTR_UNUSED)
+static void checkCtagsOptions (tagWriter *writer CTAGS_ATTR_UNUSED,
+							   bool fieldsWereReset)
 {
 	if (isFieldEnabled (FIELD_KIND_KEY)
 		&& (!(isFieldEnabled (FIELD_KIND_LONG) ||
@@ -416,7 +471,7 @@ static void checkCtagsOptions (tagWriter *writer CTAGS_ATTR_UNUSED)
 			   getFieldLetter (FIELD_KIND_LONG),
 			   getFieldLetter (FIELD_KIND_KEY),
 			   getFieldName (FIELD_KIND_KEY));
-		enableField (FIELD_KIND_LONG, true, true);
+		enableField (FIELD_KIND_LONG, true);
 	}
 	if (isFieldEnabled (FIELD_SCOPE_KEY)
 		&& !isFieldEnabled (FIELD_SCOPE))
@@ -429,6 +484,30 @@ static void checkCtagsOptions (tagWriter *writer CTAGS_ATTR_UNUSED)
 			   getFieldLetter (FIELD_SCOPE),
 			   getFieldLetter (FIELD_SCOPE_KEY),
 			   getFieldName (FIELD_SCOPE_KEY));
-		enableField (FIELD_SCOPE, true, true);
+		enableField (FIELD_SCOPE, true);
+	}
+
+	for (int i = 0; i < ARRAY_SIZE (fixedFields); i++)
+	{
+		if (!isFieldEnabled (fixedFields [i]))
+		{
+			enableField (fixedFields [i], true);
+
+			if (fieldsWereReset)
+				continue;
+
+			const char *name = getFieldName (fixedFields [i]);
+			unsigned char letter = getFieldLetter (fixedFields [i]);
+
+			if (name && letter != NUL_FIELD_LETTER)
+				error(WARNING, "Cannot disable fixed field: '%c'{%s} in ctags output mode",
+				      letter, name);
+			else if (name)
+				error(WARNING, "Cannot disable fixed field: {%s} in ctags output mode",
+				      name);
+			else if (letter != NUL_FIELD_LETTER)
+				error(WARNING, "Cannot disable fixed field: '%c' in ctags output mode",
+				      letter);
+		}
 	}
 }

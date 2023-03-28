@@ -309,10 +309,12 @@ static int AnonymousID = 0;
 /* Used to index into the CKinds table. */
 typedef enum {
 	CR_MACRO_UNDEF,
+	CR_MACRO_CONDITION,
 } cMacroRole;
 
 static roleDefinition CMacroRoles [] = {
 	RoleTemplateUndef,
+	RoleTemplateCondition,
 };
 
 typedef enum {
@@ -439,10 +441,12 @@ static kindDefinition JavaKinds [] = {
 /* Used to index into the VeraKinds table. */
 typedef enum {
 	VR_MACRO_UNDEF,
+	VR_MACRO_CONDITION,
 } veraMacroRole;
 
 static roleDefinition VeraMacroRoles [] = {
 	RoleTemplateUndef,
+	RoleTemplateCondition,
 };
 
 
@@ -3469,7 +3473,8 @@ static rescanReason findCTags (const unsigned int passCount)
 	int kind_for_define = KIND_GHOST_INDEX;
 	int kind_for_header = KIND_GHOST_INDEX;
 	int kind_for_param  = KIND_GHOST_INDEX;
-	int role_for_macro_undef   = ROLE_DEFINITION_INDEX;
+	int role_for_macro_undef = ROLE_DEFINITION_INDEX;
+	int role_for_macro_condition = ROLE_DEFINITION_INDEX;
 	int role_for_header_system   = ROLE_DEFINITION_INDEX;
 	int role_for_header_local   = ROLE_DEFINITION_INDEX;
 
@@ -3483,6 +3488,7 @@ static rescanReason findCTags (const unsigned int passCount)
 		kind_for_header = CK_HEADER;
 		kind_for_param = CK_MACRO_PARAM,
 		role_for_macro_undef = CR_MACRO_UNDEF;
+		role_for_macro_condition = CR_MACRO_CONDITION;
 		role_for_header_system = CR_HEADER_SYSTEM;
 		role_for_header_local = CR_HEADER_LOCAL;
 	}
@@ -3492,13 +3498,14 @@ static rescanReason findCTags (const unsigned int passCount)
 		kind_for_header = VK_HEADER;
 		kind_for_param  = VK_MACRO_PARAM,
 		role_for_macro_undef = VR_MACRO_UNDEF;
+		role_for_macro_condition = VR_MACRO_CONDITION;
 		role_for_header_system = VR_HEADER_SYSTEM;
 		role_for_header_local = VR_HEADER_LOCAL;
 	}
 
 	cppInit ((bool) (passCount > 1), isInputLanguage (Lang_csharp), isInputLanguage(Lang_cpp),
 		 isInputLanguage(Lang_vera),
-		 kind_for_define, role_for_macro_undef, kind_for_param,
+		 kind_for_define, role_for_macro_undef, role_for_macro_condition, kind_for_param,
 		 kind_for_header, role_for_header_system, role_for_header_local,
 		 FIELD_UNKNOWN);
 
@@ -3540,35 +3547,11 @@ static void initializeCParser (const langType language)
 	Lang_c = language;
 	buildKeywordHash (language, 0);
 }
+
 static void initializeCppParser (const langType language)
 {
 	Lang_cpp = language;
 	buildKeywordHash (language, 1);
-}
-
-static void initializeCsharpParser (const langType language)
-{
-	Lang_csharp = language;
-	buildKeywordHash (language, 2);
-}
-
-static void initializeDParser (const langType language)
-{
-	Lang_d = language;
-	buildKeywordHash (language, 3);
-}
-
-
-static void initializeJavaParser (const langType language)
-{
-	Lang_java = language;
-	buildKeywordHash (language, 4);
-}
-
-static void initializeVeraParser (const langType language)
-{
-	Lang_vera = language;
-	buildKeywordHash (language, 5);
 }
 
 extern parserDefinition* OldCParser (void)
@@ -3581,22 +3564,6 @@ extern parserDefinition* OldCParser (void)
 	def->parser2    = findCTags;
 	def->initialize = initializeCParser;
 	def->enabled = 0;
-
-	/* cpreprocessor wants corkQueue. */
-	def->useCork    = CORK_QUEUE;
-	return def;
-}
-
-extern parserDefinition* DParser (void)
-{
-	static const char *const extensions [] = { "d", "di", NULL };
-	parserDefinition* def = parserNew ("D");
-	def->kindTable      = DKinds;
-	def->kindCount  = ARRAY_SIZE (DKinds);
-	def->extensions = extensions;
-	def->parser2    = findCTags;
-	def->initialize = initializeDParser;
-	// end: field is not tested.
 
 	/* cpreprocessor wants corkQueue. */
 	def->useCork    = CORK_QUEUE;
@@ -3627,53 +3594,5 @@ extern parserDefinition* OldCppParser (void)
 
 	/* cpreprocessor wants corkQueue. */
 	def->useCork    = CORK_QUEUE;
-	return def;
-}
-
-extern parserDefinition* CsharpParser (void)
-{
-	static const char *const extensions [] = { "cs", NULL };
-	static const char *const aliases [] = { "csharp", NULL };
-	parserDefinition* def = parserNew ("C#");
-	def->kindTable      = CsharpKinds;
-	def->kindCount  = ARRAY_SIZE (CsharpKinds);
-	def->extensions = extensions;
-	def->aliases    = aliases;
-	def->parser2    = findCTags;
-	def->initialize = initializeCsharpParser;
-	// end: field is not tested.
-
-	/* cpreprocessor wants corkQueue. */
-	def->useCork    = CORK_QUEUE;
-	return def;
-}
-
-extern parserDefinition* JavaParser (void)
-{
-	static const char *const extensions [] = { "java", NULL };
-	parserDefinition* def = parserNew ("Java");
-	def->kindTable      = JavaKinds;
-	def->kindCount  = ARRAY_SIZE (JavaKinds);
-	def->extensions = extensions;
-	def->parser2    = findCTags;
-	def->initialize = initializeJavaParser;
-	def->useCork    = CORK_QUEUE;
-	return def;
-}
-
-extern parserDefinition* VeraParser (void)
-{
-	static const char *const extensions [] = { "vr", "vri", "vrh", NULL };
-	parserDefinition* def = parserNew ("Vera");
-	def->kindTable      = VeraKinds;
-	def->kindCount  = ARRAY_SIZE (VeraKinds);
-	def->extensions = extensions;
-	def->parser2    = findCTags;
-	def->initialize = initializeVeraParser;
-	// end: field is not tested.
-
-	/* cpreprocessor wants corkQueue. */
-	def->useCork    = CORK_QUEUE;
-
 	return def;
 }

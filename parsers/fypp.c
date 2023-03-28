@@ -105,6 +105,8 @@ static vString *fyppGuestParser;
 static bool fypp_does_line_continue(const char *line,
 									const regexMatch *matches)
 {
+	if (matches[0].length == 0)
+		return false;
 	return *(line + matches[0].start + matches[0].length - 1) == '&';
 }
 
@@ -371,7 +373,7 @@ static void findFyppTags (void)
 	{
 		promise = makePromise (vStringValue(fyppGuestParser),
 							   1, 0,
-							   getInputLineNumber(), 0,
+							   getInputLineNumber(), EOL_CHAR_OFFSET,
 							   0);
 		if (promise >= 0)
 			promiseAttachLineFiller (promise, parseCtx.fypp_lines);
@@ -423,7 +425,7 @@ static void finalizeFyppParser (langType language, bool initialized)
 	}
 }
 
-static void fyppSetGuestParser (const langType language CTAGS_ATTR_UNUSED,
+static bool fyppSetGuestParser (const langType language CTAGS_ATTR_UNUSED,
 								const char *optname CTAGS_ATTR_UNUSED, const char *arg)
 {
 	if (!strcmp (arg, RSV_NONE))
@@ -433,7 +435,7 @@ static void fyppSetGuestParser (const langType language CTAGS_ATTR_UNUSED,
 			vStringDelete (fyppGuestParser);
 			fyppGuestParser = NULL;
 		}
-		return;
+		return true;
 	}
 
 	langType lang = getNamedLanguage (arg, strlen(arg));
@@ -445,12 +447,15 @@ static void fyppSetGuestParser (const langType language CTAGS_ATTR_UNUSED,
 	else
 		fyppGuestParser = vStringNew();
 	vStringCatS (fyppGuestParser, arg);
+
+	return true;
 }
 
-static parameterHandlerTable FyppParameterHandlerTable [] = {
-	{ .name = "guest",
-	  .desc = "parser run after Fypp parser parses the original input (\"NONE\" or a parser name [Fortran])" ,
-	  .handleParameter = fyppSetGuestParser,
+static paramDefinition FyppParams [] = {
+	{
+		.name = "guest",
+		.desc = "parser run after Fypp parser parses the original input (\"NONE\" or a parser name [Fortran])" ,
+		.handleParam = fyppSetGuestParser,
 	},
 };
 
@@ -466,8 +471,8 @@ extern parserDefinition* FyppParser (void)
 	def->finalize   = finalizeFyppParser;
 	def->method     = METHOD_REGEX;
 
-	def->parameterHandlerTable = FyppParameterHandlerTable;
-	def->parameterHandlerCount = ARRAY_SIZE(FyppParameterHandlerTable);
+	def->paramTable = FyppParams;
+	def->paramCount = ARRAY_SIZE(FyppParams);
 
 	def->useCork = CORK_QUEUE;
 

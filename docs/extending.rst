@@ -1,22 +1,21 @@
+.. _extending_ctags_in_c:
+
 =============================================================================
-Extending ctags
+Extending ctags with a parser written in C
 =============================================================================
 
-Exuberant-ctags allows a user to add a new parser to ctags with ``--langdef=<LANG>``
-and ``--regex-<LANG>=...`` options.
+This chapter describes how to add a parser in C and the internal API of
+Universal Ctags.
 
-Universal-ctags follows and extends the design of Exuberant-ctags in more
-powerful ways, as described in the following chapters.
+Before you start writing a parser in C, consider using *optlib parser*.
+Universal Ctags extends the functionality so extensively that it can implement
+most of functionality for the parser.
+See :ref:`ctags-optlib(7) <ctags-optlib(7)>` and :ref:`optlib` for details.
 
-Universal-ctags encourages users to share the new parsers defined by
-their options. See :ref:`optlib <optlib>` to know how you can share your
-parser definition with others.
-
-Note that some of the new features are experimental, and will be marked as such
-in the documentation.
+*optlib parser* is also suitable for prototyping of a parser in C.
 
 .. toctree::
-	:maxdepth: 2
+	:maxdepth: 4
 
-	optlib.rst
+	parser-in-c.rst
 	internal.rst

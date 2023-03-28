@@ -116,10 +116,36 @@ static bool ptagMakeExtraDescriptions (ptagDesc *desc, langType language,
 	return makeExtraDescriptionsPseudoTags (language, desc);
 }
 
+static bool ptagMakeRoleDescriptions (ptagDesc *desc, langType language,
+									  const void *data CTAGS_ATTR_UNUSED)
+{
+	return makeRoleDescriptionsPseudoTags (language, desc);
+}
+
 static bool ptagMakeProcCwd (ptagDesc *desc, langType language,
 									   const void *data CTAGS_ATTR_UNUSED)
 {
 	return writePseudoTag (desc, CurrentDirectory, "", NULL);
+}
+
+static bool ptagMakeParserVersion(ptagDesc *desc, langType language,
+								  const void *data CTAGS_ATTR_UNUSED)
+{
+	char buf[32];			/* 2^32 '.' 2^32 '\0' */
+	snprintf (buf, sizeof(buf), "%u.%u",
+			  getLanguageVersionCurrent(language),
+			  getLanguageVersionAge(language));
+	const char *name = getLanguageName(language);
+	return writePseudoTag (desc, buf, "current.age", name);
+}
+
+static bool ptagMakeOutputVersion (ptagDesc *desc, langType language,
+								   const void *data CTAGS_ATTR_UNUSED)
+{
+	char buf[32];			/* 2^32 '.' 2^32 '\0' */
+	snprintf (buf, sizeof(buf), "%u.%u",
+			  OUTPUT_VERSION_CURRENT, OUTPUT_VERSION_AGE);
+	return writePseudoTag (desc, buf, "current.age", NULL);
 }
 
 static ptagDesc ptagDescs [] = {
@@ -129,69 +155,86 @@ static ptagDesc ptagDescs [] = {
 	  false, "JSON_OUTPUT_VERSION",
 	  "the version of json output stream format",
 	  ptagMakeJsonOutputVersion,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_FILE_FORMAT",
 	  "the version of tags file format",
 	  ptagMakeFormat,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_FILE_SORTED",
 	  "how tags are sorted",
 	  ptagMakeHowSorted,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_PROGRAM_AUTHOR",
 	  "the author of this ctags implementation",
 	  ptagMakeAuthor,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_PROGRAM_NAME",
 	  "the name of this ctags implementation",
 	  ptagMakeProgName,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_PROGRAM_URL",
 	  "the official site URL of this ctags implementation",
 	  ptagMakeProgURL,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_PROGRAM_VERSION",
 	  "the version of this ctags implementation",
 	  ptagMakeProgVersion,
-	  true },
+	  PTAGF_COMMON },
 #ifdef HAVE_ICONV
 	{ true, "TAG_FILE_ENCODING",
 	  "the encoding used in output tags file",
 	  ptagMakeFileEncoding,
-	  true },
+	  PTAGF_COMMON },
 #endif
 	{ false, "TAG_KIND_SEPARATOR",
 	  "the separators used in kinds",
 	  ptagMakeKindSeparators,
-	  false },
-	{ false, "TAG_KIND_DESCRIPTION",
+	  PTAGF_PARSER },
+	{ true, "TAG_KIND_DESCRIPTION",
 	  "the letters, names and descriptions of enabled kinds in the language",
 	  ptagMakeKindDescriptions,
-	  false },
-	{ false, "TAG_FIELD_DESCRIPTION",
+	  PTAGF_PARSER },
+	{ true, "TAG_FIELD_DESCRIPTION",
 	  "the names and descriptions of enabled fields",
 	  ptagMakeFieldDescriptions,
-	  true },
-	{ false, "TAG_EXTRA_DESCRIPTION",
+	  PTAGF_COMMON|PTAGF_PARSER },
+	{ true, "TAG_EXTRA_DESCRIPTION",
 	  "the names and descriptions of enabled extras",
 	  ptagMakeExtraDescriptions,
-	  true },
+	  PTAGF_COMMON|PTAGF_PARSER },
+	{ true, "TAG_ROLE_DESCRIPTION",
+	  "the names and descriptions of enabled roles",
+	  ptagMakeRoleDescriptions,
+	  PTAGF_PARSER,
+	  .jsonObjectKey = "kindName" },
 	{ true, "TAG_OUTPUT_MODE",
 	  "the output mode: u-ctags or e-ctags",
 	  ptagMakeCtagsOutputMode,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_OUTPUT_FILESEP",
 	  "the separator used in file name (slash or backslash)",
 	  ptagMakeCtagsOutputFilesep,
-	  true },
+	  PTAGF_COMMON },
 	{ true, "TAG_PATTERN_LENGTH_LIMIT",
 	  "the limit of pattern length",
 	  ptagMakePatternLengthLimit,
-	  true },
-	{ false, "TAG_PROC_CWD",
+	  PTAGF_COMMON },
+	{ true, "TAG_PROC_CWD",
 	  "the current working directory of the tags generator",
 	  ptagMakeProcCwd,
-	  true },
+	  PTAGF_COMMON },
+	{ true, "TAG_OUTPUT_EXCMD",
+	  "the excmd: number, pattern, mixed, or combine",
+	  ptagMakeCtagsOutputExcmd,
+	  PTAGF_COMMON },
+	{ true, "TAG_PARSER_VERSION",
+	  "the version of the parser (current.age)",
+	  ptagMakeParserVersion,
+	  PTAGF_PARSER },
+	{ true, "TAG_OUTPUT_VERSION",
+	  "the version of the output interface (current.age)",
+	  ptagMakeOutputVersion,
+	  PTAGF_COMMON },
 };
 
 extern bool makePtagIfEnabled (ptagType type, langType language, const void *data)
@@ -254,7 +297,13 @@ extern ptagType getPtagTypeForName (const char *name)
 extern bool isPtagCommonInParsers  (ptagType type)
 {
 	ptagDesc* pdesc = getPtagDesc (type);
-	return pdesc->commonInParsers;
+	return pdesc->flags & PTAGF_COMMON;
+}
+
+extern bool isPtagParserSpecific (ptagType type)
+{
+	ptagDesc* pdesc = getPtagDesc (type);
+	return pdesc->flags & PTAGF_PARSER;
 }
 
 static int ptagCompare (struct colprintLine *a, struct colprintLine *b)

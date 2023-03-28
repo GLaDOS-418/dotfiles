@@ -157,9 +157,12 @@ typedef struct _CXXFunctionSignatureInfo
 int cxxParserMaybeParseKnRStyleFunctionDefinition(void);
 int cxxParserExtractFunctionSignatureBeforeOpeningBracket(
 		CXXFunctionSignatureInfo * pInfo,
-		int * piCorkQueueIndex
+		int * piCorkQueueIndex,
+		int * piCorkQueueIndexFQ
 	);
 
+/* This must be smaller than (sizeof(unsigned int) * 8).
+ * See CXXTypedVariableSet::uAnonymous. */
 #define CXX_TYPED_VARIABLE_SET_ITEM_COUNT 24
 
 typedef struct _CXXTypedVariableSet
@@ -175,6 +178,8 @@ typedef struct _CXXTypedVariableSet
 	CXXToken * aTypeEnds[CXX_TYPED_VARIABLE_SET_ITEM_COUNT];
 	// The identifier tokens
 	CXXToken * aIdentifiers[CXX_TYPED_VARIABLE_SET_ITEM_COUNT];
+
+	unsigned int uAnonymous;
 } CXXTypedVariableSet;
 
 bool cxxParserTokenChainLooksLikeFunctionParameterList(
@@ -197,7 +202,8 @@ int cxxParserEmitFunctionTags(
 		CXXFunctionSignatureInfo * pInfo,
 		unsigned int uTagKind,
 		unsigned int uOptions,
-		int * piCorkQueueIndex
+		int * piCorkQueueIndex,
+		int * piCorkQueueIndexFQ
 	);
 
 void cxxParserEmitFunctionParameterTags(CXXTypedVariableSet * pInfo);
@@ -206,7 +212,8 @@ void cxxParserEmitFunctionParameterTags(CXXTypedVariableSet * pInfo);
 bool cxxParserParseGenericTypedef(void);
 void cxxParserExtractTypedef(
 		CXXTokenChain * pChain,
-		bool bExpectTerminatorAtEnd
+		bool bExpectTerminatorAtEnd,
+		bool bGotTemplate
 	);
 
 // cxx_parser_namespace.c
@@ -277,6 +284,14 @@ typedef enum _CXXParserKeywordState
 	CXXParserKeywordStateSeenAttributeDeprecated = (1 << 11),
 	// "friend" has been seen at block level
 	CXXParserKeywordStateSeenFriend = (1 << 12),
+	// "constexpr" has been seen
+	CXXParserKeywordStateSeenConstexpr = (1 << 13),
+	// "consteval" has been seen
+	CXXParserKeywordStateSeenConsteval = (1 << 14),
+	// "constinit" has been seen
+	CXXParserKeywordStateSeenConstinit = (1 << 15),
+	// "thread_local" has been seen
+	CXXParserKeywordStateSeenThreadLocal = (1 << 16),
 } CXXParserKeywordState;
 
 #define CXX_PARSER_MAXIMUM_NESTING_LEVELS 1024

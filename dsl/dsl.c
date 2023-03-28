@@ -56,6 +56,7 @@ static EsObject* sform_begin0 (EsObject *args, DSLEnv *env);
 static EsObject* sfrom_and  (EsObject *args, DSLEnv *env);
 static EsObject* sform_or  (EsObject *args, DSLEnv *env);
 static EsObject* sform_if  (EsObject *args, DSLEnv *env);
+static EsObject* sform_cond  (EsObject *args, DSLEnv *env);
 static EsObject* builtin_not  (EsObject *args, DSLEnv *env);
 static EsObject* builtin_eq  (EsObject *args, DSLEnv *env);
 static EsObject* builtin_lt  (EsObject *args, DSLEnv *env);
@@ -72,6 +73,9 @@ static EsObject* builtin_length (EsObject *args, DSLEnv *env);
 static EsObject* bulitin_debug_print (EsObject *args, DSLEnv *env);
 static EsObject* builtin_entry_ref (EsObject *args, DSLEnv *env);
 
+static EsObject* builtin_string_append (EsObject *args, DSLEnv *env);
+static EsObject* builtin_string2regexp (EsObject *args, DSLEnv *env);
+static EsObject* builtin_regexp_quote (EsObject *args, DSLEnv *env);
 static EsObject* builtin_add  (EsObject *args, DSLEnv *env);
 static EsObject* builtin_sub  (EsObject *args, DSLEnv *env);
 
@@ -92,15 +96,21 @@ DECLARE_VALUE_FN(inherits);
 DECLARE_VALUE_FN(implementation);
 DECLARE_VALUE_FN(kind);
 DECLARE_VALUE_FN(language);
+DECLARE_VALUE_FN(nth);
 DECLARE_VALUE_FN(scope);
 DECLARE_VALUE_FN(scope_kind);
 DECLARE_VALUE_FN(scope_name);
 DECLARE_VALUE_FN(signature);
 DECLARE_VALUE_FN(typeref);
+DECLARE_VALUE_FN(typeref_kind);
+DECLARE_VALUE_FN(typeref_name);
 DECLARE_VALUE_FN(roles);
 DECLARE_VALUE_FN(xpath);
 
-static EsObject* string2regex (EsObject *args);
+static EsObject* macro_string_append (EsObject *args);
+static EsObject* macro_string2regexp (EsObject *args);
+static EsObject* macro_regexp_quote (EsObject *args);
+static EsObject* macro_debug_printX (EsObject *args);
 
 /*
  * DATA DEFINITIONS
@@ -109,28 +119,30 @@ static DSLEngine engines [DSL_ENGINE_COUNT];
 
 static DSLProcBind pbinds_interanl_pseudo [] = {
 	{ "#/PATTERN/", NULL, NULL, 0, 0,
-	  .helpstr = "(#/PATTER/ <string>) -> <boolean>; regular expression matching" },
+	  .helpstr = "(#/patter/ <string>) -> <boolean>; regular expression matching" },
 	{ "#/PATTERN/i", NULL, NULL, 0, 0,
-	  .helpstr = "(#/PATTER/i <string>) -> <boolean>; in case insensitive way" },
+	  .helpstr = "(#/patter/i <string>) -> <boolean>; in case insensitive way" },
 };
 
 static DSLProcBind pbinds [] = {
 	{ "null?",   builtin_null,   NULL, DSL_PATTR_CHECK_ARITY, 1,
-	  .helpstr = "(null? obj) -> <boolean>" },
+	  .helpstr = "(null? <any>) -> <boolean>" },
 	{ "begin",   sform_begin,  NULL, DSL_PATTR_SELF_EVAL,  0UL,
-	  .helpstr = "(begin exp0 ... expN) -> expN" },
+	  .helpstr = "(begin <any:0> ... <any:n>) -> <any:n>" },
 	{ "begin0",  sform_begin0, NULL, DSL_PATTR_SELF_EVAL,  0UL,
-	  .helpstr = "(begin0 exp0 ... expN) -> exp0" },
+	  .helpstr = "(begin0 <any:0> ... <any:n>) -> <any:0>" },
 	{ "and",     sfrom_and,    NULL, DSL_PATTR_SELF_EVAL,
-	  .helpstr = "(and exp0 ... expN) -> <boolean>" },
+	  .helpstr = "(and <any> ...) -> <boolean>" },
 	{ "or",      sform_or,     NULL, DSL_PATTR_SELF_EVAL,
-	  .helpstr = "(or exp0 ... expN) -> <boolean>" },
-	{ "if",      sform_if,       NULL, DSL_PATTR_CHECK_ARITY, 3,
-	  .helpstr = "(if cond exp-true exp-false) -> exp-true|exp-false" },
+	  .helpstr = "(or <any> ...) -> <boolean>" },
+	{ "if",      sform_if,       NULL, DSL_PATTR_SELF_EVAL|DSL_PATTR_CHECK_ARITY, 3,
+	  .helpstr = "(if <any:cond> <any:true> <any:false>) -> <any:true>|<any:false>" },
+	{ "cond",    sform_cond,     NULL, DSL_PATTR_SELF_EVAL, 0,
+	  .helpstr = "(cond (<any:cond0> ... <any:expr0>) ... (<any:condN> ... <any:exprN>)) -> <any:exprI>|false" } ,
 	{ "not",     builtin_not,    NULL, DSL_PATTR_CHECK_ARITY, 1,
-	  .helpstr = "(not exp) -> <boolean>" },
+	  .helpstr = "(not <any>) -> <boolean>" },
 	{ "eq?",     builtin_eq,     NULL, DSL_PATTR_CHECK_ARITY, 2,
-	  .helpstr = "(eq? exp0 exp1) -> <boolean>" },
+	  .helpstr = "(eq? <any> <any>) -> <boolean>" },
 	{ "<",       builtin_lt,     NULL, DSL_PATTR_CHECK_ARITY, 2,
 	  .helpstr = "(< <integer> <integer>) -> <boolean>" },
 	{ ">",       builtin_gt,     NULL, DSL_PATTR_CHECK_ARITY, 2,
@@ -140,28 +152,40 @@ static DSLProcBind pbinds [] = {
 	{ ">=",      builtin_ge,     NULL, DSL_PATTR_CHECK_ARITY, 2,
 	  .helpstr = "(>= <integer> <integer>) -> <boolean>" },
 	{ "prefix?", builtin_prefix, NULL, DSL_PATTR_CHECK_ARITY, 2,
-	  .helpstr = "(prefix? TARGET<string> PREFIX<string>) -> <boolean>" },
+	  .helpstr = "(prefix? <string:target> <string:prefix>) -> <boolean>" },
 	{ "suffix?", builtin_suffix, NULL, DSL_PATTR_CHECK_ARITY, 2,
-	  .helpstr = "(suffix? TARGET<string> SUFFIX<string>) -> <boolean>" },
+	  .helpstr = "(suffix? <string:target> <string:suffix>) -> <boolean>" },
 	{ "substr?", builtin_substr, NULL, DSL_PATTR_CHECK_ARITY, 2,
-	  .helpstr = "(substr? TARGET<string> SUBSTR<string>) -> <boolean>" },
+	  .helpstr = "(substr? <string:target> string:substr>) -> <boolean>" },
 	{ "member",  builtin_member, NULL, DSL_PATTR_CHECK_ARITY, 2,
-	  .helpstr = "(member ELEMENT LIST) -> #f|<list>" },
+	  .helpstr = "(member <any> <list>) -> #f|<list>" },
 	{ "downcase", builtin_downcase, NULL, DSL_PATTR_CHECK_ARITY, 1,
-	  .helpstr = "(downcase elt<string>|<list>) -> <string>|<list>" },
+	  .helpstr = "(downcase <string>|<list>) -> <string>|<list>" },
 	{ "upcase", builtin_upcase, NULL, DSL_PATTR_CHECK_ARITY, 1,
-	  .helpstr = "(upcase elt<string>|<list>) -> <string>|<list>" },
+	  .helpstr = "(upcase <string>|<list>) -> <string>|<list>" },
 	{ "length",  builtin_length, NULL, DSL_PATTR_CHECK_ARITY, 1,
-	  .helpstr = "(length <string>) => <integer>" },
+	  .helpstr = "(length <string>) -> <integer>" },
 	{ "+",               builtin_add,          NULL, DSL_PATTR_CHECK_ARITY, 2,
 	  .helpstr = "(+ <integer> <integer>) -> <integer>", },
 	{ "-",               builtin_sub,          NULL, DSL_PATTR_CHECK_ARITY, 2,
 	  .helpstr = "(- <integer> <integer>) -> <integer>", },
-	{ "string->regexp",  NULL,                 NULL, 0, 0,
-	  .helpstr = "((string->regexp \"PATTERN\") $target) -> <boolean>; PATTERN must be string literal.",
-	  .macro = string2regex},
+	{ "concat",   builtin_string_append,NULL, 0, 0,
+	  .helpstr = "(concat <string> ...) -> <string>; an alias for string-append",
+	  .macro = macro_string_append },
+	{ "string-append",   builtin_string_append,NULL, 0, 0,
+	  .helpstr = "(string-append <string> ...) -> <string>",
+	  .macro = macro_string_append },
+	{ "string->regexp",  builtin_string2regexp,NULL, 0, 0,
+	  .helpstr = "((string->regexp <string:pattern>) <string:target>) -> <boolean>",
+	  .macro = macro_string2regexp },
+	{ "regexp-quote",    builtin_regexp_quote, NULL, DSL_PATTR_CHECK_ARITY, 1,
+	  .helpstr = "(regexp-quote <string>) -> <string>",
+	  .macro = macro_regexp_quote },
 	{ "print",   bulitin_debug_print, NULL, DSL_PATTR_CHECK_ARITY, 1,
 	  .helpstr = "(print OBJ) -> OBJ" },
+	{ "printX", NULL, 0, 0,
+	  .helpstr = "(printX EXPR) -> EXPR; do the same as `print' but this works before evaluating",
+	  .macro = macro_debug_printX },
 	{ "true",    value_true, NULL, 0, 0UL,
 	  .helpstr = "-> #t" },
 	{ "false",    value_false, NULL, 0, 0UL,
@@ -169,7 +193,7 @@ static DSLProcBind pbinds [] = {
 	{ "nil",    value_nil, NULL, 0, 0UL,
 	  .helpstr = "-> ()" },
 	{ "$",       builtin_entry_ref, NULL, DSL_PATTR_CHECK_ARITY, 1,
-	  .helpstr = "($ FIELD) -> #f|<string>" },
+	  .helpstr = "($ <string:field>) -> #f|<string>" },
 	{ "$name",           value_name,           NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> <string>"},
 	{ "$input",          value_input,          NULL, DSL_PATTR_MEMORABLE, 0UL,
@@ -190,6 +214,8 @@ static DSLProcBind pbinds [] = {
 	  .helpstr = "-> <list>" },
 	{ "$implementation", value_implementation, NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>" },
+	{ "$nth",            value_nth,            NULL, DSL_PATTR_MEMORABLE, 0UL,
+	  .helpstr = "-> #f|<integer>"},
 	{ "$kind",           value_kind,           NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>"},
 	{ "$language",       value_language,       NULL, DSL_PATTR_MEMORABLE, 0UL,
@@ -203,6 +229,10 @@ static DSLProcBind pbinds [] = {
 	{ "$signature",      value_signature,      NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>" },
 	{ "$typeref",        value_typeref,        NULL, DSL_PATTR_MEMORABLE, 0UL,
+	  .helpstr = "-> #f|<string>"},
+	{ "$typeref-kind",   value_typeref_kind,   NULL, DSL_PATTR_MEMORABLE, 0UL,
+	  .helpstr = "-> #f|<string>"},
+	{ "$typeref-name",   value_typeref_name,   NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> #f|<string>"},
 	{ "$roles",          value_roles,          NULL, DSL_PATTR_MEMORABLE, 0UL,
 	  .helpstr = "-> <list>" },
@@ -356,9 +386,6 @@ static EsObject *dsl_eval0 (EsObject *object, DSLEnv *env)
 			if (pb->cache)
 				return pb->cache;
 
-			if (pb->flags & DSL_PATTR_PURE)
-				dsl_throw (UNBOUND_VARIABLE, object);
-
 			r = pb->proc (es_nil, env);
 			if (pb->flags & DSL_PATTR_MEMORABLE)
 				pb->cache = r;
@@ -366,11 +393,12 @@ static EsObject *dsl_eval0 (EsObject *object, DSLEnv *env)
 		}
 		else
 			dsl_throw (UNBOUND_VARIABLE, object);
-
 	}
 	else if (es_atom (object))
 		return object;
-	else if (es_regex_p(car = es_car (object)))
+
+	car = es_car (object);
+	if (es_regex_p(car))
 	{
 		EsObject *cdr = es_cdr (object);
 		int l = length (cdr);
@@ -396,7 +424,16 @@ static EsObject *dsl_eval0 (EsObject *object, DSLEnv *env)
 	}
 	else if (es_error_p(car))
 		return car;
-	else
+	else if (es_cons_p (car))
+	{
+		car = dsl_eval0 (car, env);
+		if (es_error_p(car))
+			return car;
+
+		object = es_object_autounref (es_cons (car, es_cdr (object)));
+		return dsl_eval0 (object, env);
+	}
+	else if (es_symbol_p(car))
 	{
 		EsObject *cdr = es_cdr (object);
 		int l;
@@ -435,6 +472,8 @@ static EsObject *dsl_eval0 (EsObject *object, DSLEnv *env)
 			pb->cache = r;
 		return r;
 	}
+	else
+		dsl_throw (CALLABLE_REQUIRED, car);
 }
 
 EsObject *dsl_eval (DSLCode *code, DSLEnv *env)
@@ -461,8 +500,14 @@ static EsObject *compile (EsObject *expr, void *engine)
 			dsl_throw (UNBOUND_VARIABLE, head);
 		if (pb->macro)
 		{
-			/* TODO: compile recursively */
-			return pb->macro (expr);
+			EsObject *tail = compile (es_cdr (expr), engine);
+			if (es_error_p (tail))
+				return tail;
+			expr = es_cons (head, tail);
+			EsObject *r = pb->macro (expr);
+			es_object_unref (expr);
+			es_object_unref (tail);
+			return r;
 		}
 	}
 	return es_map (compile, expr, engine);
@@ -503,11 +548,11 @@ static EsObject* builtin_null  (EsObject *args, DSLEnv *env)
 	return es_null(es_car (args))? es_true: es_false;
 }
 
-static EsObject* sform_begin  (EsObject *args, DSLEnv *env)
+static EsObject* sform_begin_common  (const char *fn, EsObject *args, DSLEnv *env)
 {
 	if (es_null (args))
 		dsl_throw (TOO_FEW_ARGUMENTS,
-				   es_symbol_intern ("begin"));
+				   es_symbol_intern (fn));
 
 	EsObject *o = es_false;
 	while (! es_null (args))
@@ -519,6 +564,11 @@ static EsObject* sform_begin  (EsObject *args, DSLEnv *env)
 		args = es_cdr (args);
 	}
 	return o;
+}
+
+static EsObject* sform_begin  (EsObject *args, DSLEnv *env)
+{
+	return sform_begin_common ("begin", args, env);
 }
 
 static EsObject* sform_begin0  (EsObject *args, DSLEnv *env)
@@ -584,12 +634,41 @@ static EsObject* sform_if (EsObject *args, DSLEnv *env)
 
 	o = es_car (args);
 	o = dsl_eval0 (o, env);
-	if (es_object_equal (o, es_false))
+	if (!es_object_equal (o, es_false))
 		return dsl_eval0 (es_car (es_cdr (args)), env);
 	else if (es_error_p (o))
 		return o;
 	else
 		return dsl_eval0 (es_car (es_cdr (es_cdr (args))), env);
+
+	return es_false;
+}
+
+static EsObject* sform_cond (EsObject *args, DSLEnv *env)
+{
+
+	while (!es_null(args))
+	{
+		EsObject *o = es_car (args);
+		args = es_cdr (args);
+
+		if (!es_cons_p (o))
+			dsl_throw (WRONG_TYPE_ARGUMENT, o);
+
+		EsObject *condition = es_car(o);
+		EsObject *actions   = es_cdr(o);
+
+		EsObject *result = dsl_eval0 (condition, env);
+		if (es_error_p (result))
+			return result;
+
+		if (!es_object_equal (result, es_false))
+		{
+			if (es_null (actions))
+				return result;
+			return sform_begin_common("cond", actions, env);
+		}
+	}
 
 	return es_false;
 }
@@ -827,11 +906,14 @@ DEFINE_VALUE_FN(inherits)
 DEFINE_VALUE_FN(implementation)
 DEFINE_VALUE_FN(kind)
 DEFINE_VALUE_FN(language)
+DEFINE_VALUE_FN(nth)
 DEFINE_VALUE_FN(scope)
 DEFINE_VALUE_FN(scope_kind)
 DEFINE_VALUE_FN(scope_name)
 DEFINE_VALUE_FN(signature)
 DEFINE_VALUE_FN(typeref)
+DEFINE_VALUE_FN(typeref_kind)
+DEFINE_VALUE_FN(typeref_name)
 DEFINE_VALUE_FN(roles)
 DEFINE_VALUE_FN(xpath)
 
@@ -855,6 +937,23 @@ EsObject* dsl_entry_xget_string (const tagEntry *entry, const char* name)
 	const char* value = entry_xget (entry, name);
 	if (value)
 		return es_object_autounref (es_string_new (value));
+	else
+		return es_false;
+}
+
+EsObject* dsl_entry_xget_integer (const tagEntry *entry, const char* name)
+{
+	const char *end_str = entry_xget(entry, name);
+	EsObject *o;
+
+	if (end_str)
+	{
+		o = es_read_from_string (end_str, NULL);
+		if (es_integer_p (o))
+			return es_object_autounref (o);
+		else
+			return es_false;
+	}
 	else
 		return es_false;
 }
@@ -900,6 +999,11 @@ EsObject* dsl_entry_language (const tagEntry *entry)
 	return dsl_entry_xget_string (entry, "language");
 }
 
+EsObject* dsl_entry_nth (const tagEntry *entry)
+{
+	return dsl_entry_xget_integer(entry, "nth");
+}
+
 EsObject* dsl_entry_implementation (const tagEntry *entry)
 {
 	return dsl_entry_xget_string (entry, "implementation");
@@ -927,19 +1031,7 @@ EsObject* dsl_entry_extras (const tagEntry *entry)
 
 EsObject* dsl_entry_end (const tagEntry *entry)
 {
-	const char *end_str = entry_xget(entry, "end");
-	EsObject *o;
-
-	if (end_str)
-	{
-		o = es_read_from_string (end_str, NULL);
-		if (es_integer_p (o))
-			return es_object_autounref (o);
-		else
-			return es_false;
-	}
-	else
-		return es_false;
+	return dsl_entry_xget_integer(entry, "end");
 }
 
 EsObject* dsl_entry_kind (const tagEntry *entry)
@@ -1027,6 +1119,159 @@ EsObject* dsl_entry_scope_name (const tagEntry *entry)
 	return r;
 }
 
+EsObject* dsl_entry_typeref_kind (const tagEntry *entry)
+{
+	const char* typeref = entry_xget (entry, "typeref");
+	const char* kind;
+	EsObject *r;
+
+	if (typeref == NULL)
+		return es_false;
+
+	kind = strchr (typeref, ':');
+	if (kind == NULL)
+		return es_false;
+
+	r = es_object_autounref (es_string_newL (typeref,
+											 kind - typeref));
+	return r;
+}
+
+EsObject* dsl_entry_typeref_name (const tagEntry *entry)
+{
+	const char* typeref = entry_xget (entry, "typeref");
+	const char* kind;
+	EsObject *r;
+
+	if (typeref == NULL)
+		return es_false;
+
+	kind = strchr (typeref, ':');
+	if (kind == NULL)
+		return es_false;
+
+	if (*(kind + 1) == '\0')
+		return es_false;
+
+	r = es_object_autounref (es_string_new (kind + 1));
+
+	return r;
+}
+
+static EsObject* accumulate_length (EsObject *elt, void *data)
+{
+	size_t *len = data;
+	if (!es_string_p (elt))
+		dsl_throw (STRING_REQUIRED, elt);
+
+	const char *s = es_string_get (elt);
+	*len += strlen (s);
+
+	return es_false;
+}
+
+static EsObject* string_accumulate (EsObject *elt, void *data)
+{
+	char **cursor = data;
+	const char *s;
+	char *t;
+
+	for (s = es_string_get(elt), t = *cursor;
+		 *s != '\0';
+		 s++, t++)
+		*t = *s;
+	*cursor = t;
+	return es_false;
+}
+
+static EsObject* builtin_string_append  (EsObject *args, DSLEnv *env)
+{
+	size_t len = 0;
+
+	EsObject *r = es_foreach (accumulate_length, args, &len);
+	if (!es_object_equal (r, es_false))
+		return r;
+
+	char *buf = malloc (len + 1);
+	if (buf == NULL)
+		return ES_ERROR_MEMORY;
+
+	char *cursor = buf;
+	r = es_foreach (string_accumulate, args, &cursor);
+	if (!es_object_equal (r, es_false))
+		goto out;
+	*cursor = '\0';
+
+	r = es_string_new (buf);
+
+ out:
+	free (buf);
+	return es_object_autounref (r);
+}
+
+static EsObject* optimize_strings (EsObject *kar, EsObject *kdr, void *user_data)
+{
+	EsObject *r;
+	if (!es_string_p (kar))
+	{
+		r = es_cons (kar, kdr);
+		return r;
+	}
+
+	EsObject *kadr = es_car (kdr);
+	if (!es_string_p (kadr))
+	{
+		r = es_cons (kar, kdr);
+		return r;
+	}
+
+	const char *kar_str = es_string_get (kar);
+	const char *kadr_str = es_string_get (kadr);
+	size_t kar_len = strlen (kar_str);
+	size_t kadr_len = strlen (kadr_str);
+	char *buf = malloc (kar_len + kadr_len + 1);
+	if (buf == NULL)
+		return ES_ERROR_MEMORY;
+
+	memcpy (buf, kadr_str, kadr_len);
+	memcpy (buf + kadr_len, kar_str, kar_len);
+	buf [kadr_len + kar_len] = '\0';
+
+	EsObject *elt = es_object_autounref (es_string_new (buf));
+	free (buf);
+
+	if (es_error_p (elt))
+		return ES_ERROR_MEMORY;
+
+	r = es_cons (elt, es_cdr (kdr));
+
+	return r;
+}
+
+static EsObject* macro_string_append (EsObject *expr)
+{
+	EsObject *new_expr;
+	EsObject *list = es_cdr (expr);
+	EsObject *r = es_fold (optimize_strings,
+						   es_nil, list, NULL);
+
+	if (es_error_p (r))
+		return es_error_set_object (r, expr);
+
+	EsObject *str = es_car (r);
+	if (es_string_p (str) && es_null (es_cdr (r)))
+		new_expr = es_object_ref (str);
+	else
+	{
+		EsObject *kar = es_car (expr);
+		EsObject* rr  = es_reverse (r);
+		new_expr = es_cons (kar, rr);
+		es_object_unref (rr);
+	}
+	es_object_unref (r);
+	return new_expr;
+}
+
 static EsObject* builtin_add  (EsObject *args, DSLEnv *env)
 {
 	EsObject *a = es_car (args);
@@ -1078,36 +1323,128 @@ static EsObject* value_nil (EsObject *args, DSLEnv *env)
 	return es_nil;
 }
 
-static EsObject* string2regex (EsObject *expr)
+static EsObject* common_string2regexp (EsObject *args, DSLEnv *env,
+									   EsObject *original_expr)
 {
-	EsObject *args = es_cdr (expr);
+	static EsObject *self = es_nil;
+	if (self == es_nil)
+		self = es_symbol_intern ("string->regexp");
+
 	if (!es_cons_p (args))
-		dsl_throw(TOO_FEW_ARGUMENTS, es_car (expr));
+		dsl_throw(TOO_FEW_ARGUMENTS,
+				  (original_expr == es_nil)
+				  ? self
+				  : es_car (original_expr));
 	else if (!es_string_p (es_car (args)))
-		dsl_throw(STRING_REQUIRED, es_car (expr));
+	{
+		if (original_expr == es_nil)
+			dsl_throw(STRING_REQUIRED, self);
+		else
+			return es_object_ref (original_expr);
+	}
 	else
 	{
+		static EsObject *case_fold_key = es_nil;
+		if (case_fold_key == es_nil)
+			case_fold_key = es_symbol_intern (":case-fold");
+		static EsObject *false_val = es_nil;
+		if (false_val == es_nil)
+			false_val = es_symbol_intern ("false");
+
 		EsObject *case_fold = es_car (es_cdr (args));
 		EsObject *pattern = es_car (args);
 		int icase = 0;
 
 		if (!es_null (case_fold))
 		{
-			if (!es_object_equal (case_fold,
-								  es_symbol_intern (":case-fold")))
-				dsl_throw (WRONG_TYPE_ARGUMENT, expr);
+			if (!es_object_equal (case_fold, case_fold_key))
+				dsl_throw (WRONG_TYPE_ARGUMENT,
+						   (original_expr == es_nil)? self: original_expr);
 
 			case_fold = es_car (es_cdr (es_cdr (args)));
 			if (es_null (case_fold))
-				dsl_throw (TOO_FEW_ARGUMENTS, expr);
+				dsl_throw (TOO_FEW_ARGUMENTS,
+						   (original_expr == es_nil)? self: original_expr);
 
 			icase = ! (es_object_equal(case_fold, es_false)
 					   /* TODO: remove the next condition. */
-					   || es_object_equal(case_fold, es_symbol_intern ("false")));
+					   || es_object_equal(case_fold, false_val));
 		}
 
-		return es_regex_compile (es_string_get (pattern), icase);
+		EsObject *r = es_regex_compile (es_string_get (pattern), icase);
+		return (original_expr == es_nil)? es_object_autounref (r): r;
 	}
+}
+
+static EsObject* builtin_string2regexp (EsObject *args, DSLEnv *env)
+{
+	return common_string2regexp (args, env, es_nil);
+}
+
+static EsObject* macro_string2regexp (EsObject *expr)
+{
+	return common_string2regexp (es_cdr (expr), NULL, expr);
+}
+
+static EsObject* common_regexp_quote (EsObject *args, DSLEnv *env,
+									  EsObject *original_expr)
+{
+	static EsObject *self = es_nil;
+	if (self == es_nil)
+		self = es_symbol_intern ("regexp-quote");
+
+	if (original_expr != es_nil && !es_cons_p (args))
+		dsl_throw(TOO_FEW_ARGUMENTS,
+				  es_car (original_expr));
+
+	EsObject *unquoted_str = es_car (args);
+	if (!es_string_p (unquoted_str))
+	{
+		if (original_expr  == es_nil)
+			dsl_throw(STRING_REQUIRED, self);
+		else
+			return es_object_ref (original_expr);
+	}
+
+	const char *src = es_string_get (unquoted_str);
+	if (src[0] == '\0')
+		return (original_expr  == es_nil)
+			? unquoted_str
+			: es_object_ref (unquoted_str);
+
+	size_t len = strlen (src);
+	char *buf = malloc (len * 2 + 1);
+	if (!buf)
+		return ES_ERROR_MEMORY;
+
+	char *dst = buf;
+	for (size_t i = 0; i < len; i++)
+	{
+		if (strchr ("[{.*+]}^$()|?\\", src [i]))
+			*dst++ = '\\';
+		*dst++ = src[i];
+	}
+	*dst = '\0';
+	EsObject *r = es_string_new (buf);
+	free (buf);
+	return (original_expr  == es_nil)? es_object_autounref (r): r;
+}
+
+static EsObject* builtin_regexp_quote (EsObject *args, DSLEnv *env)
+{
+	return common_regexp_quote (args, env, es_nil);
+}
+
+static EsObject* macro_regexp_quote (EsObject *expr)
+{
+	return common_regexp_quote (es_cdr (expr), NULL, expr);
+}
+
+static EsObject* macro_debug_printX (EsObject *expr)
+{
+	EsObject *code = es_cdr (expr);
+	bulitin_debug_print (code, NULL);
+	return es_object_ref(es_car (code));
 }
 
 void dsl_report_error (const char *msg, EsObject *obj)

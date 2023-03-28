@@ -45,17 +45,14 @@ enum CXXCharType
 	CXXCharTypeHexadecimalDigit = (1 << 3),
 	// Hex digits x X u U l L and .
 	CXXCharTypeValidInNumber = (1 << 4),
-	// A named single char token. (uInfo >> 16) & 0xff
-	// contains the type of the token.
+	// A named single char token.
 	CXXCharTypeNamedSingleCharToken = (1 << 5),
-	// A named single or repeated char token. (uInfo >> 16) & 0xff
-	// is single type, (uInfo >> 24) & 0xff is multi type
+	// A named single or repeated char token.
 	CXXCharTypeNamedSingleOrRepeatedCharToken = (1 << 6),
 	// An operator (we merge them)
 	CXXCharTypeOperator = (1 << 7),
-	// A named single or operator (when repeated).
-	// (uInfo >> 16) & 0xff is single type
-	CXXCharTypeNamedSingleOrOperatorToken = (1 << 8)
+	// Full custom handling. Mostly operators or brackets.
+	CXXCharTypeCustomHandling = (1 << 8)
 };
 
 typedef struct _CXXCharTypeData
@@ -440,7 +437,7 @@ static CXXCharTypeData g_aCharTable[128] =
 	},
 	// 060 (0x3c) '<'
 	{
-		CXXCharTypeNamedSingleOrOperatorToken,
+		CXXCharTypeCustomHandling,
 		CXXTokenTypeSmallerThanSign,
 		0
 	},
@@ -636,7 +633,7 @@ static CXXCharTypeData g_aCharTable[128] =
 	},
 	// 091 (0x5b) '['
 	{
-		CXXCharTypeNamedSingleCharToken,
+		CXXCharTypeCustomHandling,
 		CXXTokenTypeOpeningSquareParenthesis,
 		0
 	},
@@ -915,8 +912,9 @@ static bool cxxParserParseNextTokenCondenseAttribute(void)
 	CXX_DEBUG_ENTER();
 
 	CXX_DEBUG_ASSERT(
-			cxxTokenIsKeyword(g_cxx.pToken,CXXKeyword__ATTRIBUTE__),
-			"This function should be called only after we have parsed __attribute__"
+			cxxTokenIsKeyword(g_cxx.pToken,CXXKeyword__ATTRIBUTE__)
+			|| cxxTokenIsKeyword(g_cxx.pToken,CXXKeyword__DECLSPEC),
+			"This function should be called only after we have parsed __attribute__ or __declspec"
 		);
 
 	// Kill it
@@ -1002,7 +1000,8 @@ static bool cxxParserParseNextTokenCondenseCXX11Attribute(void)
 			"This function should be called only after we have parsed ["
 		);
 
-	// Input stream: [[foo]]...
+	// Input stream: [[...
+	//   If the syntax is correct then this is an attribute sequence [[foo]]
 	//
 	// g_cxx.pToken points the first '['.
 	// g_cxx.iChar points the second '['.
@@ -1040,7 +1039,8 @@ static bool cxxParserParseNextTokenCondenseCXX11Attribute(void)
 			"Should have a parenthesis chain as last token!"
 		);
 	CXX_DEBUG_ASSERT(
-			(g_cxx.pToken->pChain->iCount == 3) &&
+			// at least [ + [*] + ]
+			(g_cxx.pToken->pChain->iCount >= 3) &&
 			cxxTokenTypeIs(
 					cxxTokenChainAt(g_cxx.pToken->pChain,1),
 					CXXTokenTypeSquareParenthesisChain
@@ -1118,7 +1118,7 @@ static bool cxxParserParseNextTokenSkipMacroParenthesis(CXXToken ** ppChain)
 }
 
 static void cxxParserParseNextTokenApplyReplacement(
-		const cppMacroInfo * pInfo,
+		cppMacroInfo * pInfo,
 		CXXToken * pParameterChainToken
 	)
 {
@@ -1168,7 +1168,7 @@ static void cxxParserParseNextTokenApplyReplacement(
 
 	CXX_DEBUG_PRINT("Applying complex replacement '%s'",vStringValue(pReplacement));
 
-	cppUngetString(vStringValue(pReplacement),vStringLength(pReplacement));
+	cppUngetStringBuiltByMacro(vStringValue(pReplacement),vStringLength(pReplacement), pInfo);
 
 	vStringDelete(pReplacement);
 
@@ -1201,6 +1201,14 @@ void cxxParserUngetCurrentToken(void)
 
 
 #define CXX_PARSER_MAXIMUM_TOKEN_CHAIN_SIZE 16384
+
+// We stop applying macro replacements if the unget buffer gets too big
+// as it is a sign of recursive macro expansion
+#define CXX_PARSER_MAXIMUM_UNGET_BUFFER_SIZE_FOR_MACRO_REPLACEMENTS 65536
+
+// We stop applying macro replacements if a macro is used so many
+// times in a recursive macro expansion.
+#define CXX_PARSER_MAXIMUM_MACRO_USE_COUNT 8
 
 // Returns false if it finds an EOF. Returns true otherwise.
 //
@@ -1319,19 +1327,32 @@ bool cxxParserParseNextToken(void)
 				t->eType = CXXTokenTypeKeyword;
 				t->eKeyword = (CXXKeyword)iCXXKeyword;
 
-				if(iCXXKeyword == CXXKeyword__ATTRIBUTE__)
+				if(iCXXKeyword == CXXKeyword__ATTRIBUTE__
+					|| iCXXKeyword == CXXKeyword__DECLSPEC)
 				{
-					// special handling for __attribute__
+					// special handling for __attribute__ and __declspec
 					return cxxParserParseNextTokenCondenseAttribute();
 				}
 			}
 		} else {
 
-			const cppMacroInfo * pMacro = cppFindMacro(vStringValue(t->pszWord));
+			cppMacroInfo * pMacro = cppFindMacro(vStringValue(t->pszWord));
 
-			if(pMacro)
+#ifdef DEBUG
+			if(pMacro && (pMacro->useCount >= CXX_PARSER_MAXIMUM_MACRO_USE_COUNT))
 			{
-				CXX_DEBUG_PRINT("Macro %s",vStringValue(t->pszWord));
+				/* If the macro is overly used, report it here. */
+				CXX_DEBUG_PRINT("Overly uesd macro %s <%p> useCount: %d (> %d)",
+								pMacro->name,
+								pMacro, pMacro->useCount,
+								CXX_PARSER_MAXIMUM_MACRO_USE_COUNT);
+			}
+#endif
+
+			if(pMacro && (pMacro->useCount < CXX_PARSER_MAXIMUM_MACRO_USE_COUNT))
+			{
+				CXX_DEBUG_PRINT("Macro %s <%p> useCount: %d", pMacro->name,
+								pMacro, pMacro->useCount);
 
 				cxxTokenChainDestroyLast(g_cxx.pTokenChain);
 
@@ -1359,7 +1380,11 @@ bool cxxParserParseNextToken(void)
 						// Exclude possible cases of recursive macro expansion that
 						// causes a single token chain to grow too big
 						//    -D'x=y.x'
-						(iInitialTokenChainSize < CXX_PARSER_MAXIMUM_TOKEN_CHAIN_SIZE)
+						(iInitialTokenChainSize < CXX_PARSER_MAXIMUM_TOKEN_CHAIN_SIZE) &&
+						// Detect other cases of nasty macro expansion that cause
+						// the unget buffer to grow fast (but the token chain to grow slowly)
+						//    -D'p=a' -D'a=p+p'
+						(cppUngetBufferSize() < CXX_PARSER_MAXIMUM_UNGET_BUFFER_SIZE_FOR_MACRO_REPLACEMENTS)
 					)
 					{
 						// unget last char
@@ -1375,9 +1400,11 @@ bool cxxParserParseNextToken(void)
 						// Possibly a recursive macro
 						CXX_DEBUG_PRINT(
 								"Token has replacement but either nesting level is too "
-								"big (%d) or the token chain has grown too large (%d)",
+								"big (%d), the token chain (%d) or the unget buffer (%d) "
+								"have grown too large",
 								g_cxx.iNestingLevels,
-								g_cxx.pTokenChain->iCount
+								g_cxx.pTokenChain->iCount,
+								cppUngetBufferSize()
 							);
 					}
 				}
@@ -1560,25 +1587,73 @@ bool cxxParserParseNextToken(void)
 		return true;
 	}
 
-	if(uInfo & CXXCharTypeNamedSingleOrOperatorToken)
+	if(uInfo & CXXCharTypeCustomHandling)
 	{
 		t->eType = g_aCharTable[g_cxx.iChar].uSingleTokenType;
 		vStringPut(t->pszWord,g_cxx.iChar);
 		g_cxx.iChar = cppGetc();
-		uInfo = UINFO(g_cxx.iChar);
-		if(uInfo & (CXXCharTypeOperator | CXXCharTypeNamedSingleOrOperatorToken))
+		switch(t->eType)
 		{
-			t->eType = CXXTokenTypeOperator;
-			do {
-				vStringPut(t->pszWord,g_cxx.iChar);
-				g_cxx.iChar = cppGetc();
-				uInfo = UINFO(g_cxx.iChar);
-			} while(
-					uInfo &
-						(CXXCharTypeOperator | CXXCharTypeNamedSingleOrOperatorToken)
-				);
+			case CXXTokenTypeSmallerThanSign:
+				// The < sign is used in templates and is problematic if parsed incorrectly.
+				// We must exctract only the valid operator types: <, <<, <<=, <= <=>
+				switch(g_cxx.iChar)
+				{
+					case '<':
+						// <<
+						t->eType = CXXTokenTypeOperator;
+						vStringPut(t->pszWord,g_cxx.iChar);
+						g_cxx.iChar = cppGetc();
+						if(g_cxx.iChar == '=')
+						{
+							// <<=
+							vStringPut(t->pszWord,g_cxx.iChar);
+							g_cxx.iChar = cppGetc();
+						}
+					break;
+					case '=':
+						// <=
+						t->eType = CXXTokenTypeOperator;
+						vStringPut(t->pszWord,g_cxx.iChar);
+						g_cxx.iChar = cppGetc();
+						if(g_cxx.iChar == '>')
+						{
+							// <=>
+							vStringPut(t->pszWord,g_cxx.iChar);
+							g_cxx.iChar = cppGetc();
+						}
+					break;
+					default:
+						// fall down
+					break;
+				}
+
+				t->bFollowedBySpace = cppIsspace(g_cxx.iChar);
+			break;
+			case CXXTokenTypeOpeningSquareParenthesis:
+				// special handling for [[ attribute ]] which can appear almost anywhere
+				// in the source code and is kind of annoying for the parser.
+
+				t->bFollowedBySpace = cppIsspace(g_cxx.iChar);
+
+				if(t->bFollowedBySpace)
+				{
+					// The tokens can be separated by a space, at least according to gcc.
+					do {
+						g_cxx.iChar = cppGetc();
+					} while(cppIsspace(g_cxx.iChar));
+				}
+
+				if(g_cxx.iChar == '[')
+					return cxxParserParseNextTokenCondenseCXX11Attribute();
+			break;
+			default:
+				CXX_DEBUG_ASSERT(false,"There should be a custom handler for this token type");
+				// treat as single token type in non debug builds
+				t->bFollowedBySpace = cppIsspace(g_cxx.iChar);
+			break;
 		}
-		t->bFollowedBySpace = cppIsspace(g_cxx.iChar);
+
 		return true;
 	}
 
@@ -1588,22 +1663,6 @@ bool cxxParserParseNextToken(void)
 		vStringPut(t->pszWord,g_cxx.iChar);
 		g_cxx.iChar = cppGetc();
 		t->bFollowedBySpace = cppIsspace(g_cxx.iChar);
-		if(t->eType == CXXTokenTypeOpeningSquareParenthesis)
-		{
-			// special handling for [[ attribute ]] which can appear almost anywhere
-			// in the source code and is kind of annoying for the parser.
-
-			if(t->bFollowedBySpace)
-			{
-				// The tokens can be separated by a space, at least according to gcc.
-				do {
-					g_cxx.iChar = cppGetc();
-				} while(cppIsspace(g_cxx.iChar));
-			}
-
-			if(g_cxx.iChar == '[')
-				return cxxParserParseNextTokenCondenseCXX11Attribute();
-		}
 		return true;
 	}
 

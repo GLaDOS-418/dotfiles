@@ -40,9 +40,10 @@ extern unsigned int countInputLanguageKinds (void);
 extern unsigned int countInputLanguageRoles (int kindIndex);
 
 extern bool doesInputLanguageAllowNullTag (void);
-extern bool doesInputLanguageRequestAutomaticFQTag (void);
+extern bool doesInputLanguageRequestAutomaticFQTag (const tagEntryInfo *e);
 extern bool doesParserRunAsGuest (void);
 extern bool doesSubparserRun (void);
+extern langType getLanguageForBaseParser (void);
 
 extern bool isParserMarkedNoEmission (void);
 extern void freeInputFileResources (void);
@@ -51,7 +52,7 @@ extern void freeInputFileResources (void);
    argument. If the 3rd argument is NULL, openInputFile calls getMio
    internally. The 3rd argument is introduced for reusing mio object
    created in parser guessing stage. */
-extern bool openInputFile (const char *const fileName, const langType language, MIO *mio);
+extern bool openInputFile (const char *const fileName, const langType language, MIO *mio, time_t mtime);
 extern MIO *getMio (const char *const fileName, const char *const openMode,
 				    bool memStreamRequired);
 extern void resetInputFile (const langType language);
@@ -63,9 +64,12 @@ extern unsigned int getNestedInputBoundaryInfo (unsigned long lineNumber);
 extern const char *getSourceFileTagPath (void);
 extern langType getSourceLanguage (void);
 
+extern time_t getInputFileMtime (void);
+
 /* Bypass: reading from fp in inputFile WITHOUT updating fields in input fields */
 extern char *readLineFromBypass (vString *const vLine, MIOPos location, long *const pSeekValue);
 extern void   pushNarrowedInputStream (
+				       bool useMemoryStreamInput,
 				       unsigned long startLine, long startCharOffset,
 				       unsigned long endLine, long endCharOffset,
 				       unsigned long sourceLineOffset,

@@ -21,6 +21,7 @@
 #include "xtag.h"
 #include "numarray.h"
 #include "routines.h"
+#include "options.h"
 
 #include <string.h>
 
@@ -68,19 +69,32 @@ int  makePromise   (const char *parser,
 {
 	struct promise *p;
 	int r;
-	langType lang;
+	langType lang = LANG_IGNORE;
 
-	if ((!isThinStreamSpec(startLine,
-						   startCharOffset,
-						   endLine,
-						   endCharOffset,
-						   sourceLineOffset))
+	const bool is_thin_stream_spec =
+		isThinStreamSpec(startLine, startCharOffset,
+						 endLine, endCharOffset,
+						 sourceLineOffset);
+
+	if (!is_thin_stream_spec
+		&& (startLine > endLine
+			|| (startLine == endLine && startCharOffset >= endCharOffset)))
+		return -1;
+
+	verbose("makePromise: %s start(line: %lu, offset: %ld, srcline: %lu), end(line: %lu, offset: %ld)\n",
+			parser? parser: "*", startLine, startCharOffset, sourceLineOffset,
+			endLine, endCharOffset);
+
+	if ((!is_thin_stream_spec)
 		&& ( !isXtagEnabled (XTAG_GUEST)))
 		return -1;
 
-	lang = getNamedLanguage (parser, 0);
-	if (lang == LANG_IGNORE)
-		return -1;
+	if (parser)
+	{
+		lang = getNamedLanguage (parser, 0);
+		if (lang == LANG_IGNORE)
+			return -1;
+	}
 
 	if ( promise_count == promise_allocated)
 	{
@@ -164,15 +178,17 @@ bool forcePromises (void)
 	{
 		current_promise = i;
 		struct promise *p = promises + i;
-		tagFileResized = runParserInNarrowedInputStream (p->lang,
-								 p->startLine,
-								 p->startCharOffset,
-								 p->endLine,
-								 p->endCharOffset,
-								 p->sourceLineOffset,
-								 i)
-			? true
-			: tagFileResized;
+
+		if (p->lang != LANG_IGNORE && isLanguageEnabled (p->lang))
+			tagFileResized = runParserInNarrowedInputStream (p->lang,
+															 p->startLine,
+															 p->startCharOffset,
+															 p->endLine,
+															 p->endCharOffset,
+															 p->sourceLineOffset,
+															 i)
+				? true
+				: tagFileResized;
 	}
 
 	freeModifiers (0);
@@ -187,7 +203,7 @@ int getLastPromise (void)
 	return promise_count - 1;
 }
 
-static unsigned char* fill_or_skip (unsigned char *input, unsigned char *input_end, bool filling)
+static unsigned char* fill_or_skip (unsigned char *input, const unsigned char *const input_end, const bool filling)
 {
 	if ( !(input < input_end))
 		return NULL;
@@ -211,53 +227,59 @@ static unsigned char* fill_or_skip (unsigned char *input, unsigned char *input_e
 	}
 }
 
-static void line_filler (unsigned char *input, size_t size,
-						 unsigned long startLine, long startCharOffset,
-						 unsigned long endLine, long endCharOffset,
+static void line_filler (unsigned char *input, size_t const size,
+						 unsigned long const startLine, long const startCharOffset,
+						 unsigned long const endLine, long const endCharOffset,
 						 void *data)
 {
-	ulongArray *lines = data;
+	const ulongArray *lines = data;
+	const size_t count = ulongArrayCount (lines);
 	unsigned int start_index, end_index;
 	unsigned int i;
 
-	for (i = 0; i < ulongArrayCount (lines); i++)
+	for (i = 0; i < count; i++)
 	{
-		unsigned long line = ulongArrayItem (lines, i);
+		const unsigned long line = ulongArrayItem (lines, i);
 		if (line >= startLine)
+		{
+			if (line > endLine)
+				return;			/* Not over-wrapping */
 			break;
+		}
 	}
-	if (i == ulongArrayCount (lines))
-		return;
-	if (i > endLine)
-		return;
+	if (i == count)
+		return;					/* Not over-wrapping */
 	start_index = i;
 
-	for (; i < ulongArrayCount (lines); i++)
+	for (; i < count; i++)
 	{
-		unsigned long line = ulongArrayItem (lines, i);
+		const unsigned long line = ulongArrayItem (lines, i);
 		if (line > endLine)
 			break;
 	}
 	end_index = i;
 
 	unsigned long input_line = startLine;
+	const unsigned char *const input_end = input + size;
 	for (i = start_index; i < end_index; i++)
 	{
-		unsigned long line = ulongArrayItem (lines, i);
+		const unsigned long line = ulongArrayItem (lines, i);
 
 		while (1)
 		{
 			if (input_line == line)
 			{
-				input = fill_or_skip (input, input + size, true);
+				input = fill_or_skip (input, input_end, true);
 				input_line++;
 				break;
 			}
 			else
 			{
-				input = fill_or_skip (input, input + size, false);
+				input = fill_or_skip (input, input_end, false);
 				input_line++;
 			}
+			if (input == NULL)
+				return;
 		}
 	}
 }
@@ -305,4 +327,13 @@ void runModifiers (int promise,
 					 m->data);
 	}
 	ptrArrayDelete (modifiers);
+}
+
+void promiseUpdateLanguage  (int promise, langType lang)
+{
+	Assert (promise >= 0);
+
+	struct promise *p = promises + promise;
+
+	p->lang = lang;
 }

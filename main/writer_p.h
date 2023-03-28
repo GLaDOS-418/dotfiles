@@ -52,7 +52,7 @@ struct sTagWriter {
 								void *clientData);
 	bool (* treatFieldAsFixed) (int fieldType);
 
-	void (* checkOptions) (tagWriter *writer);
+	void (* checkOptions) (tagWriter *writer, bool fieldsWereReset);
 
 #ifdef WIN32
 	enum filenameSepOp (* overrideFilenameSeparator) (enum filenameSepOp currentSetting);
@@ -92,11 +92,12 @@ extern void abort_if_ferror(MIO *const fp);
 extern bool ptagMakeJsonOutputVersion (ptagDesc *desc, langType language CTAGS_ATTR_UNUSED, const void *data CTAGS_ATTR_UNUSED);
 extern bool ptagMakeCtagsOutputMode (ptagDesc *desc, langType language CTAGS_ATTR_UNUSED, const void *data CTAGS_ATTR_UNUSED);
 extern bool ptagMakeCtagsOutputFilesep (ptagDesc *desc, langType language CTAGS_ATTR_UNUSED, const void *data);
+extern bool ptagMakeCtagsOutputExcmd (ptagDesc *desc, langType language CTAGS_ATTR_UNUSED, const void *data);
 
 extern bool writerCanPrintPtag (void);
 extern bool writerDoesTreatFieldAsFixed (int fieldType);
 
-extern void writerCheckOptions (void);
+extern void writerCheckOptions (bool fieldsWereReset);
 extern bool writerPrintPtagByDefault (void);
 
 #ifdef WIN32

@@ -8,6 +8,8 @@
 */
 
 #include "general.h"
+
+#include "debug.h"
 #include "entry_p.h"
 #include "options_p.h"
 #include "writer_p.h"
@@ -145,10 +147,40 @@ extern bool ptagMakeCtagsOutputFilesep (ptagDesc *desc,
 	return writePseudoTag (desc, sep, "slash or backslash", NULL);
 }
 
-extern void writerCheckOptions (void)
+extern bool ptagMakeCtagsOutputExcmd (ptagDesc *desc,
+									  langType language CTAGS_ATTR_UNUSED,
+									  const void *data)
+{
+	const char *excmd;
+	const optionValues *opt = data;
+	switch (opt->locate)
+	{
+	case EX_MIX:
+		excmd = "mixed";
+		break;
+	case EX_LINENUM:
+		excmd = "number";
+		break;
+	case EX_PATTERN:
+		excmd = "pattern";
+		break;
+	case EX_COMBINE:
+		excmd = "combineV2";
+		break;
+	default:
+		AssertNotReached ();
+		excmd = "bug!";
+		break;
+	}
+	return writePseudoTag (desc, excmd,
+						   "number, pattern, mixed, or combineV2",
+						   NULL);
+}
+
+extern void writerCheckOptions (bool fieldsWereReset)
 {
 	if (writer->checkOptions)
-		writer->checkOptions (writer);
+		writer->checkOptions (writer, fieldsWereReset);
 }
 
 extern bool writerPrintPtagByDefault (void)

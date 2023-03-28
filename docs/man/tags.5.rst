@@ -3,21 +3,22 @@
 ==============================================================
 tags
 ==============================================================
---------------------------------------------------------------
+
 Vi tags file format extended in ctags projects
---------------------------------------------------------------
+
 :Version: 2+
-:Manual group: Universal-ctags
+:Manual group: Universal Ctags
 :Manual section: 5
 
 DESCRIPTION
 -----------
 
-The contents of next section is a copy of FORMAT file in exuberant
-ctags source code in its subversion repository at sourceforge.net.
+The contents of next section is a copy of FORMAT file in Exuberant
+Ctags source code in its subversion repository at sourceforge.net.
 
-Exceptions introduced in Universal-ctags are explained inline with
-"EXCEPTION" marker.
+Exceptions introduced in Universal Ctags are explained inline with
+"EXCEPTION" marker. Statements that are made further clear in Universal
+Ctags are explained inline with "COMMENT" marker.
 
 ----
 
@@ -58,7 +59,7 @@ by most people working on versions of Vi, ctags, etc..  Currently this
 standard is supported by:
 
 Darren Hiebert <dhiebert at users.sourceforge.net>
-	Exuberant ctags
+	Exuberant Ctags
 
 Bram Moolenaar <Bram at vim.org>
 	Vim (Vi IMproved)
@@ -107,7 +108,7 @@ This restricts the format to what Vi can handle.  The format is:
    {tagname}
 	Any identifier, not containing white space..
 
-	EXCEPTION: Universal-ctags violates this item of the proposal;
+	EXCEPTION: Universal Ctags violates this item of the proposal;
 	tagname may contain spaces. However, tabs are not allowed.
 
    <Tab>
@@ -230,7 +231,7 @@ Use a comment after the {tagaddress} field.  The format would be::
 {tagname}
 	Any identifier, not containing white space..
 
-	EXCEPTION: Universal-ctags violates this item of the proposal;
+	EXCEPTION: Universal Ctags violates this item of the proposal;
 	name may contain spaces. However, tabs are not allowed.
 	Conversion, for some characters including <Tab> in the "value",
 	explained in the last of this section is applied.
@@ -248,6 +249,10 @@ Use a comment after the {tagaddress} field.  The format would be::
 	not set.  It may be restricted to a line number or a search
 	pattern (Posix).
 
+	COMMENT: {tagaddress} could contain tab characters. See
+	:ref:`ctags-client-tools(7) <ctags-client-tools(7)>` to know how to programmatically extract {tagaddress}
+	(called "pattern field" there) and parse it.
+
 Optionally:
 
 ;"
@@ -263,7 +268,7 @@ A tagfield has a name, a colon, and a value: "name:value".
   are allowed.  Lower case is recommended.  Case matters ("kind:" and "Kind:
   are different tagfields).
 
-  EXCEPTION: Universal-ctags allows users to use a numerical character
+  EXCEPTION: Universal Ctags allows users to use a numerical character
   in the name other than its initial letter.
 
 * The value may be empty.
@@ -278,7 +283,7 @@ A tagfield has a name, a colon, and a value: "name:value".
   Warning: When a tagfield value holds an MS-DOS file name, the backslashes
   must be doubled!
 
-  EXCEPTION: Universal-ctags introduces more conversion rules.
+  EXCEPTION: Universal Ctags introduces more conversion rules.
 
   - When a value contains a ``\a``, this stands for a <BEL> (0x07).
   - When a value contains a ``\b``, this stands for a <BS> (0x08).
@@ -287,6 +292,11 @@ A tagfield has a name, a colon, and a value: "name:value".
   - The characters in range 0x01 to 0x1F included, and 0x7F are
     converted to ``\x`` prefixed hexadecimal number if the characters are
     not handled in the above "value" rules.
+
+  EXCEPTION: Universal Ctags allows all these escape sequences in {tagname}
+  and {tagfile} also. However, about {tagfile}, a condition must be
+  satisfied. See "`Exceptions in Universal Ctags`_" about the condition.
+
   - The leading space (0x20) and ``!`` (0x21) in {tagname} are converted
     to ``\x`` prefixed hexadecimal number (``\x20`` and ``\x21``) if the
     tag is not a pseudo-tag. As described later, a pseudo-tag starts with
@@ -439,6 +449,10 @@ command can be used::
 
 (replace ^I with a real <Tab>).
 
+COMMENT: Universal Ctags running on MS Windows converts the ``\`` separator
+to ``/`` by defualt, and allows the escape sequences even in {tagfile}
+if a condition is satisfied. See "`Exceptions in Universal Ctags`_" about
+the condition.
 
 TAG FILE INFORMATION:
 
@@ -477,29 +491,45 @@ file, and provided solely for documentation purposes::
     !_TAG_PROGRAM_URL	{URL}	/optional comment/
     !_TAG_PROGRAM_VERSION	{version-id}	/optional comment/
 
-EXCEPTION: Universal-ctags introduces more kinds of pseudo-tags.
+EXCEPTION: Universal Ctags introduces more kinds of pseudo-tags.
 See :ref:`ctags-client-tools(7) <ctags-client-tools(7)>` about them.
+
+COMMENT: Though pseudo-tags are semantically different from regular tags, They
+use the same format, which is::
+
+	{tagname}<Tab>{tagfile}<Tab>{tagaddress}
+
+, and the escape sequences and illegal characters explained in "Proposal"
+section also applies to pseudo-tags.
 
 ----
 
 
-Exceptions in Universal-ctags
+Exceptions in Universal Ctags
 --------------------------------------------
 
-Universal-ctags supports this proposal with some
+Universal Ctags supports this proposal with some
 exceptions.
 
 
 Exceptions
 ~~~~~~~~~~~
 
-#. {tagname} in tags file generated by Universal-ctags may contain
+#. {tagname} in tags file generated by Universal Ctags may contain
    spaces and several escape sequences. Parsers for documents like Tex and
    reStructuredText, or liberal languages such as JavaScript need these
    exceptions. See {tagname} of Proposal section for more detail about the
    conversion.
 
-#. "name" part of {tagfield} in a tag generated by Universal-ctags may
+#. {tagfile} in tags file generated by Universal Ctags may contain
+   spaces and several escape sequences if ``\`` characters are not used as
+   filename separators. UNIX-like systems use ``/`` for the
+   purpose. On MS Windows, Universal Ctags converts ``\`` in filenames
+   to ``/`` by default. So, generally this condition is satisfied.
+   Universal Ctags emits several psuedo tags telling whether the condition
+   is satisfied or not. See :ref:`ctags-client-tools(7) <ctags-client-tools(7)>` about these psuedo tags.
+
+#. "name" part of {tagfield} in a tag generated by Universal Ctags may
    contain numeric characters, but the first character of the "name"
    must be alphabetic.
 
@@ -513,9 +543,9 @@ Compatible output and weakness
 .. NOT REVIEWED YET
 
 Default behavior (``--output-format=u-ctags`` option) has the
-exceptions.  In other hand, with ``--output-format=e-ctags`` option
-ctags has no exception; Universal-ctags command may use the same file
-format as Exuberant-ctags. However, ``--output-format=e-ctags`` throws
+exceptions.  On the other hand, with ``--output-format=e-ctags`` option
+ctags has no exception; Universal Ctags command may use the same file
+format as Exuberant Ctags. However, ``--output-format=e-ctags`` throws
 away a tag entry which name includes a space or a tab
 character. ``TAG_OUTPUT_MODE`` pseudo-tag tells which format is
 used when ctags generating tags file.

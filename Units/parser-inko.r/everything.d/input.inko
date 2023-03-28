@@ -1,7 +1,9 @@
 { 20 }
 
-object A
+class A
 {
+  @number: X
+
   def in_a {
     { 20 }
   }
@@ -11,13 +13,9 @@ object A
 
 def foo {}
 
-object B {
+class B {
   def in_b {
     { 10  }
-  }
-
-  object C {
-    def nested_method {}
   }
 }
 
@@ -25,9 +23,10 @@ def global {}
 
 trait SomeTrait {
   # def this_should_be_ignored {}
+  def required_method
 }
 
-object Socket impl Foo {
+class Socket {
   def quack {}
 }
 
@@ -40,4 +39,3 @@ impl Chickens {
 }
 
 let NUMBER = 10
-let @number = 20

@@ -13,6 +13,7 @@
 *   INCLUDE FILES
 */
 #include "general.h"  /* must always come first */
+#include "ptrarray.h"
 #include "types.h"
 #include "vstring.h"
 
@@ -64,6 +65,7 @@
 
 
 #define RoleTemplateUndef { true, "undef", "undefined" }
+#define RoleTemplateCondition { false, "condition", "used in part of #if/#ifdef/#elif conditions" }
 
 #define RoleTemplateSystem { true, "system", "system header" }
 #define RoleTemplateLocal  { true, "local", "local header" }
@@ -83,6 +85,7 @@ extern void cppInit (const bool state,
 		     const bool hasSingleQuoteLiteralNumbers,
 		     int defineMacroKindIndex,
 		     int macroUndefRoleIndex,
+		     int macroConditionRoleIndex,
 		     int headerKindIndex,
 		     int headerSystemRoleIndex, int headerLocalRoleIndex,
 		     int macroParamKindIndex,
@@ -92,6 +95,7 @@ extern void cppTerminate (void);
 extern void cppBeginStatement (void);
 extern void cppEndStatement (void);
 extern void cppUngetc (const int c);
+extern int cppUngetBufferSize();
 extern void cppUngetString(const char * string,int len);
 extern int cppGetc (void);
 extern const vString * cppGetLastCharOrStringContents (void);
@@ -112,11 +116,15 @@ typedef struct sCppMacroReplacementPartInfo {
 } cppMacroReplacementPartInfo;
 
 typedef struct sCppMacroInfo {
+	char *name;			/* the name of macro. Useful for debugging. */
 	bool hasParameterList; /* true if the macro has a trailing () */
 	cppMacroReplacementPartInfo * replacements;
+	int useCount;
+	struct sCppMacroInfo * next;
 } cppMacroInfo;
 
-extern const cppMacroInfo * cppFindMacro (const char *const name);
+extern cppMacroInfo * cppFindMacro (const char *const name);
+extern void cppUngetStringBuiltByMacro (const char * string,int len, cppMacroInfo *macro);
 
 /*
 * Build a replacement string for the specified macro.
@@ -129,5 +137,11 @@ extern vString * cppBuildMacroReplacement(
 		const char ** parameters, /* may be NULL */
 		int parameterCount
 	);
+
+/* Do the same as cppBuildMacroReplacement with ptrArray<const char*>,
+ * and unget the result of expansion to input cpp stream. */
+extern void cppBuildMacroReplacementWithPtrArrayAndUngetResult(
+		cppMacroInfo * macro,
+		const ptrArray * args);
 
 #endif  /* CTAGS_MAIN_GET_H */

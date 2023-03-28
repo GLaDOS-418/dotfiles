@@ -30,7 +30,7 @@
 typedef struct sHashTable hashTable;
 typedef unsigned int (* hashTableHashFunc)  (const void * const key);
 typedef bool      (* hashTableEqualFunc) (const void* a, const void* b);
-typedef void         (* hashTableFreeFunc)  (void * ptr);
+typedef void         (* hashTableDeleteFunc)  (void * ptr);
 
 /* To continue interation, return true.
  * To break interation, return false. */
@@ -51,8 +51,18 @@ bool hashInteq (const void * a, const void * b);
 extern hashTable* hashTableNew         (unsigned int size,
 					hashTableHashFunc hashfn,
 					hashTableEqualFunc equalfn,
-					hashTableFreeFunc keyfreefn,
-					hashTableFreeFunc valfreefn);
+					hashTableDeleteFunc keyfreefn,
+					hashTableDeleteFunc valfreefn);
+
+/* By default, hashTableGetItem() returns NULL for a unknown key.
+ * It means you cannot store NULL as a value for a key.
+ * With hashTableSetValueForUnknownKey(), you can specific
+ * an alternative address representing the value for for unknown
+ * keys.
+ */
+extern void hashTableSetValueForUnknownKey (hashTable *htable,
+											void *val,
+											hashTableDeleteFunc valfreefn);
 
 extern void       hashTableDelete      (hashTable *htable);
 extern void       hashTableClear       (hashTable *htable);
@@ -60,6 +70,19 @@ extern void       hashTablePutItem     (hashTable *htable, void *key, void *valu
 extern void*      hashTableGetItem     (hashTable *htable, const void * key);
 extern bool    hashTableHasItem     (hashTable * htable, const void * key);
 extern bool    hashTableDeleteItem  (hashTable *htable, const void *key);
+
+/* If KEY is found, this function updates the value for KEY and returns true.
+ * If KEY is not found, this function just returns false.
+ *
+ * KEY is just referred. The HTABLE takes the ownership of VALUE when KEY is found. */
+extern bool       hashTableUpdateItem  (hashTable *htable, const void *key, void *value);
+
+/* If KEY is found, this function updates the value for KEY and returns true.
+ * If KEY is not found, this function adds KEY and VALUE and returns false.
+ *
+ * The HTABLE takes the ownership of KEY only if KEY is not found.
+ * The HTABLE takes the ownership of VALUE either when KEY is found or not. */
+extern bool       hashTableUpdateOrPutItem  (hashTable *htable, void *key, void *value);
 
 /* Return true if proc never returns false; proc returns true for all
  * the items, or htable holds no item.
@@ -74,12 +97,10 @@ extern bool       hashTableForeachItem (hashTable *htable, hashTableForeachFunc 
  * key. */
 extern bool       hashTableForeachItemOnChain (hashTable *htable, const void *key, hashTableForeachFunc proc, void *user_data);
 
-extern int        hashTableCountItem   (hashTable *htable);
+extern unsigned int hashTableCountItem   (hashTable *htable);
 
-extern hashTable* hashTableIntNew (unsigned int size,
-								   hashTableHashFunc hashfn,
-								   hashTableEqualFunc equalfn,
-								   hashTableFreeFunc keyfreefn);
+extern void hashTablePrintStatistics(hashTable *htable);
+
 #define HT_PTR_TO_INT(P) ((int)(intptr_t)(P))
 #define HT_INT_TO_PTR(P) ((void*)(intptr_t)(P))
 #define HT_PTR_TO_UINT(P) ((unsigned int)(uintptr_t)(P))

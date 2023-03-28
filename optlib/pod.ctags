@@ -20,6 +20,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
 # USA.
 #
+# This module extracts headers of Pod file.
+#
+# References:
+# - https://perldoc.perl.org/perlpod
+# - https://perldoc.perl.org/perlpodspec
 #
 --langdef=Pod
 --map-Pod=+.pod
@@ -29,8 +34,58 @@
 --kinddef-Pod=S,subsection,subsections
 --kinddef-Pod=t,subsubsection,subsubsections
 
---regex-Pod=/^=head1[ \t]+(.+)/\1/c/
---regex-Pod=/^=head2[ \t]+(.+)/\1/s/
---regex-Pod=/^=head3[ \t]+(.+)/\1/S/
---regex-Pod=/^=head4[ \t]+(.+)/\1/t/
+# Separator definitions must come after kind definitions.
+# This is the limitation of optlib2c.
+--_scopesep-Pod=*/*:""
 
+--_prelude-Pod={{
+    /kindTable [
+        /chapter /section /subsection /subsubsection
+    ] def
+
+    % numstr:str TOLEVEL int
+    /tolevel {
+        0 get ?1 sub
+    } def
+
+    % cork:int DEPTHFORCORK depth:int
+    /depthForCork {
+        :kind kindTable exch _aindex pop
+    } def
+
+    % endline:int goal:int scopePopUpTo -
+    /scopePopUpTo
+    {
+        {
+            _scopetop {
+                dup
+                % endline goal scope scope
+                depthForCork 2 index ge {
+                    % endline goal scope
+                    2 index end:
+                    _scopepop
+                } {
+                    pop
+                    exit
+                } ifelse
+            } {
+                exit
+            } ifelse
+        } loop
+        pop
+        pop
+    } def
+}}
+
+--regex-Pod=/^=head([1-4])[ \t]+(.+)//{{
+    \2
+    kindTable \1 tolevel get
+    @2
+    _tag _commit
+    dup :line 1 sub \1 tolevel scopePopUpTo
+    _scopetop {
+        1 index exch scope: _scopepush
+    } {
+        _scopepush
+    } ifelse
+}}

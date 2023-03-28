@@ -47,6 +47,7 @@ import threading
 SHELL = '/bin/sh'
 CTAGS = './ctags'
 READTAGS = './readtags'
+OPTSCRIPT = './optscript'
 WITH_TIMEOUT = 0
 WITH_VALGRIND = False
 COLORIZED_OUTPUT = True
@@ -70,6 +71,7 @@ _VG_TIMEOUT_FACTOR = 10
 _VALGRIND_EXIT = 58
 _STDERR_OUTPUT_NAME = 'STDERR.tmp'
 _DIFF_OUTPUT_NAME = 'DIFF.tmp'
+_VALGRIND_OUTPUT_NAME = 'VALGRIND.tmp'
 
 #
 # Results
@@ -469,7 +471,7 @@ def run_tcase(finput, t, name, tclass, category, build_t, extra_inputs):
     ofiltered = o + '/FILTERED.tmp'
     odiff = o + '/' + _DIFF_OUTPUT_NAME
     ocmdline = o + '/CMDLINE.tmp'
-    ovalgrind = o + '/VALGRIND.tmp'
+    ovalgrind = o + '/' + _VALGRIND_OUTPUT_NAME
     oresult = o + '/RESULT.tmp'
     oshrink_template = o + '/SHRINK-%s.tmp'
     obundles = o + '/BUNDLES'
@@ -485,7 +487,7 @@ def run_tcase(finput, t, name, tclass, category, build_t, extra_inputs):
     #
     # Build cmdline
     #
-    cmdline = [CTAGS, '--verbose', '--options=NONE']
+    cmdline = [CTAGS, '--verbose', '--options=NONE', '--fields=-T']
     if PRETENSE_OPTS != '':
         cmdline += [PRETENSE_OPTS]
     cmdline += ['--optlib-dir=+' + t + '/optlib', '-o', '-']
@@ -572,7 +574,8 @@ def run_tcase(finput, t, name, tclass, category, build_t, extra_inputs):
 
     timeout_value = WITH_TIMEOUT
     if WITH_VALGRIND:
-        cmdline = ['valgrind', '--leak-check=full', '--error-exitcode=' + str(_VALGRIND_EXIT), '--log-file=' + ovalgrind] + cmdline
+        cmdline = ['valgrind', '--leak-check=full', '--track-origins=yes',
+                   '--error-exitcode=' + str(_VALGRIND_EXIT), '--log-file=' + ovalgrind] + cmdline
         timeout_value *= _VG_TIMEOUT_FACTOR
     if timeout_value == 0:
         timeout_value = None
@@ -783,6 +786,15 @@ def run_show_stderr_output(units_dir, t):
                 print("\t" + l, end='')
     print()
 
+def run_show_valgrind_output(units_dir, t):
+    print("\t", end='')
+    line('.')
+    for fn in glob.glob(units_dir + '/' + t + '.*/' + _VALGRIND_OUTPUT_NAME):
+        with open(fn, 'r') as f:
+            for l in f:
+                print("\t" + l, end='')
+    print()
+
 def run_summary(build_dir):
     print()
     print('Summary (see CMDLINE.tmp to reproduce without test harness)')
@@ -838,6 +850,11 @@ def run_summary(build_dir):
         print(fmt % ('#valgrind-error:', len(L_VALGRIND)))
         for t in L_VALGRIND:
             print("\t" + remove_prefix(t, _DEFAULT_CATEGORY + '/'))
+        if SHOW_DIFF_OUTPUT:
+            print(fmt % ('##valgrind-error:', len(L_VALGRIND)))
+            for t in L_VALGRIND:
+                print("\t" + remove_prefix(t, _DEFAULT_CATEGORY + '/'))
+                run_show_valgrind_output(build_dir, remove_prefix(t, _DEFAULT_CATEGORY + '/'))
 
 def make_pretense_map(arg):
     r = ''
@@ -888,7 +905,7 @@ def action_run(parser, action, *args):
     parser.add_argument('--run-shrink', action='store_true', default=False,
             help='(TODO: NOT IMPLEMENTED YET)')
     parser.add_argument('--show-diff-output', action='store_true', default=False,
-            help='show diff output for failed test cases in the summary.')
+            help='show diff output (and valgrind errors) for failed test cases in the summary.')
     parser.add_argument('--with-pretense-map',
             metavar='NEWLANG0/OLDLANG0[,...]',
             help='make NEWLANG parser pretend OLDLANG.')
@@ -949,7 +966,8 @@ def action_run(parser, action, *args):
     run_summary(build_dir)
 
     if L_FAILED_BY_STATUS or L_FAILED_BY_DIFF or \
-            L_FAILED_BY_TIMEED_OUT or L_BROKEN_ARGS_CTAGS:
+            L_FAILED_BY_TIMEED_OUT or L_BROKEN_ARGS_CTAGS or \
+            L_VALGRIND:
         return 1
     else:
         return 0
@@ -1007,7 +1025,7 @@ def tmain_compare(subdir, build_subdir, aspect, file):
         with open(generated, 'wb') as f:
             subprocess.run(['diff', '-U',
                 str(DIFF_U_NUM), '--strip-trailing-cr',
-                actual, expected],
+                expected, actual],
                 stdout=f, stderr=subprocess.STDOUT)
         run_result('error', msg, None, 'diff: ' + generated, file=file)
         return False
@@ -1057,11 +1075,17 @@ def tmain_sub(test_name, basedir, subdir, build_subdir):
     else:
         readtags_path = os.path.join(basedir, READTAGS)
 
+    if isabs(OPTSCRIPT):
+        optscript_path = OPTSCRIPT
+    else:
+        optscript_path = os.path.join(basedir, OPTSCRIPT)
+
     start = time.time()
     ret = subprocess.run([SHELL, 'run.sh',
             ctags_path,
             build_subdir,
-            readtags_path],
+            readtags_path,
+            optscript_path],
             cwd=subdir,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     #print('execute time: %f' % (time.time() - start), file=strbuf)
@@ -1158,6 +1182,7 @@ def action_tmain(parser, action, *args):
     global WITH_VALGRIND
     global SHOW_DIFF_OUTPUT
     global READTAGS
+    global OPTSCRIPT
     global UNITS
     global NUM_WORKER_THREADS
     global SHELL
@@ -1172,6 +1197,8 @@ def action_tmain(parser, action, *args):
             help='how diff output for failed test cases in the summary.')
     parser.add_argument('--readtags',
             help='readtags executable file for testing')
+    parser.add_argument('--optscript',
+            help='optscript executable file for testing')
     parser.add_argument('--units', metavar='UNITS1[,UNITS2,...]',
             help='run only Tmain/UNIT*.d (.d is not needed)')
     parser.add_argument('--threads', type=int, default=NUM_WORKER_THREADS,
@@ -1191,6 +1218,8 @@ def action_tmain(parser, action, *args):
     SHOW_DIFF_OUTPUT = res.show_diff_output
     if res.readtags:
         READTAGS = res.readtags
+    if res.optscript:
+        OPTSCRIPT = res.optscript
     if res.units:
         UNITS = res.units.split(',')
     NUM_WORKER_THREADS = res.threads

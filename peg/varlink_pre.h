@@ -11,25 +11,13 @@
 /*
 *   INCLUDE FILES
 */
-/* This one is not needed anymore because the inclusion is specified
-   in Makefile.am
-#include "general.h"
-*/
-
-#include "entry.h"
-#include "numarray.h"
 #include "kind.h"
-#include "read.h"
+#include "peg_common.h"
 
 
 /*
 *   MACROS
 */
-#define PCC_GETCHAR(auxil) getcFromInputFile()
-#define PCC_MALLCO(auxil,size) eMalloc(size)
-#define PCC_REALLOC(auxil,ptr,size) eRealloc(ptr,size)
-#define PCC_FREE(auxil,ptr) eFreeNoNullCheck(ptr)
-#define PCC_ERROR(auxil) reportError(auxil)
 
 /*
 *   DATA DECLARATIONS
@@ -66,19 +54,13 @@ typedef enum  {
 } methodParamState;
 
 struct parserCtx {
-	int scope_cork_index;
-	intArray *kind_stack;
+	struct parserBaseCtx base;
 	methodParamState mparam_state;
-	bool found_syntax_error;
 };
 
 /*
 *   FUNCTION PROTOTYPES
 */
-static void pushKind (struct parserCtx *auxil, int kind);
-static void popKind (struct parserCtx *auxil, bool popScopeToo);
 static void pushKindContextual (struct parserCtx *auxil);
-static int peekKind (struct parserCtx *auxil);
 static void setMethodParamState (struct parserCtx *auxil, methodParamState s);
-static void reportError (struct parserCtx *auxil);
 static int makeVarlinkTag (struct parserCtx *auxil, const char *name, long offset);

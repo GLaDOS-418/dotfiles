@@ -9,8 +9,8 @@
  *   GNU General Public License version 2 or (at your option) any later version.
  *
  */
-#ifndef CTAGS_MAIN_PTAG_H
-#define CTAGS_MAIN_PTAG_H
+#ifndef CTAGS_MAIN_PTAG_PRIVATE_H
+#define CTAGS_MAIN_PTAG_PRIVATE_H
 
 #include "general.h"
 #include "types.h"
@@ -37,12 +37,24 @@ typedef enum ePtagType { /* pseudo tag content control */
 	PTAG_KIND_DESCRIPTION,
 	PTAG_FIELD_DESCRIPTION,
 	PTAG_EXTRA_DESCRIPTION,
+	PTAG_ROLE_DESCRIPTION,
 	PTAG_OUTPUT_MODE,
 	PTAG_OUTPUT_FILESEP,
 	PTAG_PATTERN_TRUNCATION,
 	PTAG_PROC_CWD,
+	PTAG_OUTPUT_EXCMD,
+	PTAG_PARSER_VERSION,
+	PTAG_OUTPUT_VERSION,
 	PTAG_COUNT
 } ptagType;
+
+typedef enum ePtagFlag {
+	/* use isPtagCommonInParsers() for testing. */
+	PTAGF_COMMON = 1 << 0,
+	/* use isPtagParserSpecific for testing.
+	 * PSEUDO_TAG_SEPARATOR is used for printing. */
+	PTAGF_PARSER = 1 << 1,
+} ptagFlag;
 
 struct sPtagDesc {
 	bool enabled;
@@ -57,7 +69,11 @@ struct sPtagDesc {
 	 * of the parser is passed as the thrid argument.
 	 */
 	bool (* makeTag) (ptagDesc *, langType, const void *);
-	bool commonInParsers;
+
+	ptagFlag flags;
+
+	/* See writer-json.c */
+	const char *jsonObjectKey;
 };
 
 extern bool makePtagIfEnabled (ptagType type, langType language, const void *data);
@@ -65,7 +81,8 @@ extern ptagDesc* getPtagDesc (ptagType type);
 extern ptagType  getPtagTypeForName (const char *name);
 extern void printPtags (bool withListHeader, bool machinable, FILE *fp);
 extern bool isPtagEnabled (ptagType type);
-extern bool isPtagCommonInParsers  (ptagType type);
+extern bool isPtagCommonInParsers (ptagType type);
+extern bool isPtagParserSpecific (ptagType type);
 extern bool enablePtag (ptagType type, bool state);
 
-#endif	/* CTAGS_MAIN_FIELD_H */
+#endif	/* CTAGS_MAIN_PTAG_PRIVATE_H */
