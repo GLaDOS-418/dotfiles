@@ -13,7 +13,7 @@ alias free='free -m'                      # show sizes in MB
 alias grep='grep --colour=always'
 alias egrep='egrep --colour=always'
 alias rsync='rsync -azvhP'
-if [[ -x /usr/share/nvim ]]; then
+if [[ -x "$(command -v nvim)" ]]; then
     alias v='nvim'
 else
     alias v='vim'
@@ -33,7 +33,7 @@ alias more=less
 # alias cp='cp -i'
 # alias mv='mv -i'
 
-TRASH="${HOME}/.local/share/Trash/files/"
+TRASH="${HOME}/.local/share/trash/files/"
 mkdir -p ${TRASH}
 
 alias rm='mv -t "${TRASH}" --backup=numbered -- "$@"'
@@ -67,6 +67,7 @@ alias diffhead='git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-s
 alias sdf='git sdf'
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
 alias gp='git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream'
+alias gpf='gp --force'
 alias gl='git pull'
 alias st='git status'
 alias br='git branch'

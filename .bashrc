@@ -56,7 +56,8 @@ export CC=clang
 export CXX=clang++
 export GOPATH=${HOME}/go
 export LOCALBIN=${HOME}/.local/bin
-export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$EXERCISM:$LOCALBIN:$PATH
+export LOCALNVIM=${HOME}/.local/nvim/bin
+export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$EXERCISM:$LOCALBIN:$LOCALNVIM:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
 # use Fzf with 'fd'
@@ -188,7 +189,7 @@ function gww {
         -Wunused-parameter \
         -Wvariadic-macros \
         -Wwrite-strings \
-        -std=c++20 \
+        -std=c++2a \
     $@
 }
 
@@ -503,6 +504,7 @@ LS_COLORS=$LS_COLORS:'di=01;33'
 export LS_COLORS
 
 unset use_color safe_term match_lhs sh
+
 . "$HOME/.cargo/env"
 
 export NVM_DIR="$HOME/.nvm"

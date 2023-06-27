@@ -2,7 +2,8 @@
     name  = GLaDOS-418 
     email = arnobbhanja@live.com
 [core]
-	#autocrlf = true
+	autocrlf = false
+	filemode = false
 	editor = nvim
 	pager = diff-so-fancy | less --tabs=4 -RFX
 	#excludesfile = C:/users/abh/.gitignore_global
@@ -93,3 +94,8 @@
 	encoding = utf-8
 [rebase]
 	autoStash = true
+[init]
+	defaultBranch = main
+
+[branch]
+	autosetuprebase = always
