@@ -1,4 +1,0 @@
-<prefix>x	input.foo	/^def x$/;"	d	extras:withprefix
-<prefix>y	input.foo	/^def y$/;"	d	extras:withprefix
-x	input.foo	/^def x$/;"	d
-y	input.foo	/^def y$/;"	d

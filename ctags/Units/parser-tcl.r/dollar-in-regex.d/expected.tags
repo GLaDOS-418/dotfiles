@@ -1,4 +1,0 @@
-proc1	input.tcl	/^proc proc1 {} {$/;"	p
-proc2	input.tcl	/^proc proc2 {} {}$/;"	p
-proc3	input.tcl	/^proc proc3 {} {$/;"	p
-proc4	input.tcl	/^proc proc4 {} {}$/;"	p

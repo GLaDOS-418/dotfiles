@@ -1,3 +1,0 @@
-UNICODE: '€'
-UNICODE: '£'
-ESCAPED: chr(10)

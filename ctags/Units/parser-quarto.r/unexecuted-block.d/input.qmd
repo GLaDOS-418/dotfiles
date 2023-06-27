@@ -1,9 +1,0 @@
-```{python}
-def f():
-    pass
-```
-
-```{{python}}
-def g():
-    pass
-```

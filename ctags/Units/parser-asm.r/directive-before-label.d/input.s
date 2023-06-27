@@ -1,2 +1,0 @@
-	.aDirective label
-

@@ -1,4 +1,0 @@
-a	input.unknown	/^def a:$/;"	d
-b	input.unknown	/^    def b:$/;"	d
-A	input.unknown	/^def A:$/;"	d
-B	input.unknown	/^    def B:$/;"	d

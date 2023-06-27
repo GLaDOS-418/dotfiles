@@ -1,4 +1,0 @@
-x	input.unknown	/^pub var x$/;"	v	access:public
-public-x	input.unknown	/^pub var x$/;"	v
-y	input.unknown	/^priv var y$/;"	v	access:private
-private-y	input.unknown	/^priv var y$/;"	v

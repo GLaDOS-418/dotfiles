@@ -1,3 +1,0 @@
-Obj	input.js	/^var Obj = {$/;"	v
-myGenerator	input.js	/^    *myGenerator(a, b) {$/;"	g	variable:Obj
-myMethod	input.js	/^    myMethod(a, b) {$/;"	m	variable:Obj

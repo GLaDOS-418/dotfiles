@@ -1,5 +1,0 @@
-/* THIS IS VERSION 2 FILE. */
-
-message Data {
-	required uint64 MaxNodeID = 7;
-}

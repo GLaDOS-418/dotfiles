@@ -1,3 +1,0 @@
-This is initially a crash test.
-The crash (OOM killer) was reported in #3306 by @ivanbrennan.
-a.rb and b.rb were taken from the issue.

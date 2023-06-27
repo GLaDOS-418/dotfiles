@@ -1,2 +1,0 @@
-input2.c
-!_TAG_PROC_CWD	/tmp/ctags-\t-tmain/	//

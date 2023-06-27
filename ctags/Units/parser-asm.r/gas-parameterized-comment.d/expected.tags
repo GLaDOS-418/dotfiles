@@ -1,2 +1,0 @@
-X	input.s	/^#define X /;"	d	file:
-retry	input.s	/^retry:$/;"	l

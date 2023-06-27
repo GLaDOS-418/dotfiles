@@ -1,6 +1,0 @@
---param-CPreProcessor._expand=1
---fields-C=+{macrodef}
---fields=+Ss
---sort=no
-# Override the defintion in the input file.
--DS=float

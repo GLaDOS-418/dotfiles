@@ -1,6 +1,0 @@
-SUBDIRS	input.am	/^SUBDIRS  = lib src . test$/;"	m
-lib	input.am	/^SUBDIRS  = lib src . test$/;"	s
-src	input.am	/^SUBDIRS  = lib src . test$/;"	s
-.	input.am	/^SUBDIRS  = lib src . test$/;"	s
-test	input.am	/^SUBDIRS  = lib src . test$/;"	s
-docs	input.am	/^SUBDIRS += docs$/;"	s

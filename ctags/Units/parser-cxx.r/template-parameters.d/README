@@ -1,3 +1,0 @@
-This reproduced a memory access error.
-Specify VG=1 when running make for reproducing the original issue.
-

@@ -1,2 +1,0 @@
-Pow2	input.vhd	/^function Pow2( N, Exp : integer )  return mylib.myinteger is$/;"	f
-Result	input.vhd	/^  Variable Result   : integer := 1;$/;"	v	function:Pow2

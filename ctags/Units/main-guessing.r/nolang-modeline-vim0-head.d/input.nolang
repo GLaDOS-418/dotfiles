@@ -1,7 +1,0 @@
-/* ex:set filetype=c.qt: */
-int
-main(void)
-{
-	return 0;
-}
-

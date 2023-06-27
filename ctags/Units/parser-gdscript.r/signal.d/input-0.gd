@@ -1,1 +1,0 @@
-signal start_game

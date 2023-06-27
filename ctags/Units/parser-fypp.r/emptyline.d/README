@@ -1,5 +1,0 @@
-input.fy caused a valgrind error.
-
-For running this test:
-
-   $ make units LANGUAGES=Fypp VG=1

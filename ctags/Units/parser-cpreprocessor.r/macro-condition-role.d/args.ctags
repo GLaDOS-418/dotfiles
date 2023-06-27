@@ -1,4 +1,0 @@
---sort=no
---roles-C++.{macro}=+{condition}
---extras=+r
---fields=+rn

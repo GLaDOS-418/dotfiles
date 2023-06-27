@@ -1,3 +1,0 @@
-FILE <- WORD / SPACE
-WORD <- [^ \r\n\t]+ { PRINT($0); }
-SPACE <- [ \r\n\t]+

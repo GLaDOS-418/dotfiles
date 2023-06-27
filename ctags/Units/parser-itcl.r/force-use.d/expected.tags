@@ -1,2 +1,0 @@
-MyClass	input.tcl	/^class MyClass {$/;"	c	language:ITcl
-foo	input.tcl	/^    public method foo {} {$/;"	m	language:ITcl	class:MyClass

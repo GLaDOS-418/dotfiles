@@ -1,5 +1,0 @@
-Y  unknown type of definitions
-f  functions
-v  variables
-m  macros
-c  constants

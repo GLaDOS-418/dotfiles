@@ -1,8 +1,0 @@
-ksh is an alias for Sh parser.
-
-BEGIN:ksh
-f()
-{
-	echo x
-}
-END

@@ -1,3 +1,0 @@
-Bar	input.js	/^const Bar = Foo.create({$/;"	C
-anonymousObject6b70cce50105	input.js	/^const Bar = Foo.create({$/;"	v
-jump	input.js	/^  jump() {$/;"	m	variable:anonymousObject6b70cce50105
