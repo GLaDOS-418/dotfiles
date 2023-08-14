@@ -8,6 +8,7 @@ cmake
 code
 delve
 dialog
+diff-so-fancy
 discord
 docker
 docker-compose
@@ -28,7 +29,10 @@ jre-openjdk
 kdbg
 kdeconnect
 ktimer
+lsof
 lua
+man-db
+man-pages
 mediainfo-gui
 mercurial
 mupdf
@@ -42,6 +46,7 @@ pandoc
 psensor
 python
 python-pip
+python-pipx
 python-setuptools
 qbittorrent
 rclone
@@ -49,9 +54,16 @@ redshift
 ripgrep
 smartmontools
 sqlite
+strace
+tealdeer
 tmux
+unzip
 wireshark-qt
 xclip
 xdg-utils
 xorg-xbacklight
 youtube-dl
+gnu-netcat
+maven
+fish
+tree-sitter-cli

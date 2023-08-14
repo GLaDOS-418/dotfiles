@@ -373,8 +373,59 @@ function colors {
   done
 }
 
+# function parse_git_branch {
+#     git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/(\1) /'
+# }
+function nonzero_value { 
+  printf "`local e=$? ; if [ $e -ne 0 ]; then echo $e: ; else echo '' ; fi`"
+}
+
+
+# get current branch in git repo
 function parse_git_branch {
-    git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/(\1) /'
+  BRANCH=`git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/\1/'`
+  if [ ! "${BRANCH}" == "" ]
+  then
+    STAT=`parse_git_dirty`
+    printf " (${BRANCH}${STAT})"
+  fi
+
+  printf ""
+}
+
+# get current status of git repo
+function parse_git_dirty {
+  status=`git status 2>&1 | tee`
+  dirty=`echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?"`
+  untracked=`echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?"`
+  ahead=`echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?"`
+  newfile=`echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?"`
+  renamed=`echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?"`
+  deleted=`echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?"`
+  bits=""
+  if [ "${renamed}" == "0" ]; then
+    bits=">${bits}"
+  fi
+  if [ "${ahead}" == "0" ]; then
+    bits="*${bits}"
+  fi
+  if [ "${newfile}" == "0" ]; then
+    bits="+${bits}"
+  fi
+  if [ "${untracked}" == "0" ]; then
+    bits="?${bits}"
+  fi
+  if [ "${deleted}" == "0" ]; then
+    bits="x${bits}"
+  fi
+  if [ "${dirty}" == "0" ]; then
+    bits="!${bits}"
+  fi
+  if [ ! "${bits}" == "" ]; then
+    echo " ${bits}"
+  else
+    echo ""
+  fi
 }
 
 function update_calibre {
@@ -465,6 +516,13 @@ match_lhs=""
   && match_lhs=$(dircolors --print-database)
 [[ $'\n'${match_lhs} == *$'\n'"TERM "${safe_term}* ]] && use_color=true
 
+function __build_prompt_command {
+  pstatus=$(nonzero_value) # cache, otherwise the error code will change to the output of next executed command
+  pbranch=$(parse_git_branch)
+
+  printf "\033[01;36m${pbranch} \e[31m${pstatus}"
+}
+
 if ${use_color} ; then
   # Enable colors for ls, etc.  Prefer $HOME/.dir_colors #64489
   if type -P dircolors >/dev/null ; then
@@ -478,8 +536,12 @@ if ${use_color} ; then
   if [[ ${EUID} == 0 ]] ; then
     PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '
   else
-      # https://stackoverflow.com/questions/35897021/why-does-a-newline-in-ps1-throw-a-syntax-error-in-git-for-windows-bash?lq=1
-      PS1='\[\033[01;32m\][ \u@\h\[\033[01;37m\] \w\[\033[01;36m\] $(parse_git_branch)\[\033[01;32m\]]'$'\[\033[00m\]\n\$ '
+    # status='`e=$? ; if [ $e = 0 ]; then echo ""; else echo $e: ; fi`'
+
+    # https://stackoverflow.com/questions/35897021/why-does-a-newline-in-ps1-throw-a-syntax-error-in-git-for-windows-bash?lq=1
+    # PS1='\[\033[01;32m\][ \u@\h\[\033[01;37m\] \w\[\033[01;36m\]$(parse_git_branch)\[\e[31m\] $(nonzero_value)\[\e[m\]\[\033[01;32m\]${SHLVL} ]'$'\[\033[00m\]\n\$ '
+      PS1='\[\033[01;32m\][ \u@\h\[\033[01;37m\] \w\[\033[01;36m\]$(__build_prompt_command)\[\e[m\]\[\033[01;32m\]${SHLVL} ]'$'\[\033[00m\]\n\$ '
+    # PS1='$(__build_prompt_command)'
   fi
 
 else
@@ -500,7 +562,8 @@ export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
 
 # get rid of annoying dark blue color on black bg on terminal
-LS_COLORS=$LS_COLORS:'di=01;33'
+# $ dircolors, dircolors -p #use these commands to know about the colors
+LS_COLORS=$LS_COLORS:'di=01;33:ow=01;37;45:so=01;37;45'
 export LS_COLORS
 
 unset use_color safe_term match_lhs sh

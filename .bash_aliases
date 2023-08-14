@@ -28,6 +28,8 @@ alias emacs='emacs & &> /dev/null'
 alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
 alias more=less
+alias navic='navi --cheatsh'
+alias m='make'
 
 #### try to prevent accidental data loss
 # alias cp='cp -i'
@@ -85,6 +87,9 @@ alias psh='pipenv shell'
 # NETWORK
 alias ipshow='ip link show'
 alias tux='sudo arpon -d -i wlp3s0 -D'
+
+# FZF
+alias of=' fd --type f --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
 
 ################################################################
 # PERSONAL ALIAS
