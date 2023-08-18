@@ -1,3 +1,4 @@
+aria2
 audacity
 bash-completion
 boost
@@ -14,8 +15,10 @@ docker
 docker-compose
 fd
 firefox
+fish
 gdb
 gnome-disk-utility
+gnu-netcat
 go
 gsmartcontrol
 handbrake
@@ -33,6 +36,7 @@ lsof
 lua
 man-db
 man-pages
+maven
 mediainfo-gui
 mercurial
 mupdf
@@ -52,18 +56,18 @@ qbittorrent
 rclone
 redshift
 ripgrep
+rtmpdump
 smartmontools
 sqlite
 strace
 tealdeer
+thefuck
 tmux
+tree-sitter-cli
 unzip
 wireshark-qt
 xclip
 xdg-utils
 xorg-xbacklight
 youtube-dl
-gnu-netcat
-maven
-fish
-tree-sitter-cli
+yt-dlp

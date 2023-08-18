@@ -25,12 +25,6 @@ fi
 # LOCAL VARIABLE
 ################################################################
 
-# ANACONDA=$HOME/anaconda3/bin
-# FLATBUFFERS=$HOME/binaries/flatbuffers
-# GNUGLOBAL=$HOME/bin/global/bin
-# CHROME=/usr/lib/chrome
-# PHANTOMJS=$HOME/Downloads/phantomjs-2.1.3/bin
-# LIVE_LATEX_PREVIEW="$HOME/.vim/bundle/vim-live-latex-preview/bin/"
 DOT_SETUP_FILE="$HOME/dotfiles/dot_setup.sh"
 TOOL_SCRIPTS="$HOME/dotfiles/tools"
 DOTFILES=$HOME/dotfiles
@@ -42,14 +36,13 @@ FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
 ################################################################
 
 #export https_proxy=""
-export EDITOR=vim
+export EDITOR=nvim
+export VISUAL=nvim
 export MYVIMRC="$HOME/.vimrc"
 export INPUTRC="$HOME/.inputrc"
 export COLUMNS
 
 # The Firefox build system and related tools store shared, persistent state in a common directory on the filesystem
-export MOZBUILD_STATE_PATH='/home/helix/repos/firefox/.mozbuild'
-export EXERCISM=$HOME/bin/exercism
 export UNICTAGS=$HOME/bin/ctags_bld
 
 export CC=clang
@@ -57,8 +50,12 @@ export CXX=clang++
 export GOPATH=${HOME}/go
 export LOCALBIN=${HOME}/.local/bin
 export LOCALNVIM=${HOME}/.local/nvim/bin
-export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$EXERCISM:$LOCALBIN:$LOCALNVIM:$PATH
+export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
+
+########################################## 
+# FZF
+########################################## 
 
 # use Fzf with 'fd'
 export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
@@ -82,10 +79,12 @@ export FZF_CTRL_R_OPTS="
 # morhetz/gruvbox
 export FZF_DEFAULT_OPTS='--color=bg+:#3c3836,bg:#32302f,spinner:#fb4934,hl:#928374,fg:#ebdbb2,header:#928374,info:#8ec07c,pointer:#fb4934,marker:#fb4934,fg+:#ebdbb2,prompt:#fb4934,hl+:#fb4934'
 
+#########################################
 ### BASH HISTORY
+#########################################
 
 # don't put duplicate lines or lines starting with space in the history.
-export HISTCONTROL=ignoreboth
+export HISTCONTROL=ignoreboth:erasedups
 
 # save last 2k commands on disk and of that load last 1k commands in memory.
 export HISTSIZE=1000
@@ -117,8 +116,8 @@ if [ -e $HOME/.bash_aliases ]; then
 fi
 
 # PROJECT SPECIFIC
-if [ -e $HOME/.workrc ]; then
-    . $HOME/.workrc
+if [ -e $HOME/.personalrc ]; then
+    . $HOME/.personalrc
 fi
 
 # git completion
@@ -130,6 +129,8 @@ fi
 ################################################################
 # CUSTOM FUNCTIONS
 ################################################################
+
+# C++
 
 function new_cpp_project {
   if [ ! ${1} ]
@@ -150,6 +151,61 @@ function new_cpp_project {
   echo " ========================   PROJECT ${1} SETUP COMPLETE.  ======================== "
 }
 
+function gpp {
+    g++ -g -O2 -Ddebug \
+        -Waggregate-return \
+        -Wall \
+        -Wcast-align \
+        -Wcast-qual \
+        -Wconversion \
+        -Wdisabled-optimization \
+        -Weffc++ \
+        -Wextra \
+        -Wfloat-equal \
+        -Wformat-nonliteral \ 
+        -Wformat-security  \
+        -Wformat-y2k \
+        -Wformat=2 \
+        -Wimport \
+        -Winit-self \
+        -Winline \
+        -Winvalid-pch   \
+        -Wlong-long \
+        -Wmisleading-indentation \ 
+        -Wmissing-braces \
+        -Wmissing-field-initializers \
+        -Wmissing-format-attribute   \
+        -Wmissing-include-dirs \
+        -Wmissing-noreturn \
+        -Wpacked  \
+        -Wpadded \ 
+        -Wparentheses \
+        -Wpointer-arith \
+        -Wredundant-decls \
+        -Wshadow \
+        -Wshadow \
+        -Wstack-protector \
+        -Wstrict-aliasing=2 \
+        -Wswitch-default \
+        -Wswitch-enum \
+        -Wuninitialized \
+        -Wunreachable-code -Wunused \
+        -Wunused-parameter \
+        -Wunused-value \
+        -Wunused-variable \
+        -Wvariadic-macros \
+        -Wwrite-strings \
+        -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize=address \
+        -pedantic  \
+        -pedantic-errors \
+        -pthread -latomic -mavx2
+        -std=c++2b \
+    $@
+}
+
+function gpe {
+    gww -Werror $@
+}
 
 function generate_new_key {
   ssh-keygen -t ed25519 -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')
@@ -185,36 +241,6 @@ function ssnap {
     if [[ $? == 0 ]]; then
         echo $@ | tr ' ' '\n' >> $DOTFILES/snaplist
     fi
-}
-
-function gww {
-    g++ -g -O -Wall -Weffc++ -pedantic  \
-        -pedantic-errors -Wextra -Waggregate-return -Wcast-align \
-        -Wcast-qual -Wconversion \
-        -Wdisabled-optimization \
-        -Wfloat-equal -Wformat=2 \
-        -Wformat-nonliteral -Wformat-security  \
-        -Wformat-y2k \
-        -Wimport  -Winit-self  -Winline \
-        -Winvalid-pch   \
-        -Wlong-long \
-        -Wmissing-field-initializers -Wmissing-format-attribute   \
-        -Wmissing-include-dirs -Wmissing-noreturn \
-        -Wpacked  -Wpadded -Wpointer-arith \
-        -Wredundant-decls \
-        -Wshadow -Wstack-protector \
-        -Wstrict-aliasing=2 -Wswitch-default \
-        -Wswitch-enum \
-        -Wunreachable-code -Wunused \
-        -Wunused-parameter \
-        -Wvariadic-macros \
-        -Wwrite-strings \
-        -std=c++2a \
-    $@
-}
-
-function gwe {
-    gww -Werror $@
 }
 
 function ftstats {
@@ -268,36 +294,35 @@ function bench {
   time $@ 1>/dev/null 2>&1
 }
 
-function gpp {
-  /usr/bin/g++ -g -Dfio -o -std=gnu++17 $1 $1.cpp
-}
 
 function grl {
-  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql} $@ 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
 }
 
 function grn {
-  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql} $@ 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
 }
 
 # ex - archive extractor
 function ex {
   if [ -f $1 ] ; then
     case $1 in
+      *.7z)                   7z x $1           ;;
+      *.bz2)                  bunzip2 -kd $1    ;;
+      *.deb)                  ar x $1           ;;
+      *.gz)                   gunzip $1         ;;
+      *.lzip)                 tar kxf --lzip $1 ;;
+      *.lzma)                 tar kxf --lzma $1 ;;
+      *.lzop)                 tar kxf --lzop $1 ;;
+      *.rar)                  unrar x $1        ;;
+      *.tar)                  tar kxf $1        ;;
       *.tar.bz2|*.tbz2|*.tb2) tar kxjf $1       ;;
       *.tar.bz|*.tbz)         tar kxjf $1       ;;
       *.tar.gz|*.tgz)         tar kxzf $1       ;;
       *.tar.xz|*.txz)         tar kxJf $1       ;;
-      *.lzip)                 tar kxf --lzip $1 ;;
-      *.lzop)                 tar kxf --lzop $1 ;;
-      *.lzma)                 tar kxf --lzma $1 ;;
-      *.tar)                  tar kxf $1        ;;
-      *.bz2)                  bunzip2 -kd $1    ;;
-      *.rar)                  unrar x $1        ;;
-      *.gz)                   gunzip $1         ;;
-      *.zip)                  unzip $1          ;;
+      *.tar.zst)              tar kxf $1        ;;
       *.Z)                    uncompress $1     ;;
-      *.7z)                   7z x $1           ;;
+      *.zip)                  unzip $1          ;;
       *)                      echo "'$1' cannot be extracted via ex()" ;;
     esac
   else
@@ -349,22 +374,23 @@ function git_ignore {
   printf '\n'
 }
 
-function dh {
-    BRANCH='HEAD'
-    if [ -n $1 ]; then
-        BRANCH=$1
-    fi
-    echo $BRANCH
-    git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
-}
-
-function diffhead {
-    BRANCH='HEAD'
-    if [ ! -n $1 ]; then
-        BRANCH=$1
-    fi
-    git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
-}
+# aliases also have this
+# function dh {
+#     BRANCH='HEAD'
+#     if [ -n $1 ]; then
+#         BRANCH=$1
+#     fi
+#     echo $BRANCH
+#     git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
+# }
+# 
+# function diffhead {
+#     BRANCH='HEAD'
+#     if [ ! -n $1 ]; then
+#         BRANCH=$1
+#     fi
+#     git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
+# }
 
 function colors {
   local fgc bgc vals seq0
@@ -393,13 +419,9 @@ function colors {
   done
 }
 
-# function parse_git_branch {
-#     git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/(\1) /'
-# }
-function nonzero_value { 
+function nonzero_error_code { 
   printf "`local e=$? ; if [ $e -ne 0 ]; then echo $e: ; else echo '' ; fi`"
 }
-
 
 # get current branch in git repo
 function parse_git_branch {
@@ -420,6 +442,7 @@ function parse_git_dirty {
   dirty=`echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?"`
   untracked=`echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?"`
   ahead=`echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?"`
+  behind=`echo -n "${status}" 2> /dev/null | grep "Your branch is behind" &> /dev/null; echo "$?"`
   newfile=`echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?"`
   renamed=`echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?"`
   deleted=`echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?"`
@@ -431,6 +454,9 @@ function parse_git_dirty {
   fi
   if [ "${ahead}" == "0" ]; then
     bits=">${bits}"
+  fi
+  if [ "${behind}" == "0" ]; then
+    bits="<${bits}"
   fi
   if [ "${newfile}" == "0" ]; then
     bits="+${bits}"
@@ -508,9 +534,10 @@ set -o noclobber
 # histverify              - expand, but don't automatically execute, history expansions
 # nocaseglob              - case insensitive globbing
 # no_empty_cmd_completion - don't TAB expand empty lines
+# cmdhist                 - save multiline commands as single line in history
 
 shopt -s expand_aliases cdspell checkjobs dirspell histappend \
-autocd direxpand histverify nocaseglob no_empty_cmd_completion
+autocd direxpand histverify nocaseglob no_empty_cmd_completion cmdhist
 
 ###################################################################
 # COLORS
@@ -543,7 +570,7 @@ match_lhs=""
 [[ $'\n'${match_lhs} == *$'\n'"TERM "${safe_term}* ]] && use_color=true
 
 function __build_prompt_command {
-  pstatus=$(nonzero_value) # cache, otherwise the error code will change to the output of next executed command
+  pstatus=$(nonzero_error_code) # cache, otherwise the error code will change to the output of next executed command
   pbranch=$(parse_git_branch)
 
   printf "\033[01;36m${pbranch} \e[31m${pstatus}"
@@ -599,3 +626,23 @@ unset use_color safe_term match_lhs sh
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+# https://github.com/nvbn/thefuck
+eval $(thefuck --alias --enable-experimental-instant-mode)
+
+# reporting tools - install when not installed
+# neofetch
+#screenfetch
+#alsi
+#paleofetch
+#fetch
+#hfetch
+#sfetch
+#ufetch
+#ufetch-arco
+#pfetch
+#sysinfo
+#sysinfo-retro
+#cpufetch
+#colorscript random
+

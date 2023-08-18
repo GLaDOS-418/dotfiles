@@ -1,5 +1,5 @@
-global
-biber
-tree
-fd
 bat
+biber
+fd
+global
+tree

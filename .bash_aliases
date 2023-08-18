@@ -9,25 +9,10 @@ alias u1='du --max-depth=1 -h'
 alias l='ls -lrt'   # ls is function declared later
 alias la='ls -lrtA' # ls is function declared later
 alias df='df -h'                          # human-readable sizes
-alias free='free -m'                      # show sizes in MB
+alias free='free -mht'                    # show sizes in MB
 alias grep='grep --colour=always'
 alias egrep='egrep --colour=always'
 alias rsync='rsync -azvhP'
-if [[ -x "$(command -v nvim)" ]]; then
-    alias v='nvim'
-else
-    alias v='vim'
-fi
-alias nv='nvim'
-#alias v='vim'
-alias uv='v +PlugInstall +UpdateRemotePlugins +qa'
-alias gv='gvim'
-alias vd='vimdiff'
-alias gvd='gvimdiff'
-alias emacs='emacs & &> /dev/null'
-alias suvim='sudo -E gvim'
-alias sv='sudo -E vim'
-alias more=less
 alias navic='navi --cheatsh'
 alias m='make'
 
@@ -45,6 +30,21 @@ alias nuke_trash='/bin/rm -r ${TRASH:?}/*'
 # EDITOR ALIAS 
 ################################################################
 
+if [[ -x "$(command -v nvim)" ]]; then
+    alias v='nvim'
+else
+    alias v='vim'
+fi
+alias nv='nvim'
+alias vim='nvim'
+alias uv='v +PlugInstall +UpdateRemotePlugins +qa'
+alias gv='gvim'
+alias vd='vimdiff'
+alias gvd='gvimdiff'
+alias emacs='emacs & &> /dev/null'
+alias suvim='sudo -E gvim'
+alias sv='sudo -E vim'
+alias more=less
 alias sb='source ~/.bashrc'
 alias vb='v ~/.bashrc'
 alias vv='v ~/.vimrc'
@@ -65,8 +65,7 @@ alias wg='wgold --compression=auto'
 
 # GIT
 alias dh='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines --diff-algorithm=histogram'
-alias diffhead='git diff --ignore-cr-at-eol --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines HEAD'
-alias sdf='git sdf'
+alias dhead='dh HEAD'
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
 alias gp='git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream'
 alias gpf='gp --force'
@@ -76,9 +75,17 @@ alias br='git branch'
 alias log='git log --oneline --no-merges HEAD~20..HEAD'
 
 # PACMAN
-alias cdp='cd /mnt/windows/projects'
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
 alias cleanpac='sudo pacman -Rns $(pacman -Qtdq)' # remove unused packages(orphans): if none found o/p :"no targets specified"
+alias unlockpac="sudo rm /var/lib/pacman/db.lck" #pacman unlock
+# fix typos
+alias udpate='sudo pacman -Syyu'
+alias upate='sudo pacman -Syyu'
+alias updte='sudo pacman -Syyu'
+alias updqte='sudo pacman -Syyu'
+alias upqll="paru -Syu --noconfirm"
+alias upal="paru -Syu --noconfirm"
+
 
 # PYTHON
 alias prp='pipenv run python'
@@ -91,10 +98,12 @@ alias tux='sudo arpon -d -i wlp3s0 -D'
 # FZF
 alias of=' fd --type f --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
 
+# YT-DLP
+
 ################################################################
-# PERSONAL ALIAS
+#fix obvious typo's
 ################################################################
 
-alias cdw='cd /mnt/windows/Users/AB/Downloads/'
-alias tv='find media/TV\ Series/ -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdf > list_tv.txt'
-alias data='cd /run/media/helix/DATA'
+alias cd..='cd ..'
+alias pdw="pwd"
+

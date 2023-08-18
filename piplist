@@ -1,7 +1,6 @@
-protonvpn-cli
+OleFileIO_PL
+conan
 install
+olefile
 protonvpn-cli
 xlrd
-OleFileIO_PL
-olefile
-conan
