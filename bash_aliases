@@ -8,13 +8,16 @@ alias u0='du --max-depth=0 -h'
 alias u1='du --max-depth=1 -h'
 alias l='ls -lrt'   # ls is function declared later
 alias la='ls -lrtA' # ls is function declared later
+alias l.='find . -maxdepth 1 -name ".*" -ls' # list dotfiles
 alias df='df -h'                          # human-readable sizes
 alias free='free -mht'                    # show sizes in MB
 alias grep='grep --colour=always'
-alias egrep='egrep --colour=always'
+alias egrep='grep -E --colour=always'
+alias fgrep='grep -F --colour=always'
 alias rsync='rsync -azvhP'
 alias navic='navi --cheatsh'
 alias m='make'
+alias links='find . -maxdepth 1 -type l -ls' # list all links in current folder
 
 #### try to prevent accidental data loss
 # alias cp='cp -i'
@@ -99,6 +102,7 @@ alias tux='sudo arpon -d -i wlp3s0 -D'
 alias of=' fd --type f --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
 
 # YT-DLP
+alias ytv-list='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 --embed-subs --continue --ignore-errors -f 43 -o "%(autonumber)s - %(title)s.%(ext)s"' 
 
 ################################################################
 #fix obvious typo's
