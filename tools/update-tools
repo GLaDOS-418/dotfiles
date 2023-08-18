@@ -19,6 +19,19 @@ popd
 
 #Misc
 
-# repo no longer contains the fatpack build. use package manager
-# curl -Ls 'https://raw.githubusercontent.com/so-fancy/diff-so-fancy/master/third_party/build_fatpack/diff-so-fancy' >| $HOME/dotfiles/tools/diff-so-fancy
+function update_diff_so_fancy
+{
+  repo_owner="so-fancy"
+  repo_name="diff-so-fancy"
+
+  latest_release_url=$(curl -s "https://api.github.com/repos/${repo_owner}/${repo_name}/releases/latest" | grep -Eo --color=never '"browser_download_url": "[^"]+"' | sed -E 's/.*"([^"]+)"/\1/' | tr -cd '[:graph:]')
+
+  dsh_path="$HOME/dotfiles/tools/diff-so-fancy"
+
+  curl -L "${latest_release_url}" -o "${dsh_path}"
+  chmod u+x ${dsh_path}
+}
+
+update_diff_so_fancy
+
 curl -Ls 'https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash' >| $HOME/dotfiles/tools/git-completion-bash.sh
