@@ -131,6 +131,26 @@ fi
 # CUSTOM FUNCTIONS
 ################################################################
 
+function new_cpp_project {
+  if [ ! ${1} ]
+  then
+    echo "project name not supplied..."
+    return
+  fi
+
+  git clone --depth 1 --single-branch --branch basic git@github.com:GLaDOS-418/cpp-project-template.git ${1}
+  cd ${1}
+  /usr/bin/rm -rf .git
+  echo "# ${1}" >| README.md
+  grep -rl --color=never 'project-name' | xargs sed -i "s/project-name/${1}/g"
+  git init
+  git add -f .
+  git commit -m "created project ${1}."
+
+  echo " ========================   PROJECT ${1} SETUP COMPLETE.  ======================== "
+}
+
+
 function generate_new_key {
   ssh-keygen -t ed25519 -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')
 }
@@ -396,18 +416,21 @@ function parse_git_branch {
 # get current status of git repo
 function parse_git_dirty {
   status=`git status 2>&1 | tee`
+
   dirty=`echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?"`
   untracked=`echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?"`
   ahead=`echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?"`
   newfile=`echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?"`
   renamed=`echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?"`
   deleted=`echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?"`
+  diverged=`echo -n "${status}" 2> /dev/null | grep "Your branch and.\+\?have diverged" &> /dev/null; echo "$?"`
+
   bits=""
   if [ "${renamed}" == "0" ]; then
-    bits=">${bits}"
+    bits="*${bits}"
   fi
   if [ "${ahead}" == "0" ]; then
-    bits="*${bits}"
+    bits=">${bits}"
   fi
   if [ "${newfile}" == "0" ]; then
     bits="+${bits}"
@@ -420,6 +443,9 @@ function parse_git_dirty {
   fi
   if [ "${dirty}" == "0" ]; then
     bits="!${bits}"
+  fi
+  if [ "${diverged}" == "0" ]; then
+    bits="Y${bits}"
   fi
   if [ ! "${bits}" == "" ]; then
     echo " ${bits}"
