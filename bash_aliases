@@ -56,6 +56,7 @@ alias va='v ~/.vim/sources/abbreviations.vim'
 alias vs='v ~/.vim/sources/statusline.vim'
 alias vp='v ~/.vim/sources/plugins.vim'
 alias vba='v ~/.bash_aliases'
+alias vbf='v ~/.bash_functions'
 alias vn='v -u NONE'
 
 ################################################################
@@ -74,7 +75,7 @@ alias gp='git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream
 alias gpf='gp --force'
 alias gl='git pull'
 alias st='git status'
-alias br='git branch'
+alias br='git branch --format="%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - %(contents:subject) %(color:green)(%(committerdate:relative)) [%(authorname)]" --sort=-committerdate'
 alias log='git log --oneline --no-merges HEAD~20..HEAD'
 
 # PACMAN

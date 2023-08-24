@@ -121,6 +121,7 @@ fi
 
 [ -f $HOME/.bashrc ] && rm $HOME/.bashrc
 [ -f $HOME/.bash_aliases ] && rm $HOME/.bash_aliases
+[ -f $HOME/.bash_aliases ] && rm $HOME/.bash_functions
 [ -f $HOME/.inputrc ] && rm $HOME/.inputrc
 [ -f $HOME/.tmux.conf ] && rm $HOME/.tmux.conf
 [ -f $HOME/.vimrc ] && rm $HOME/.vimrc
@@ -131,6 +132,7 @@ fi
 
 ln -s $PWD/bashrc $HOME/.bashrc
 ln -s $PWD/bash_aliases $HOME/.bash_aliases
+ln -s $PWD/bash_functions $HOME/.bash_functions
 ln -s $PWD/inputrc $HOME/.inputrc
 ln -s $PWD/gitconfig $HOME/.gitconfig
 ln -s $PWD/tmux.conf $HOME/.tmux.conf
