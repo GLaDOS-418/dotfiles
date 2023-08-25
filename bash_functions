@@ -357,3 +357,23 @@ function update_calibre {
   sudo -v && wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
 }
 
+
+function rman {
+  # open a random man page from one of the sections listed in 'sections' array
+  # 1 : user commands
+  # 2 : system calls
+  # 3 : library functions
+  # 4 : device files
+  # 5 : file formats
+  # 6 : games and demos
+  # 7 : miscellaneous
+  # 8 : sys admin
+  # 9 : kernel developer's manual
+
+  # random_section=$(shuf -i 1-9 -n 1) # generate a random number in [1-9]
+  local sections=("1")
+  local random_section=${sections[$RANDOM % ${#sections[@]}]}
+  
+  find "/usr/share/man/man$random_section/" -type f -prune -o -print | shuf -n 1 | sed 's/.gz$//g' | sed 's#.*/##' |  xargs man
+}
+
