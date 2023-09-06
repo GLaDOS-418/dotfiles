@@ -26,60 +26,63 @@ function new_cpp_project {
 }
 
 function gpp {
-    g++ -g -O2 -Ddebug \
-        -Waggregate-return \
-        -Wall \
-        -Wcast-align \
-        -Wcast-qual \
-        -Wconversion \
-        -Wdisabled-optimization \
-        -Weffc++ \
-        -Wextra \
-        -Wfloat-equal \
-        -Wformat-nonliteral \ 
-        -Wformat-security  \
-        -Wformat-y2k \
-        -Wformat=2 \
-        -Wimport \
-        -Winit-self \
-        -Winline \
-        -Winvalid-pch   \
-        -Wlong-long \
-        -Wmisleading-indentation \ 
-        -Wmissing-braces \
-        -Wmissing-field-initializers \
-        -Wmissing-format-attribute   \
-        -Wmissing-include-dirs \
-        -Wmissing-noreturn \
-        -Wpacked  \
-        -Wpadded \ 
-        -Wparentheses \
-        -Wpointer-arith \
-        -Wredundant-decls \
-        -Wshadow \
-        -Wshadow \
-        -Wstack-protector \
-        -Wstrict-aliasing=2 \
-        -Wswitch-default \
-        -Wswitch-enum \
-        -Wuninitialized \
-        -Wunreachable-code -Wunused \
-        -Wunused-parameter \
-        -Wunused-value \
-        -Wunused-variable \
-        -Wvariadic-macros \
-        -Wwrite-strings \
-        -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize=address \
-        -pedantic  \
-        -pedantic-errors \
-        -pthread -latomic -mavx2
-        -std=c++2b \
+  g++ \
+    -Ddebug \
+    -O2 \
+    -Waggregate-return \
+    -Wall \
+    -Wcast-align \
+    -Wcast-qual \
+    -Wconversion \
+    -Wdisabled-optimization \
+    -Weffc++ \
+    -Wextra \
+    -Wfloat-equal \
+    -Wformat-security  \
+    -Wformat-y2k \
+    -Wformat=2 \
+    -Wimport \
+    -Winit-self \
+    -Winline \
+    -Winvalid-pch   \
+    -Wlong-long \
+    -Wmissing-braces \
+    -Wmissing-field-initializers \
+    -Wmissing-format-attribute   \
+    -Wmissing-include-dirs \
+    -Wmissing-noreturn \
+    -Wpacked  \
+    -Wparentheses \
+    -Wpointer-arith \
+    -Wredundant-decls \
+    -Wshadow \
+    -Wstack-protector \
+    -Wstrict-aliasing=2 \
+    -Wswitch-default \
+    -Wswitch-enum \
+    -Wuninitialized \
+    -Wunreachable-code \
+    -Wunused \
+    -Wunused-parameter \
+    -Wunused-value \
+    -Wunused-variable \
+    -Wvariadic-macros \
+    -Wwrite-strings \
+    -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize=address \
+    -g \
+    -pedantic  \
+    -pedantic-errors \
+    -pthread -latomic -mavx2 \
+    -std=c++2b \
     $@
 }
 
 function gpe {
-    gww -Werror $@
+  gww -Werror $@
 }
+
+export -f gpp
+export -f gpe
 
 function generate_new_key {
   ssh-keygen -t ed25519 -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')

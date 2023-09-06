@@ -9,6 +9,7 @@
 	#excludesfile = C:/users/abh/.gitignore_global
         #whitespace = trailing-space,space-before-tab
 [alias]
+    try="clone --depth 1"
     co=checkout
     edit=config --global -e # edit git global config
     pr=!git pull --rebase --prune
@@ -36,6 +37,7 @@
     autopull = !git stash && git pull && git stash apply
     mtg = mergetool --gui
     pt =  !git pull origin $(git rev-parse --abbrev-ref HEAD)
+    unfuck = !git fsck && git remote prune origin && git gc # attempt to cleanup some common problems
 [system "core"]
    longpaths = true
 [diff]
@@ -102,3 +104,8 @@
 	autosetuprebase = always
 [clean]
 	requireForce = true
+[help]
+	autocorrect = prompt
+[push]
+	autoSetupRemote = true
+	default = current

@@ -125,6 +125,7 @@ fi
 [ -f $HOME/.inputrc ] && rm $HOME/.inputrc
 [ -f $HOME/.tmux.conf ] && rm $HOME/.tmux.conf
 [ -f $HOME/.vimrc ] && rm $HOME/.vimrc
+[ -f $HOME/.gvimrc ] && rm $HOME/.gvimrc
 [ -f $HOME/.gitconfig ] && rm $HOME/.gitconfig
 
 [ -d $HOME/.vim ] && rm -r $HOME/.vim
@@ -138,6 +139,7 @@ ln -s $PWD/gitconfig $HOME/.gitconfig
 ln -s $PWD/tmux.conf $HOME/.tmux.conf
 ln -s $HOME/vim/vim $HOME/.vim
 ln -s $HOME/vim/vimrc $HOME/.vimrc
+ln -s $HOME/vim/gvimrc $HOME/.gvimrc
 
 mkdir -p $HOME/.config
 ln -s $HOME/vim/nvim $HOME/.config/nvim

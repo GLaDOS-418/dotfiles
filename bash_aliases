@@ -27,7 +27,7 @@ TRASH="${HOME}/.local/share/trash/files/"
 mkdir -p ${TRASH}
 
 alias rm='mv -t "${TRASH}" --backup=numbered -- "$@"'
-alias nuke_trash='/bin/rm -r ${TRASH:?}/*'
+alias nuke_trash='/bin/rm -rf ${TRASH:?}/*'
 
 ################################################################
 # EDITOR ALIAS 

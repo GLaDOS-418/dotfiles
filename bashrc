@@ -35,6 +35,8 @@ FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
 # EXPORT
 ################################################################
 
+export SHELL=/bin/bash
+
 #export https_proxy=""
 export EDITOR=nvim
 export VISUAL=nvim
