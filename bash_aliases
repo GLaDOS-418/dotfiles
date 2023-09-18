@@ -111,4 +111,6 @@ alias ytv-list='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-20
 
 alias cd..='cd ..'
 alias pdw="pwd"
+alias gti='git'
+alias sl='ls'
 
