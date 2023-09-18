@@ -4,7 +4,7 @@
 [core]
 	autocrlf = false
 	filemode = false
-	editor = nvim
+	editor = nvim -u NONE
 	pager = diff-so-fancy | less --tabs=4 -RFX
 	#excludesfile = C:/users/abh/.gitignore_global
         #whitespace = trailing-space,space-before-tab

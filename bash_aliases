@@ -18,6 +18,7 @@ alias rsync='rsync -azvhP'
 alias navic='navi --cheatsh'
 alias m='make'
 alias links='find . -maxdepth 1 -type l -ls' # list all links in current folder
+alias c='clear' # can't use <C-l> as it's required for vim-tmux navigation
 
 #### try to prevent accidental data loss
 # alias cp='cp -i'
