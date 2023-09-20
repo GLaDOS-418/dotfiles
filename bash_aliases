@@ -48,7 +48,7 @@ alias gvd='gvimdiff'
 alias emacs='emacs & &> /dev/null'
 alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
-alias more=less
+alias more='less'
 alias sb='source ~/.bashrc'
 alias vb='v ~/.bashrc'
 alias vv='v ~/.vimrc'
@@ -110,7 +110,7 @@ alias ytv-list='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-20
 #fix obvious typo's
 ################################################################
 
-alias cd..='cd ..'
+# alias cd..='cd ..'
 alias pdw="pwd"
 alias gti='git'
 alias sl='ls'
