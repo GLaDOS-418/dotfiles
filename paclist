@@ -70,3 +70,5 @@ xclip
 xdg-utils
 xorg-xbacklight
 yt-dlp
+fuse2
+postgresql
