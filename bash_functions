@@ -380,3 +380,6 @@ function rman {
   find "/usr/share/man/man$random_section/" -type f -prune -o -print | shuf -n 1 | sed 's/.gz$//g' | sed 's#.*/##' |  xargs man
 }
 
+function update_rust {
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+}

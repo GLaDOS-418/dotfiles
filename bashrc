@@ -30,6 +30,7 @@ TOOL_SCRIPTS="$HOME/dotfiles/tools"
 DOTFILES=$HOME/dotfiles
 SAVE_CMD="python3 $HOME/dotfiles/save_command.py"
 FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
+BOB_NVIM="$HOME/.local/share/bob/nvim-bin"
 
 ################################################################
 # EXPORT
@@ -52,7 +53,7 @@ export CXX=clang++
 export GOPATH=${HOME}/go
 export LOCALBIN=${HOME}/.local/bin
 export LOCALNVIM=${HOME}/.local/nvim/bin
-export PATH=$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
+export PATH=$BOB_NVIM:$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
 ########################################## 
