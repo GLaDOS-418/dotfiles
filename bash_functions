@@ -126,12 +126,12 @@ function ftstats {
     # hidden files and folders are excluded
 
     dir="${1:-.}"
-    
+
     if [ ! -d "$dir" ]; then
         echo "directory '$dir' does not exist."
         return
     fi
-    
+
     find "$dir" -type f -not -path '*/\.*' | sed -E 's/.*\././' | sort -r | uniq -c
 }
 
@@ -242,11 +242,11 @@ function git {
   fi
 }
 
-function git_ignore { 
+function git_ignore {
   # Usage : generates .gitignore file for languages, IDEs and Operating Systems
   # $ git_ignore vim c++ linux
   # End of https://www.gitignore.io/api/vim,c++,linux
-  curl -Ls  "http://www.gitignore.io/api/$(IFS=, ; echo "$*")"; 
+  curl -Ls  "http://www.gitignore.io/api/$(IFS=, ; echo "$*")";
   printf '\n'
 }
 
@@ -259,7 +259,7 @@ function git_ignore {
 #     echo $BRANCH
 #     git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines $BRANCH
 # }
-# 
+#
 # function diffhead {
 #     BRANCH='HEAD'
 #     if [ ! -n $1 ]; then
@@ -295,7 +295,7 @@ function colors {
   done
 }
 
-function nonzero_error_code { 
+function nonzero_error_code {
   printf "`local e=$? ; if [ $e -ne 0 ]; then echo $e: ; else echo '' ; fi`"
 }
 
@@ -376,10 +376,67 @@ function rman {
   # random_section=$(shuf -i 1-9 -n 1) # generate a random number in [1-9]
   local sections=("1")
   local random_section=${sections[$RANDOM % ${#sections[@]}]}
-  
+
   find "/usr/share/man/man$random_section/" -type f -prune -o -print | shuf -n 1 | sed 's/.gz$//g' | sed 's#.*/##' |  xargs man
 }
 
 function update_rust {
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 }
+
+
+function nerd_font_install {
+  # Example usage:
+  # nerd_font_install "FiraCode" "Hack"
+  # nerd_font_install "default"
+  local fonts_dir="$HOME/.local/share/fonts"
+  local default_fonts=("SourceCodePro" "IBMPlexMono" "FiraCode" "CascadiaCode" "IntelOneMono")
+
+  # Check if no parameters are passed
+  if [ $# -eq 0 ]; then
+    echo "Error: No font names provided."
+    return 1
+  fi
+
+  for font_name in "$@"; do
+    if [ "${font_name}" == "default" ]; then
+      local fonts=("${default_fonts[@]}")
+    else
+      local fonts=("${font_name}")
+    fi
+
+    for font in "${fonts[@]}"; do
+      local font_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${font}.zip"
+      local font_zip="${font}.zip"
+
+        echo "Downloading ${font}..."
+        # Download the font
+        wget -q -O "${font_zip}" "${font_url}"
+
+        # Check if the download was successful
+        if [ $? -eq 0 ]; then
+          # Create the fonts directory if it doesn't exist
+          mkdir -p "${fonts_dir}"
+
+          echo "Installing ${font}..."
+          # Unzip and install the font
+          unzip -q -o "${font_zip}" -d "${fonts_dir}"
+
+          # Remove the downloaded zip file
+          rm "${font_zip}"
+
+          echo "Completed installation of ${font}."
+        else
+          echo "Error: Failed to download Nerd Font: ${font}"
+        fi
+    done
+  done
+
+  # Update user's font cache (no elevated permissions needed)
+  fc-cache -fv "${fonts_dir}"
+}
+
+function install_clang {
+  sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+}
+

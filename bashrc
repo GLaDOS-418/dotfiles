@@ -290,10 +290,6 @@ unset use_color safe_term match_lhs sh
 
 . "$HOME/.cargo/env"
 
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
 # https://github.com/nvbn/thefuck
 eval $(thefuck --alias --enable-experimental-instant-mode)
 

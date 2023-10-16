@@ -78,6 +78,8 @@ alias gl='git pull'
 alias st='git status'
 alias br='git branch --format="%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - %(contents:subject) %(color:green)(%(committerdate:relative)) [%(authorname)]" --sort=-committerdate'
 alias log='git log --oneline --no-merges HEAD~20..HEAD'
+alias gap='git add -p'
+alias gcp='git checkout -p'
 
 # PACMAN
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
@@ -95,6 +97,7 @@ alias upal="paru -Syu --noconfirm"
 # PYTHON
 alias prp='pipenv run python'
 alias psh='pipenv shell'
+alias pycalc='python3 -ic "from __future__ import division; from math import *"'
 
 # NETWORK
 alias ipshow='ip link show'
@@ -113,5 +116,6 @@ alias ytv-list='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-20
 # alias cd..='cd ..'
 alias pdw="pwd"
 alias gti='git'
+alias gi='git'
 alias sl='ls'
 
