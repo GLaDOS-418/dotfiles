@@ -56,15 +56,15 @@ export LOCALNVIM=${HOME}/.local/nvim/bin
 export PATH=$BOB_NVIM:$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
-########################################## 
+##########################################
 # FZF
-########################################## 
+##########################################
 
 # use Fzf with 'fd'
 export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
 #export FZF_DEFAULT_COMMAND="fd . $HOME"
 export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-export FZF_ALT_C_COMMAND="fd -t d . $HOME"
+export FZF_ALT_C_COMMAND="fd -L -t d . $HOME"
 # Preview file content using bat (https://github.com/sharkdp/bat)
 export FZF_CTRL_T_OPTS="
   --preview 'bat -n --color=always {}'
@@ -130,6 +130,11 @@ git_completion=$HOME/dotfiles/tools/git-completion-bash.sh
 if [ -e  ${git_completion} ]; then
     . ${git_completion}
 fi
+
+##############################################
+#  quote
+##############################################
+curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
 
 ################################################################
 ##  CONFIG

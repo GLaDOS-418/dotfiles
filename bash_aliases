@@ -1,7 +1,7 @@
 #!/bin/env bash
 
 ################################################################
-# SHELL ALIAS 
+# SHELL ALIAS
 ################################################################
 
 alias u0='du --max-depth=0 -h'
@@ -31,7 +31,7 @@ alias rm='mv -t "${TRASH}" --backup=numbered -- "$@"'
 alias nuke_trash='/bin/rm -rf ${TRASH:?}/*'
 
 ################################################################
-# EDITOR ALIAS 
+# EDITOR ALIAS
 ################################################################
 
 if [[ -x "$(command -v nvim)" ]]; then
@@ -61,7 +61,7 @@ alias vbf='v ~/.bash_functions'
 alias vn='v -u NONE'
 
 ################################################################
-# TOOL ALIAS 
+# TOOL ALIAS
 ################################################################
 
 # WGET
@@ -104,10 +104,11 @@ alias ipshow='ip link show'
 alias tux='sudo arpon -d -i wlp3s0 -D'
 
 # FZF
-alias of=' fd --type f --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
+alias of=' fd --follow -j4 --type f --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
+alias od=' fd --follow -j4 --type d --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
 
 # YT-DLP
-alias ytv-list='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 --embed-subs --continue --ignore-errors -f 43 -o "%(autonumber)s - %(title)s.%(ext)s"' 
+alias ytv-list='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 --embed-subs --continue --ignore-errors -f 43 -o "%(autonumber)s - %(title)s.%(ext)s"'
 
 ################################################################
 #fix obvious typo's

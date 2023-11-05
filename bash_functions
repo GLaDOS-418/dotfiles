@@ -440,3 +440,22 @@ function install_clang {
   sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 }
 
+function split_video {
+ if [ $# -ne 1 ]; then
+        echo "Usage: split_video <input_video>"
+        echo "Example: split_video video.mp4"
+        return 1
+    fi
+
+    input_file="$1"
+    file_extension="${input_file##*.}"
+    base_name="${input_file%.*}"
+
+    if [ ! -f "${input_file}" ]; then
+        echo "Input file '$input_file' not found."
+        return 1
+    fi
+
+  mkdir -p split
+  ffmpeg -i ${input_file} -reset_timestamps 1 -c copy -map 0 -segment_time 00:14:30 -f segment ./split/${base_name}_%03d.${file_extension}
+}
