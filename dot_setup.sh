@@ -25,7 +25,7 @@ if [ -x "$(command -v pacman)" ]; then
   sudo -i pacman -Syu
   sudo -i pacman --needed --noconfirm -Sy openssh git
 elif [ -x "$(command -v apt)" ]; then
- sudo apt install -y openssh git
+ sudo apt install -y openssh-server openssh-client git
 fi
 
 # crontab entries
@@ -95,17 +95,30 @@ if [ -x "$(command -v pacman)" ]; then
     cat yaylist | tr '\n' ' ' | xargs sudo -i pacman --needed --noconfirm -Sy
   fi
 elif [ -x "$(command -v apt)" ]; then
-  cat paclist | tr '\n' ' ' | xargs sudo -i apt -y
-  cat yaylist | tr '\n' ' ' | xargs sudo -i apt -y
+  cat wsl-ubuntu | xargs echo | xargs sudo DEBIAN_FRONTEND=noninteractive apt install -y
 else
   echo "package manager not installed..."
 fi
 
-if [[ ! -d $HOME/.local/share/fonts ]]; then
-  mkdir -p $HOME/.local/share/fonts
-fi
+# use a nerd fonts patch later
+# if [[ ! -d $HOME/.local/share/fonts ]]; then
+#   mkdir -p $HOME/.local/share/fonts
+# fi
 
-cp -r $HOME/vim/fonts/* $HOME/.local/share/fonts/
+# cp -r $HOME/vim/fonts/* $HOME/.local/share/fonts/
+
+# install languages (golang, rust, clang)
+# node, python, java, gcc, lua : installed via package managers
+sh install-languages.sh
+
+# install binaries from cargo
+sh rust-tools.sh
+
+# install binaries from npm
+sh npm-tools.sh
+
+# install packages using pipx (a wrapper for pip+venv)
+sh python-tools.sh
 
 if [[ -e $HOME/.vimrc ]]; then
   rm $HOME/.vimrc
@@ -147,12 +160,12 @@ ln -s $HOME/vim/nvim $HOME/.config/nvim
 source $HOME/.bashrc
 
 #do this after package install to avoid ycm build errors
+#bob installed via rust-tools.sh script
+bob use nightly
 nvim +PlugInstall +qall
 
-# install packages not from pacman
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
 # enable snapd -- snaplist
+# TODO: handle snapd for WSL2-ubuntu
 sudo systemctl enable --now snapd.socket
 sudo ln -s /var/lib/snapd/snap /snap
 cat snaplist | xargs sudo -i snap install
@@ -162,8 +175,8 @@ cat snaplist | xargs sudo -i snap install
 # Language server tool ( firefox addon )
 curl https://languagetool.org/download/LanguageTool-stable.zip && ex LanguageTool-stable.zip
 
-#Joplin
-wget -O - https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash
+# Joplin (not uusing anymore --> obsidian)
+# wget -O - https://raw.githubusercontent.com/laurent22/joplin/dev/Joplin_install_and_update.sh | bash
 
 # fzf
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
