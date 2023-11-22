@@ -89,7 +89,8 @@ function generate_new_key {
 }
 
 function fzfupdate {
-    cd ~/.fzf && git pull && ./install
+    mkdir -p ${HOME}/.fzf
+    cd ${HOME}/.fzf && git pull && ./install
 }
 
 function spac {
