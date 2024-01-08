@@ -7,8 +7,10 @@ fuse2fs
 fzf
 gdb
 jq
+linux-tools-common
 lsof
 lua5.4
+luarocks
 man-db
 manpages
 manpages-dev

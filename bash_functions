@@ -26,7 +26,7 @@ function new_cpp_project {
 }
 
 function gpp {
-  g++ \
+  clang++-17 \
     -Ddebug \
     -O2 \
     -Waggregate-return \

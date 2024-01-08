@@ -43,6 +43,7 @@ export SHELL=/bin/bash
 export EDITOR=nvim
 export VISUAL=nvim
 export MYVIMRC="$HOME/.vimrc"
+export XDG_CONFIG_HOME=${HOME}/.config
 export INPUTRC="$HOME/.inputrc"
 export COLUMNS
 

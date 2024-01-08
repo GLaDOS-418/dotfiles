@@ -1,10 +1,10 @@
 [user]
-    name  = GLaDOS-418 
+    name  = GLaDOS-418
     email = arnobbhanja@live.com
 [core]
 	autocrlf = false
 	filemode = false
-	editor = nvim -u NONE
+	editor = nvim
 	pager = diff-so-fancy | less --tabs=4 -RFX
 	#excludesfile = C:/users/abh/.gitignore_global
         #whitespace = trailing-space,space-before-tab
@@ -66,12 +66,12 @@
         status = always
         advice = always
         branch = always
-        diff = always 
+        diff = always
         grep = always
         interactive = always
         pager = true
         push = always
-        remote = always 
+        remote = always
         showBranch = always
         transport = always
 [color "diff-highlight"]

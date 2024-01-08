@@ -30,6 +30,9 @@ mkdir -p ${TRASH}
 alias rm='mv -t "${TRASH}" --backup=numbered -- "$@"'
 alias nuke_trash='/bin/rm -rf ${TRASH:?}/*'
 
+# cleanup shortcut
+alias rout='rm *.out'
+
 ################################################################
 # EDITOR ALIAS
 ################################################################
