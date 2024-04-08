@@ -1,8 +1,6 @@
-[user]
-    name  = GLaDOS-418
-    email = arnobbhanja@live.com
+# name, email and autocrlf should be project specific
+
 [core]
-	autocrlf = false
 	filemode = false
 	editor = nvim
 	pager = diff-so-fancy | less --tabs=4 -RFX

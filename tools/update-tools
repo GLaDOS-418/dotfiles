@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function update_ctags {
-  ./install_universal_ctags.sh
+  ./install-universal-ctags.sh
 }
 
 # all commands from 'dotfiles' folder...
@@ -34,4 +34,17 @@ function update_diff_so_fancy
 
 update_diff_so_fancy
 
+function update_neovim {
+  pushd $HOME/dotfiles
+  git clone --depth=1 https://github.com/neovim/neovim
+  pushd neovim && make CMAKE_BUILD_TYPE=RelWithDebInfo
+  sudo make install
+  popd
+  /bin/rm -r neovim
+  popd
+}
+
+update_neovim
+
 curl -Ls 'https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash' >| $HOME/dotfiles/tools/git-completion-bash.sh
+

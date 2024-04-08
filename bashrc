@@ -50,10 +50,10 @@ export COLUMNS
 # The Firefox build system and related tools store shared, persistent state in a common directory on the filesystem
 export UNICTAGS=$HOME/bin/ctags_bld
 
-export CC=clang-17
-export CXX=clang++-17
-alias clang='clang-17'
-alias clang++='clang++-17'
+export CC=gcc
+export CXX=g++
+alias clang='clang'
+alias clang++='clang++'
 
 export GOPATH=${HOME}/go
 export LOCALBIN=${HOME}/.local/bin

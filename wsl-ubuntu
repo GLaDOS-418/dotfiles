@@ -19,9 +19,6 @@ manpages-posix-dev
 maven
 mysql-server
 netcat-openbsd
-openjdk-21-dbg
-openjdk-21-jdk
-openjdk-21-jre
 openssl
 pipx
 postgresql

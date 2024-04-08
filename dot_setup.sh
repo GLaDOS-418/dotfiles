@@ -5,18 +5,18 @@
 if  grep -q '#en_US.UTF-8 UTF-8' '/etc/locale.gen'
 then
   sudo sed -i 's/#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen
-  echo "locale value activated in /etc/locale.gen" 
+  echo "locale value activated in /etc/locale.gen"
   sudo locale-gen
-  echo "reboot...." 
+  echo "reboot...."
   exit
 elif grep -q '^en_US.UTF-8 UTF-8' '/etc/locale.gen'
 then
-  echo "locale value already active in /etc/locale.gen" 
+  echo "locale value already active in /etc/locale.gen"
 else
   sudo echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
-  echo "locale value added in /etc/locale.gen" 
+  echo "locale value added in /etc/locale.gen"
   sudo locale-gen
-  echo "reboot...." 
+  echo "reboot...."
   exit
 fi
 
@@ -26,6 +26,8 @@ if [ -x "$(command -v pacman)" ]; then
   sudo -i pacman --needed --noconfirm -Sy openssh git
 elif [ -x "$(command -v apt)" ]; then
  sudo apt install -y openssh-server openssh-client git
+elif [ -x "$(command -v dnf)" ]; then
+  sudo dnf install openssh-server openssh git -y
 fi
 
 # crontab entries
@@ -45,7 +47,7 @@ then
     if [[ -e $HOME/.ssh ]]; then
       rm -rf $HOME/.ssh
     fi
-    
+
     cat /dev/zero | ssh-keygen -t ed25519 -q -N "" -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')
 
     printf '\n\n === NEW KEY GENERATED ===\n\n'
@@ -57,10 +59,10 @@ cat $HOME/.ssh/id_ed25519.pub
 printf '\n\n'
 read -p "press 'enter'..." enter
 
-# printf '\nenter github username: ' 
+# printf '\nenter github username: '
 # read -p
 # read -sp "enter github pass: " pass
-# 
+#
 # curl -u "${user}:${pass}" --data "{ \"key\": \"$(cat ~/.ssh/id_rsa.pub)\"}" https://api.github.com/user/keys
 
 ssh-keyscan github.com >> ~/.ssh/known_hosts
@@ -96,6 +98,8 @@ if [ -x "$(command -v pacman)" ]; then
   fi
 elif [ -x "$(command -v apt)" ]; then
   cat wsl-ubuntu | xargs echo | xargs sudo DEBIAN_FRONTEND=noninteractive apt install -y
+elif [ -x "$(command -v dnf)" ]; then
+  cat wsl-oracle | tr '\n' ' ' | xargs sudo dnf install -y
 else
   echo "package manager not installed..."
 fi
@@ -112,13 +116,16 @@ fi
 sh install-languages.sh
 
 # install binaries from cargo
-sh rust-tools.sh
+chmod +x install-rust-tools.sh
+./install-rust-tools.sh
 
 # install binaries from npm
-sh npm-tools.sh
+chmod +x install-npm-tools.sh
+./install-npm-tools.sh
 
 # install packages using pipx (a wrapper for pip+venv)
-sh python-tools.sh
+chmod +x install-python-tools.sh
+./install-python-tools.sh
 
 if [[ -e $HOME/.vimrc ]]; then
   rm $HOME/.vimrc
@@ -148,11 +155,13 @@ ln -s $PWD/bashrc $HOME/.bashrc
 ln -s $PWD/bash_aliases $HOME/.bash_aliases
 ln -s $PWD/bash_functions $HOME/.bash_functions
 ln -s $PWD/inputrc $HOME/.inputrc
-ln -s $PWD/gitconfig $HOME/.gitconfig
 ln -s $PWD/tmux.conf $HOME/.tmux.conf
 ln -s $HOME/vim/vim $HOME/.vim
 ln -s $HOME/vim/vimrc $HOME/.vimrc
 ln -s $HOME/vim/gvimrc $HOME/.gvimrc
+
+ln -s $PWD/gitconfig $HOME/.gitconfig
+git config --global include.path $PWD/gitconfig-shared
 
 mkdir -p $HOME/.config
 ln -s $HOME/vim/nvim $HOME/.config/nvim
