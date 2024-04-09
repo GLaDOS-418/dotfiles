@@ -10,4 +10,10 @@ ln -s $HOME/dotfiles/bash_functions   $HOME/.bash_functions
 ln -s $HOME/dotfiles/inputrc          $HOME/.inputrc
 ln -s $HOME/dotfiles/gitconfig        $HOME/.gitconfig
 ln -s $HOME/dotfiles/tmux.conf        $HOME/.tmux.conf
+ln -s $HOME/dotfiles/languagerc       $HOME/.languagerc
 ```
+
+**NOTE**: for more details follow `dot_setup.sh`.
+
+
+**TODO**: explore [GNU Stow](https://www.gnu.org/software/stow/)

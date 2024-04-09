@@ -20,18 +20,28 @@ if  which tmux > /dev/null 2>&1  &&  [ -z "$TMUX" ]; then
         tmux attach-session -t "$ID" # if available attach to it
     fi
 fi
-
+ 
 ################################################################
 # LOCAL VARIABLE
 ################################################################
 
-DOT_SETUP_FILE="$HOME/dotfiles/dot_setup.sh"
+DOTFILES=${HOME}/dotfiles
+DOT_SETUP_FILE="${DOTFILES}/dot_setup.sh"
+
+DOTBASE=${DOTFILES}/dotbase
+DOTSCRIPTS=${DOTFILES}/dotscripts
+DOTINSTALL=${DOTFILES}/dotinstall
+DOTRC=${DOTFILES}/dotrc
+
+VIM=${HOME}/vim
 TOOL_SCRIPTS="$HOME/dotfiles/tools"
-DOTFILES=$HOME/dotfiles
-SAVE_CMD="python3 $HOME/dotfiles/save_command.py"
 FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
 BOB_NVIM="$HOME/.local/share/bob/nvim-bin"
 GOBIN="/usr/local/go/bin"
+SNAP="/snap/bin/hugo"
+
+# wsl update keeps changing the the version prefix
+PERF="$(echo /usr/lib/linux-tools/*-generic)"
 
 ################################################################
 # EXPORT
@@ -60,8 +70,14 @@ export LOCALBIN=${HOME}/.local/bin
 export LOCALNVIM=${HOME}/.local/nvim/bin
 export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
 export PATH=$BOB_NVIM:$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
-export PATH=${JAVA_HOME}/bin:${GOBIN}:$PATH
+export PATH=${JAVA_HOME}/bin:${GOBIN}:${PERF}:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
+
+
+## INSTALL MANAUAL BINARIES IN ~/thirdparty/*
+for d in $HOME/thirdparty/*/; do
+    PATH+=":$d"
+done
 
 ##########################################
 # FZF
@@ -117,23 +133,17 @@ fi
 unalias -a
 
 # You may want to put all your additions into a separate file like
-# $HOME/.bash_aliases, instead of adding them here directly.
+# $DOTRC/bash_aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
-if [ -e $HOME/.bash_aliases ]; then
-  . $HOME/.bash_aliases
-fi
+for f in ${DOTRC}/*; do [ -f "$f" ] && . "$f"; done
 
-if [ -e $HOME/.bash_functions ]; then
-  . $HOME/.bash_functions
-fi
-
-if [ -e $HOME/.personalrc ]; then
-    . $HOME/.personalrc
-fi
+# if [ -e $HOME/.bash_aliases ]; then
+#   . $HOME/.bash_aliases
+# fi
 
 # git completion
-git_completion=$HOME/dotfiles/tools/git-completion-bash.sh
+git_completion=${DOTFILES}/tools/git-completion-bash.sh
 if [ -e  ${git_completion} ]; then
     . ${git_completion}
 fi
@@ -321,3 +331,7 @@ eval $(thefuck --alias --enable-experimental-instant-mode)
 #cpufetch
 #colorscript random
 
+
+#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
+export SDKMAN_DIR="$HOME/.sdkman"
+[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"

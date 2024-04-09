@@ -1,7 +1,7 @@
 #!/bin/env bash
 
 ################################################################
-# CUSTOM FUNCTIONS
+# CODE MANAGEMENT
 ################################################################
 
 # C++
@@ -26,10 +26,9 @@ function new_cpp_project {
 }
 
 function gpp {
-  clang++-17 \
+  g++ \
     -Ddebug \
-    -O2 \
-    -Waggregate-return \
+    -O3 \
     -Wall \
     -Wcast-align \
     -Wcast-qual \
@@ -68,57 +67,105 @@ function gpp {
     -Wunused-variable \
     -Wvariadic-macros \
     -Wwrite-strings \
-    -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined -fsanitize=address \
-    -g \
+    -fsanitize=pointer-compare -fsanitize=pointer-subtract \
+    -fsanitize=undefined -fsanitize=address \
     -pedantic  \
     -pedantic-errors \
     -pthread -latomic -mavx2 \
     -std=c++2b \
     $@
+    # -Waggregate-return \  # https://stackoverflow.com/questions/14016993/confusion-in-regards-to-purpose-behavior-of-waggregate-return
+}
+
+function gpd {
+  gpp -g $@
 }
 
 function gpe {
-  gww -Werror $@
+  gpd -Werror $@ 
 }
 
 export -f gpp
+export -f gpd
 export -f gpe
+
+
+function install_clang {
+  sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+}
+
+function split_video {
+ if [ $# -ne 1 ]; then
+        echo "Usage: split_video <input_video>"
+        echo "Example: split_video video.mp4"
+        return 1
+    fi
+
+    input_file="$1"
+    file_extension="${input_file##*.}"
+    base_name="${input_file%.*}"
+
+    if [ ! -f "${input_file}" ]; then
+        echo "Input file '$input_file' not found."
+        return 1
+    fi
+
+  mkdir -p split
+  ffmpeg -i ${input_file} -reset_timestamps 1 -c copy -map 0 -segment_time 00:14:30 -f segment ./split/${base_name}_%03d.${file_extension}
+}
+
+
+function snip {
+  # $ snip cpp
+  cp ${HOME}/code/friendly-snippets/snippets/${1}/${1}.json ${HOME}/.vim/plugged/friendly-snippets/snippets/${1}/${1}.json
+}
+
+function cpp_flags {
+  echo '-std=c++23' >| compile_flags.txt
+}
+
+# Rust
+#
+function update_rust {
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+}
+
+# Linux
+#
+function rman {
+  # open a random man page from one of the sections listed in 'sections' array
+  # 1 : user commands
+  # 2 : system calls
+  # 3 : library functions
+  # 4 : device files
+  # 5 : file formats
+  # 6 : games and demos
+  # 7 : miscellaneous
+  # 8 : sys admin
+  # 9 : kernel developer's manual
+
+  # random_section=$(shuf -i 1-9 -n 1) # generate a random number in [1-9]
+  local sections=("1")
+  local random_section=${sections[$RANDOM % ${#sections[@]}]}
+
+  find "/usr/share/man/man$random_section/" -type f -prune -o -print | shuf -n 1 | sed 's/.gz$//g' | sed 's#.*/##' |  xargs man
+}
+
+#########################################
+# UTILITIES
+#########################################
+
+
+# ssh key generation
 
 function generate_new_key {
   ssh-keygen -t ed25519 -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')
 }
 
+# fzf
 function fzfupdate {
     mkdir -p ${HOME}/.fzf
     cd ${HOME}/.fzf && git pull && ./install
-}
-
-function spac {
-    sudo -i pacman -Sy $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/paclist
-    fi
-}
-
-function syay {
-    yay -Sy $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/yaylist
-    fi
-}
-
-function spip {
-    pip3 install $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/piplist
-    fi
-}
-
-function ssnap {
-    sudo -i snap install $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/snaplist
-    fi
 }
 
 function ftstats {
@@ -144,7 +191,7 @@ function ls {
     command ls -FhvC --color=always --author --time-style=long-iso "$@" | less -RXF
 }
 
-function lstcmd {
+function setup {
   fc -ln "$1" "$1" | sed '1s/^[[:space:]]*//' | xargs echo >> $DOT_SETUP_FILE
 }
 
@@ -362,29 +409,6 @@ function update_calibre {
 }
 
 
-function rman {
-  # open a random man page from one of the sections listed in 'sections' array
-  # 1 : user commands
-  # 2 : system calls
-  # 3 : library functions
-  # 4 : device files
-  # 5 : file formats
-  # 6 : games and demos
-  # 7 : miscellaneous
-  # 8 : sys admin
-  # 9 : kernel developer's manual
-
-  # random_section=$(shuf -i 1-9 -n 1) # generate a random number in [1-9]
-  local sections=("1")
-  local random_section=${sections[$RANDOM % ${#sections[@]}]}
-
-  find "/usr/share/man/man$random_section/" -type f -prune -o -print | shuf -n 1 | sed 's/.gz$//g' | sed 's#.*/##' |  xargs man
-}
-
-function update_rust {
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-}
-
 
 function nerd_font_install {
   # Example usage:
@@ -437,26 +461,44 @@ function nerd_font_install {
   fc-cache -fv "${fonts_dir}"
 }
 
-function install_clang {
-  sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+rcopen() {
+  [ -z ${1} ] && ls -l ${DOTRC} && return 0;
+  nvim $DOTRC/$1 
 }
 
-function split_video {
- if [ $# -ne 1 ]; then
-        echo "Usage: split_video <input_video>"
-        echo "Example: split_video video.mp4"
-        return 1
+rclang() {
+  [ -z $1 ] && ls -l ${DOTRC}/languages && return 0
+  nvim ${DOTRC}/languages/${1}
+}
+
+#########################################
+# PACKAGE MANAGERS
+#########################################
+
+function spac {
+    sudo -i pacman -Sy $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/paclist
     fi
+}
 
-    input_file="$1"
-    file_extension="${input_file##*.}"
-    base_name="${input_file%.*}"
-
-    if [ ! -f "${input_file}" ]; then
-        echo "Input file '$input_file' not found."
-        return 1
+function syay {
+    yay -Sy $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/yaylist
     fi
+}
 
-  mkdir -p split
-  ffmpeg -i ${input_file} -reset_timestamps 1 -c copy -map 0 -segment_time 00:14:30 -f segment ./split/${base_name}_%03d.${file_extension}
+function spip {
+    pip3 install $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/piplist
+    fi
+}
+
+function ssnap {
+    sudo -i snap install $@
+    if [[ $? == 0 ]]; then
+        echo $@ | tr ' ' '\n' >> $DOTFILES/snaplist
+    fi
 }

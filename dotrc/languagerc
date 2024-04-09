@@ -1,0 +1,91 @@
+#! /bin/bash
+
+######################
+# UTILITY
+######################
+supported=("cpp" "rust" "go" "java")
+
+function install_language {
+  if [[ ! " ${supported[@]} " =~ " ${1} " ]]; then
+    echo "${1} is not supported."
+    echo "supported languages are: ${supported[@]}"
+    return 1
+  fi
+
+  if check_${1} ; then
+    echo "${1} not found. installing ${1}..."
+    install_${1}
+    echo "${1} instalation completed."
+  else
+    echo "${1} is already installed. skipping installation."
+  fi
+}
+
+
+install_all() {
+  for lang in $$supported[@]} ; do
+    install_language ${lang}
+  done
+}
+
+######################
+# RUST 
+######################
+function check_rust {
+   ! command -v rustc &> /dev/null
+}
+
+function install_rust {
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain beta --profile default
+    source "$HOME/.cargo/env"
+}
+
+
+######################
+# CLANG C/C++
+######################
+#
+check_cpp() {
+   ! command -v clang &> /dev/null
+}
+
+install_cpp() {
+    curl -s -L https://apt.llvm.org/llvm.sh | sudo sh
+}
+
+
+######################
+# GOLANG
+######################
+#
+check_go() {
+   ! command -v go &> /dev/null
+}
+install_go() {
+    VERSION=$(curl -s -L https://golang.org/VERSION?m=text | head -n1)
+    sudo rm -rf /usr/local/go || true
+
+    ARCHIVE_NAME="${VERSION}.linux-amd64.tar.gz"
+    wget "https://go.dev/dl/${ARCHIVE_NAME}"
+    sudo tar -C /usr/local -xzf "${ARCHIVE_NAME}"
+    rm "${ARCHIVE_NAME}"
+}
+
+######################
+# JAVA 
+######################
+install_sdkman() {
+  if ! command -v sdk ; then
+    curl -s "https://get.sdkman.io" | bash
+    source "${HOME}/.sdkman/bin/sdkman-init.sh"
+  fi
+}
+
+check_java(){
+  ! command -v javac &> /dev/null
+}
+
+install_java() {
+    install_sdkman
+    sdk install java
+}

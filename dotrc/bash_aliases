@@ -32,6 +32,7 @@ alias nuke_trash='/bin/rm -rf ${TRASH:?}/*'
 
 # cleanup shortcut
 alias rout='rm *.out'
+alias git='/usr/bin/git'
 
 ################################################################
 # EDITOR ALIAS
@@ -53,14 +54,14 @@ alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
 alias more='less'
 alias sb='source ~/.bashrc'
-alias vb='v ~/.bashrc'
 alias vv='v ~/.vimrc'
 alias vc='v ~/.vim/sources/custom_functions.vim'
 alias va='v ~/.vim/sources/abbreviations.vim'
 alias vs='v ~/.vim/sources/statusline.vim'
 alias vp='v ~/.vim/sources/plugins.vim'
-alias vba='v ~/.bash_aliases'
-alias vbf='v ~/.bash_functions'
+alias vb="v ${DOTBASE}/.bashrc"
+alias vba="v ${DOTRC}/bash_aliases"
+alias vbf="v ${DOTRC}/bash_functions"
 alias vn='v -u NONE'
 
 ################################################################
@@ -76,7 +77,7 @@ alias dh='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-chang
 alias dhead='dh HEAD'
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
 alias gp='git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream'
-alias gpf='gp --force'
+alias gpf='gp --force-with-lease'
 alias gl='git pull'
 alias st='git status'
 alias br='git branch --format="%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - %(contents:subject) %(color:green)(%(committerdate:relative)) [%(authorname)]" --sort=-committerdate'
@@ -111,7 +112,7 @@ alias of=' fd --follow -j4 --type f --hidden --follow --exclude .git | fzf --hea
 alias od=' fd --follow -j4 --type d --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
 
 # YT-DLP
-alias ytv-list='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 --embed-subs --continue --ignore-errors -f 43 -o "%(autonumber)s - %(title)s.%(ext)s"'
+alias ytlist='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 --embed-subs --continue --ignore-errors -f 43 -o "%(autonumber)s - %(title)s.%(ext)s"'
 
 ################################################################
 #fix obvious typo's
