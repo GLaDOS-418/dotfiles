@@ -4,7 +4,6 @@ cmake
 docker
 docker-compose
 fuse2fs
-fzf
 gdb
 jq
 linux-tools-common

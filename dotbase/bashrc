@@ -35,7 +35,6 @@ DOTRC=${DOTFILES}/dotrc
 
 VIM=${HOME}/vim
 TOOL_SCRIPTS="$HOME/dotfiles/tools"
-FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
 BOB_NVIM="$HOME/.local/share/bob/nvim-bin"
 GOBIN="/usr/local/go/bin"
 SNAP="/snap/bin/hugo"
@@ -125,8 +124,9 @@ export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 #Fuzzy search files using fzf
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
+FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
 if [ -e ${FZF_UTILITIES} ]; then
-  . ${FZF_UTILITIES}
+  source ${FZF_UTILITIES}
 fi
 
 # Remove all predefined aliases
@@ -136,16 +136,16 @@ unalias -a
 # $DOTRC/bash_aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
-for f in ${DOTRC}/*; do [ -f "$f" ] && . "$f"; done
+for f in ${DOTRC}/*; do [ -f "$f" ] && source "$f"; done
 
 # if [ -e $HOME/.bash_aliases ]; then
-#   . $HOME/.bash_aliases
+#   source $HOME/.bash_aliases
 # fi
 
 # git completion
 git_completion=${DOTFILES}/tools/git-completion-bash.sh
 if [ -e  ${git_completion} ]; then
-    . ${git_completion}
+    source ${git_completion}
 fi
 
 ##############################################
@@ -162,9 +162,9 @@ curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.
 # sources /etc/bash.bashrc).
 if ! shopt -oq posix; then
   if [ -f /usr/share/bash-completion/bash_completion ]; then
-    . /usr/share/bash-completion/bash_completion
+    source /usr/share/bash-completion/bash_completion
   elif [ -f /etc/bash_completion ]; then
-    . /etc/bash_completion
+    source /etc/bash_completion
   fi
 fi
 
