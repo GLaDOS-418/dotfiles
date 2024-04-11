@@ -61,7 +61,7 @@ read -p "press 'enter'..." enter
 
 
 cd
-curl -L https://github.com/GLaDOS-418/dotfiles/dotbase/raw/main/bashrc -o .bashrc
+curl -L https://github.com/GLaDOS-418/dotfiles/raw/main/dotbase/bashrc -o .bashrc
 source .bashrc
 
 [ ! -d dotfiles ] && git clone git@github.com:glados-418/dotfiles.git
