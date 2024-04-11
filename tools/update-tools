@@ -40,7 +40,7 @@ function update_neovim {
   pushd neovim && make CMAKE_BUILD_TYPE=RelWithDebInfo
   sudo make install
   popd
-  /bin/rm -r neovim
+  /bin/rm -rf neovim
   popd
 }
 

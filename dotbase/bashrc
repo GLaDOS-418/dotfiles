@@ -68,14 +68,17 @@ export GOPATH=${HOME}/go
 export LOCALBIN=${HOME}/.local/bin
 export LOCALNVIM=${HOME}/.local/nvim/bin
 export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+
+DOTNET=$HOME/.dotnet
+
 export PATH=$BOB_NVIM:$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
-export PATH=${JAVA_HOME}/bin:${GOBIN}:${PERF}:$PATH
+export PATH=${JAVA_HOME}/bin:${GOBIN}:${PERF}:${DOTNET}:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
 
 ## INSTALL MANAUAL BINARIES IN ~/thirdparty/*
 for d in $HOME/thirdparty/*/; do
-    PATH+=":$d"
+    [ -d "$d" ] && PATH+=":$d"
 done
 
 ##########################################
@@ -138,9 +141,9 @@ unalias -a
 
 for f in ${DOTRC}/*; do [ -f "$f" ] && source "$f"; done
 
-# if [ -e $HOME/.bash_aliases ]; then
-#   source $HOME/.bash_aliases
-# fi
+if [ -e $HOME/.personalrc ]; then
+  source $HOME/.personalrc
+fi
 
 # git completion
 git_completion=${DOTFILES}/tools/git-completion-bash.sh

@@ -82,7 +82,7 @@ function gpd {
 }
 
 function gpe {
-  gpd -Werror $@ 
+  gpd -Werror $@
 }
 
 export -f gpp
@@ -410,7 +410,7 @@ function update_calibre {
 
 
 
-function nerd_font_install {
+function install_nerd_font{
   # Example usage:
   # nerd_font_install "FiraCode" "Hack"
   # nerd_font_install "default"
@@ -419,7 +419,11 @@ function nerd_font_install {
 
   # Check if no parameters are passed
   if [ $# -eq 0 ]; then
-    echo "Error: No font names provided."
+    echo "Error: no font names provided."
+    echo "supported fonts: ${default_fonts}"
+    echo "example:"
+    echo '> nerd_font_install "FiraCode" "IntelOneMono" "Hack"'
+    echo '> nerd_font_install "default"'
     return 1
   fi
 
@@ -463,7 +467,7 @@ function nerd_font_install {
 
 rcopen() {
   [ -z ${1} ] && ls -l ${DOTRC} && return 0;
-  nvim $DOTRC/$1 
+  nvim $DOTRC/$1
 }
 
 rclang() {

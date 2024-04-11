@@ -1,5 +1,9 @@
+automake
+xclip
+libXmu
+libXmu-devel
+mlocate
 bash-completion
-clang
 cmake
 fuse
 gdb
