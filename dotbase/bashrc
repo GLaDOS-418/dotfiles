@@ -67,9 +67,11 @@ alias clang++='clang++'
 export GOPATH=${HOME}/go
 export LOCALBIN=${HOME}/.local/bin
 export LOCALNVIM=${HOME}/.local/nvim/bin
-export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
 
-DOTNET=$HOME/.dotnet
+# required only if JAVA_HOME is not set by sdkman in the end of this script
+# export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+
+# DOTNET=$HOME/.dotnet
 
 export PATH=$BOB_NVIM:$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
 export PATH=${JAVA_HOME}/bin:${GOBIN}:${PERF}:${DOTNET}:$PATH

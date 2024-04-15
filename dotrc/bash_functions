@@ -220,11 +220,11 @@ function bench {
 
 
 function grl {
-  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
 }
 
 function grn {
-  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
 }
 
 # ex - archive extractor
@@ -409,19 +409,20 @@ function update_calibre {
 }
 
 
-
-function install_nerd_font{
+function nerd_font_install {
   # Example usage:
   # nerd_font_install "FiraCode" "Hack"
   # nerd_font_install "default"
+  
+
   local fonts_dir="$HOME/.local/share/fonts"
   local default_fonts=("SourceCodePro" "IBMPlexMono" "FiraCode" "CascadiaCode" "IntelOneMono")
+  local fonts=()
 
-  # Check if no parameters are passed
   if [ $# -eq 0 ]; then
     echo "Error: no font names provided."
-    echo "supported fonts: ${default_fonts}"
-    echo "example:"
+    echo "Supported fonts: ${default_fonts[*]}"
+    echo "Example:"
     echo '> nerd_font_install "FiraCode" "IntelOneMono" "Hack"'
     echo '> nerd_font_install "default"'
     return 1
@@ -429,36 +430,26 @@ function install_nerd_font{
 
   for font_name in "$@"; do
     if [ "${font_name}" == "default" ]; then
-      local fonts=("${default_fonts[@]}")
+      fonts+=("${default_fonts[@]}")
     else
-      local fonts=("${font_name}")
+      fonts+=("${font_name}")
     fi
+  done
 
-    for font in "${fonts[@]}"; do
-      local font_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${font}.zip"
-      local font_zip="${font}.zip"
+  for font in "${fonts[@]}"; do
+    local font_url="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${font}.zip"
+    local font_zip="${font}.zip"
 
-        echo "Downloading ${font}..."
-        # Download the font
-        wget -q -O "${font_zip}" "${font_url}"
-
-        # Check if the download was successful
-        if [ $? -eq 0 ]; then
-          # Create the fonts directory if it doesn't exist
-          mkdir -p "${fonts_dir}"
-
-          echo "Installing ${font}..."
-          # Unzip and install the font
-          unzip -q -o "${font_zip}" -d "${fonts_dir}"
-
-          # Remove the downloaded zip file
-          rm "${font_zip}"
-
-          echo "Completed installation of ${font}."
-        else
-          echo "Error: Failed to download Nerd Font: ${font}"
-        fi
-    done
+    echo "Downloading ${font}..."
+    if wget -q -O "${font_zip}" "${font_url}"; then
+      mkdir -p "${fonts_dir}"
+      echo "Installing ${font}..."
+      unzip -q -o "${font_zip}" -d "${fonts_dir}"
+      rm "${font_zip}"
+      echo "Completed installation of ${font}."
+    else
+      echo "Error: Failed to download Nerd Font: ${font}"
+    fi
   done
 
   # Update user's font cache (no elevated permissions needed)
