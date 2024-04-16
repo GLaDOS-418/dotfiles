@@ -156,7 +156,9 @@ fi
 ##############################################
 #  quote
 ##############################################
-curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
+if [ -z ${WORK} ]; then
+  curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
+fi
 
 ################################################################
 ##  CONFIG
