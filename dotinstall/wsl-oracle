@@ -1,5 +1,4 @@
 automake
-xclip
 libXmu
 libXmu-devel
 mlocate

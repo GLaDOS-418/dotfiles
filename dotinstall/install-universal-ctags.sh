@@ -12,13 +12,16 @@ if command_exists pacman; then
 elif command_exists apt; then
     # Ubuntu
     package_manager="apt"
+if command_exists dnf; then
+    # Oracle
+    package_manager="dnf"
 else
     echo "Unsupported Linux distribution. Please install Universal-ctags manually."
     exit 1
 fi
 
 # Clone the Universal-ctags repository
-git clone https://github.com/universal-ctags/ctags.git
+git clone --depth=1 https://github.com/universal-ctags/ctags.git
 
 # Change to the ctags directory
 cd ctags
@@ -29,6 +32,9 @@ if [ "$package_manager" = "pacman" ]; then
 elif [ "$package_manager" = "apt" ]; then
     sudo apt update
     sudo apt install -y autoconf pkg-config libjansson-dev libseccomp-dev
+elif [ "$package_manager" = "dnf" ]; then
+  sudo dnf update -y
+  sudo dnf install -y automake libXmu libXmu-devel
 fi
 
 # Configure, build, and install Universal-ctags
