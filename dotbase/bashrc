@@ -12,15 +12,11 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
-if  which tmux > /dev/null 2>&1  &&  [ -z "$TMUX" ]; then
-    ID="$( tmux ls 2&>/dev/null | grep -vm1 attached | cut -d: -f1 )" # get the id of a deattached session
-    if [[ -z "$ID" ]] ;then # if not available create a new one
-        tmux new-session
-    else
-        tmux attach-session -t "$ID" # if available attach to it
-    fi
+# https://unix.stackexchange.com/a/113768
+if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+  exec tmux
 fi
- 
+
 ################################################################
 # LOCAL VARIABLE
 ################################################################
@@ -126,14 +122,6 @@ export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 # SOURCES
 ################################################################
 
-#Fuzzy search files using fzf
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
-
-FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
-if [ -e ${FZF_UTILITIES} ]; then
-  source ${FZF_UTILITIES}
-fi
-
 # Remove all predefined aliases
 unalias -a
 
@@ -145,12 +133,6 @@ for f in ${DOTRC}/*; do [ -f "$f" ] && source "$f"; done
 
 if [ -e $HOME/.personalrc ]; then
   source $HOME/.personalrc
-fi
-
-# git completion
-git_completion=${DOTFILES}/tools/git-completion-bash.sh
-if [ -e  ${git_completion} ]; then
-    source ${git_completion}
 fi
 
 ##############################################
@@ -269,7 +251,12 @@ if ${use_color} ; then
 
     # https://stackoverflow.com/questions/35897021/why-does-a-newline-in-ps1-throw-a-syntax-error-in-git-for-windows-bash?lq=1
     # PS1='\[\033[01;32m\][ \u@\h\[\033[01;37m\] \w\[\033[01;36m\]$(parse_git_branch)\[\e[31m\] $(nonzero_value)\[\e[m\]\[\033[01;32m\]${SHLVL} ]'$'\[\033[00m\]\n\$ '
-      PS1='\[\033[01;32m\][ \u@\h\[\033[01;37m\] \w\[\033[01;36m\]$(__build_prompt_command)\[\e[m\]\[\033[01;32m\]${SHLVL} ]'$'\[\033[00m\]\n\$ '
+     
+    # username and hostname already in tmux bar
+    # PS1='\[\033[01;32m\][ \u@\h\[\033[01;37m\] \w\[\033[01;36m\]$(__build_prompt_command)\[\e[m\]\[\033[01;32m\]${SHLVL} ]'$'\[\033[00m\]\n\$ '
+
+    PS1='\[\033[01;32m\][\033[01;37m\] \w\[\033[01;36m\]$(__build_prompt_command)\[\e[m\]\[\033[01;32m\]${SHLVL} :>'$'\[\033[00m\] '
+
     # PS1='$(__build_prompt_command)'
   fi
 
@@ -317,11 +304,6 @@ unset use_color safe_term match_lhs sh
 # third party
 #################################
 
-. "$HOME/.cargo/env"
-
-# https://github.com/nvbn/thefuck
-eval $(thefuck --alias --enable-experimental-instant-mode)
-
 # reporting tools - install when not installed
 # neofetch
 #screenfetch
@@ -338,6 +320,27 @@ eval $(thefuck --alias --enable-experimental-instant-mode)
 #cpufetch
 #colorscript random
 
+#Fuzzy search files using fzf
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
+if [ -e ${FZF_UTILITIES} ]; then
+  source ${FZF_UTILITIES}
+fi
+
+# git completion
+git_completion=${DOTFILES}/tools/git-completion-bash.sh
+if [ -e  ${git_completion} ]; then
+    source ${git_completion}
+fi
+
+. "$HOME/.cargo/env"
+
+# https://github.com/nvbn/thefuck
+eval $(thefuck --alias --enable-experimental-instant-mode)
+
+# https://github.com/ajeetdsouza/zoxide
+eval "$(zoxide init bash)"
 
 #THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
 export SDKMAN_DIR="$HOME/.sdkman"

@@ -53,16 +53,23 @@ alias emacs='emacs & &> /dev/null'
 alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
 alias more='less'
+alias vb="v ${DOTBASE}/bashrc"
 alias sb='source ~/.bashrc'
 alias vv='v ~/.vimrc'
 alias vc='v ~/.vim/sources/custom_functions.vim'
 alias va='v ~/.vim/sources/abbreviations.vim'
 alias vs='v ~/.vim/sources/statusline.vim'
 alias vp='v ~/.vim/sources/plugins.vim'
-alias vb="v ${DOTBASE}/bashrc"
 alias vba="v ${DOTRC}/bash_aliases"
+alias sba="source ${DOTRC}/bash_aliases"
 alias vbf="v ${DOTRC}/bash_functions"
+alias sbf="source ${DOTRC}/bash_functions"
 alias vn='v -u NONE'
+
+
+#### WINDOWS
+#
+alias explorer='/mnt/c/Windows/explorer.exe'
 
 ################################################################
 # TOOL ALIAS

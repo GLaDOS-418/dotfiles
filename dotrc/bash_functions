@@ -74,6 +74,7 @@ function gpp {
     -pthread -latomic -mavx2 \
     -std=c++2b \
     $@
+    # -fno-omit-frame-pointer \  # https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html#C
     # -Waggregate-return \  # https://stackoverflow.com/questions/14016993/confusion-in-regards-to-purpose-behavior-of-waggregate-return
 }
 

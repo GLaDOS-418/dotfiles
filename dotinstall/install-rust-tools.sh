@@ -7,5 +7,6 @@ cargo install \
         navi \
         ripgrep \
         sd \
-        tree-sitter-cli
+        tree-sitter-cli \
+        zoxide
 #cargo install cargo-update
