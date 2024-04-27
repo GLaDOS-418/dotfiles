@@ -345,7 +345,7 @@ function colors {
 }
 
 function nonzero_error_code {
-  printf "`local e=$? ; if [ $e -ne 0 ]; then echo $e: ; else echo '' ; fi`"
+  printf "`local e=$? ; if [ $e -ne 0 ]; then echo ${e}: ; else echo '' ; fi`"
 }
 
 # get current branch in git repo
@@ -354,7 +354,7 @@ function parse_git_branch {
   if [ ! "${BRANCH}" == "" ]
   then
     STAT=`parse_git_dirty`
-    printf " (${BRANCH}${STAT})"
+    printf "(${BRANCH}${STAT})"
   fi
 
   printf ""
