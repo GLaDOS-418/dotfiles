@@ -12,7 +12,7 @@ if command_exists pacman; then
 elif command_exists apt; then
     # Ubuntu
     package_manager="apt"
-if command_exists dnf; then
+elif command_exists dnf; then
     # Oracle
     package_manager="dnf"
 else
