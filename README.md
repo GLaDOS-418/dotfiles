@@ -7,6 +7,7 @@ remove any existing conflicting file before running these commands.
 ln -s $HOME/dotfiles/dotbase/bashrc           $HOME/.bashrc
 ln -s $HOME/dotfiles/dotbase/inputrc          $HOME/.inputrc
 ln -s $HOME/dotfiles/dotbase/tmux.conf        $HOME/.tmux.conf
+ln -s $HOME/dotfiles/dotbase/rgignore         $HOME/.rgignore
 
 touch $HOME/.gitconfig
 git config --global include.path $HOME/dotfiles/dotrc/gitconfig-shared

@@ -6,8 +6,8 @@
 
 alias u0='du --max-depth=0 -h'
 alias u1='du --max-depth=1 -h'
-alias l='ls -lrt'   # ls is function declared later
-alias la='ls -lrtA' # ls is function declared later
+alias l='ls -lrth'   # ls is function declared later
+alias la='ls -lrtAh' # ls is function declared later
 alias l.='find . -maxdepth 1 -name ".*" -ls' # list dotfiles
 alias df='df -h'                          # human-readable sizes
 alias free='free -mht'                    # show sizes in MB
@@ -18,7 +18,7 @@ alias rsync='rsync -azvhP'
 alias navic='navi --cheatsh'
 alias m='make'
 alias links='find . -maxdepth 1 -type l -ls' # list all links in current folder
-alias c='clear' # can't use <C-l> as it's required for vim-tmux navigation
+# alias c='clear' # can't use <C-l> as it's required for vim-tmux navigation
 
 #### try to prevent accidental data loss
 # alias cp='cp -i'
@@ -38,13 +38,9 @@ alias git='/usr/bin/git'
 # EDITOR ALIAS
 ################################################################
 
-if [[ -x "$(command -v nvim)" ]]; then
-    alias v='nvim'
-else
-    alias v='vim'
-fi
+alias v='vim'
 alias nv='nvim'
-alias vim='nvim'
+[ -x "$(command -v nvim)" ] && alias vim='nvim'
 alias uv='v +PlugInstall +UpdateRemotePlugins +qa'
 alias gv='gvim'
 alias vd='vimdiff'
@@ -52,6 +48,7 @@ alias gvd='gvimdiff'
 alias emacs='emacs & &> /dev/null'
 alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
+[ -x "$(command -v bat)" ] && alias less='bat'
 alias more='less'
 alias vb="v ${DOTBASE}/bashrc"
 alias sb='source ~/.bashrc'
@@ -91,6 +88,8 @@ alias br='git branch --format="%(HEAD) %(color:yellow)%(refname:short)%(color:re
 alias log='git log --oneline --no-merges HEAD~20..HEAD'
 alias gap='git add -p'
 alias gcp='git checkout -p'
+alias f='git fetch'
+
 
 # PACMAN
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
@@ -120,6 +119,9 @@ alias od=' fd --follow -j4 --type d --hidden --follow --exclude .git | fzf --hea
 
 # YT-DLP
 alias ytlist='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 --embed-subs --continue --ignore-errors -f 43 -o "%(autonumber)s - %(title)s.%(ext)s"'
+
+# zoxide
+[ -x "$(command -v zoxide)" ] && alias cd='z'
 
 ################################################################
 #fix obvious typo's

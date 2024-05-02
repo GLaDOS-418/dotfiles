@@ -189,7 +189,7 @@ function mcd {
 }
 
 function ls {
-    command ls -FhvC --color=always --author --time-style=long-iso "$@" | less -RXF
+    command ls -FhvC --color=always --author --time-style=long-iso "$@" | /usr/bin/less -RXF
 }
 
 function setup {
