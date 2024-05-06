@@ -50,7 +50,7 @@ check_cpp() {
 }
 
 install_cpp() {
-    curl -s -L https://apt.llvm.org/llvm.sh | sudo sh
+    curl -s -L https://apt.llvm.org/llvm.sh | sudo bash
 }
 
 

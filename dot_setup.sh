@@ -102,6 +102,7 @@ cd
 [ -f .inputrc ]   && /bin/rm .inputrc
 [ -f .tmux.conf ] && /bin/rm .tmux.conf
 [ -f .gitconfig ] && /bin/rm .gitconfig
+[ -f .rgignore ]  && /bin/rm .rgignore
 
 [ -f .vimrc ]  && /bin/rm .vimrc
 [ -f .gvimrc ] && /bin/rm .gvimrc
@@ -114,6 +115,7 @@ cd
 ln -s $DOTBASE/bashrc    .bashrc
 ln -s $DOTBASE/inputrc   .inputrc
 ln -s $DOTBASE/tmux.conf .tmux.conf
+ln -s $DOTBASE/rgignore  .rgignore
 
 touch .gitconfig
 git config --global include.path $DOTRC/gitconfig-shared
@@ -136,4 +138,4 @@ if [ -x "$(command -v snap)" ]; then
   cat snaplist | xargs sudo -i snap install
 fi
 
-printf "\n\n:::: INITIAL SETUP DONE :::::\n\n"
+printf "\n\n:::: INITIAL SETUP DONE ::::\n\n"

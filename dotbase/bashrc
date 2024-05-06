@@ -57,8 +57,6 @@ export UNICTAGS=$HOME/bin/ctags_bld
 
 export CC=gcc
 export CXX=g++
-alias clang='clang'
-alias clang++='clang++'
 
 export GOPATH=${HOME}/go
 export LOCALBIN=${HOME}/.local/bin
@@ -286,7 +284,7 @@ if ${use_color} ; then
   fi
 
   if [[ ${EUID} == 0 ]] ; then
-    PS1='\[\033[01;31m\][\h\[\033[01;36m\] \w\[\033[01;31m\]]\$\[\033[00m\] '
+    PS1='$(esc_color ${BRED})\h \w\[\033[01;31m\]]\$\[\033[00m\] '
   else
     #TODO: sudo command and shell user either prompt or terminal change?
     PS1='$(__build_prompt_command)'
