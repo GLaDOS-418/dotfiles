@@ -1,7 +1,6 @@
 bash-completion
 clang
 cmake
-docker
 docker-compose
 fuse2fs
 gdb

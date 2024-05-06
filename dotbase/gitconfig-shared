@@ -3,10 +3,18 @@
 [core]
 	filemode = false
 	editor = nvim
-        pager = delta
-        #pager = diff-so-fancy | less --tabs=4 -RFX
+	#pager = diff-so-fancy | less --tabs=4 -RFX
+	pager = delta
 	#excludesfile = C:/users/abh/.gitignore_global
         #whitespace = trailing-space,space-before-tab
+[interactive]
+    diffFilter = delta --color-only
+[delta]
+    navigate = true    # use n and N to move between diff sections
+
+    # delta detects terminal colors automatically; set one of these to disable auto-detection
+    # dark = true
+    # light = true
 [alias]
     try="clone --depth 1"
     co=checkout
