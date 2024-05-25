@@ -13,7 +13,7 @@ elif grep -q '^en_US.UTF-8 UTF-8' '/etc/locale.gen'
 then
   echo "locale value already active in /etc/locale.gen"
 else
-  sudo echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+  echo 'en_US.UTF-8 UTF-8' | tee -a /etc/locale.gen
   echo "locale value added in /etc/locale.gen"
   sudo locale-gen
   echo "reboot...."
@@ -31,13 +31,13 @@ elif [ -x "$(command -v dnf)" ]; then
   sudo dnf install -y openssh-server openssh git curl
 fi
 
-read -p "generate ssh key? (y/N)" is_generate_key
+read -rp "generate ssh key? (y/N)" is_generate_key
 is_generate_key=${is_generate_key,,}
 
 if [[ ${is_generate_key} == y* ]]
 then
     if [[ -e $HOME/.ssh ]]; then
-      /bin/rm -rf $HOME/.ssh
+      /bin/rm -rf "$HOME"/.ssh
     fi
 
     cat /dev/zero | ssh-keygen -t ed25519 -q -N "" -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')
@@ -54,13 +54,13 @@ ssh-keyscan github.com >> ~/.ssh/known_hosts
 # curl -u "${user}:${pass}" --data "{ \"key\": \"$(cat ~/.ssh/id_rsa.pub)\"}" https://api.github.com/user/keys
 
 printf '\n\n ::::::::::  ADD THIS KEY TO YOUR GIT REPO :::::::::: \n\n'
-cat $HOME/.ssh/id_ed25519.pub
+cat "$HOME"/.ssh/id_ed25519.pub
 
 printf '\n\n'
-read -p "press 'enter'..." enter
+read -rp "press 'enter'..." enter
 
 
-cd
+cd || exit
 curl -L https://github.com/GLaDOS-418/dotfiles/raw/main/dotbase/bashrc -o .bashrc
 source .bashrc
 
@@ -70,33 +70,32 @@ source .bashrc
 
 DOTFILES=${HOME}/dotfiles
 DOTBASE=${DOTFILES}/dotbase
-DOTSCRIPTS=${DOTFILES}/dotscripts
 DOTINSTALL=${DOTFILES}/dotinstall
 DOTRC=${DOTFILES}/dotrc
 VIM=${HOME}/vim
 
 
-cd ${DOTINSTALL}
+cd "${DOTINSTALL}" || exit
 printf '\n\n ::::: INSTALLING PACKAGES :::::\n\n'
 if [ -x "$(command -v pacman)" ]; then
-  cat paclist | tr '\n' ' ' | xargs sudo -i pacman --needed --noconfirm -Sy
+  tr '\n' ' ' < paclist  | xargs sudo -i pacman --needed --noconfirm -Sy
   os_id=$(grep -oP '^ID=\K\w+' /etc/os-release)
   if [[ ${os_id} == manjaro ]]; then
     sudo -i pacman --needed --noconfirm -Sy yay
-    cat yaylist | tr '\n' ' ' | xargs yay --needed --noconfirm -Sy
+    tr '\n' ' ' < yaylist  | xargs yay --needed --noconfirm -Sy
   else
-    cat yaylist | tr '\n' ' ' | xargs sudo -i pacman --needed --noconfirm -Sy
+    tr '\n' ' ' < yaylist | xargs sudo -i pacman --needed --noconfirm -Sy
   fi
 elif [ -x "$(command -v apt)" ]; then
-  cat wsl-ubuntu | xargs echo | xargs sudo DEBIAN_FRONTEND=noninteractive apt install -y
+  wsl-ubuntu | xargs echo | xargs sudo DEBIAN_FRONTEND=noninteractive apt install -y
 elif [ -x "$(command -v dnf)" ]; then
-  cat wsl-oracle | tr '\n' ' ' | xargs sudo dnf install -y
+   tr '\n' ' ' < wsl-oracle | xargs sudo dnf install -y
 else
   echo "package manager not installed..."
 fi
 
 
-cd
+cd || exit
 ## remove old configs
 [ -f .bashrc ]    && /bin/rm .bashrc
 [ -f .inputrc ]   && /bin/rm .inputrc
@@ -112,30 +111,30 @@ cd
 
 
 ## link new configs
-ln -s $DOTBASE/bashrc    .bashrc
-ln -s $DOTBASE/inputrc   .inputrc
-ln -s $DOTBASE/tmux.conf .tmux.conf
-ln -s $DOTBASE/rgignore  .rgignore
+ln -s "$DOTBASE"/bashrc    .bashrc
+ln -s "$DOTBASE"/inputrc   .inputrc
+ln -s "$DOTBASE"/tmux.conf .tmux.conf
+ln -s "$DOTBASE"/rgignore  .rgignore
 
 touch .gitconfig
-git config --global include.path $DOTRC/gitconfig-shared
+git config --global include.path "$DOTRC"/gitconfig-shared
 
 mkdir -p .config
-ln -s ${VIM}/nvim   .config/nvim
-ln -s ${VIM}/vim    .vim
-ln -s ${VIM}/vimrc  .vimrc
-ln -s ${VIM}/gvimrc .gvimrc
+ln -s "${VIM}"/nvim   .config/nvim
+ln -s "${VIM}"/vim    .vim
+ln -s "${VIM}"/vimrc  .vimrc
+ln -s "${VIM}"/gvimrc .gvimrc
 
 source .bashrc
 
 # wsl.conf is relevant only for WSL2 distributions
-sudo cp $DOTBASE/wsl.conf /etc/wsl.conf
+sudo cp "$DOTBASE"/wsl.conf /etc/wsl.conf
 
 # enable snapd -- snaplist
 if [ -x "$(command -v snap)" ]; then
   sudo systemctl enable --now snapd.socket
   sudo ln -s /var/lib/snapd/snap /snap
-  cat snaplist | xargs sudo -i snap install
+  xargs sudo -i snap install < snaplist
 fi
 
 printf "\n\n:::: INITIAL SETUP DONE ::::\n\n"

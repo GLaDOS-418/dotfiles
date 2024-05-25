@@ -7,14 +7,14 @@
 # C++
 
 function new_cpp_project {
-  if [ ! ${1} ]
+  if [ ! "${1}" ]
   then
     echo "project name not supplied..."
     return
   fi
 
-  git clone --depth 1 --single-branch --branch basic git@github.com:GLaDOS-418/cpp-project-template.git ${1}
-  cd ${1}
+  git clone --depth 1 --single-branch --branch basic git@github.com:GLaDOS-418/cpp-project-template.git "${1}"
+  cd "${1}" || exit
   /usr/bin/rm -rf .git
   echo "# ${1}" >| README.md
   grep -rl --color=never 'project-name' | xargs sed -i "s/project-name/${1}/g"
@@ -73,17 +73,17 @@ function gpp {
     -pedantic-errors \
     -pthread -latomic -mavx2 \
     -std=c++2b \
-    $@
+    "$@"
     # -fno-omit-frame-pointer \  # https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html#C
     # -Waggregate-return \  # https://stackoverflow.com/questions/14016993/confusion-in-regards-to-purpose-behavior-of-waggregate-return
 }
 
 function gpd {
-  gpp -g $@
+  gpp -g "$@"
 }
 
 function gpe {
-  gpd -Werror $@
+  gpd -Werror "$@"
 }
 
 export -f gpp
@@ -112,13 +112,13 @@ function split_video {
     fi
 
   mkdir -p split
-  ffmpeg -i ${input_file} -reset_timestamps 1 -c copy -map 0 -segment_time 00:14:30 -f segment ./split/${base_name}_%03d.${file_extension}
+  ffmpeg -i "${input_file}" -reset_timestamps 1 -c copy -map 0 -segment_time 00:14:30 -f segment ./split/"${base_name}"_%03d."${file_extension}"
 }
 
 
 function snip {
   # $ snip cpp
-  cp ${HOME}/code/friendly-snippets/snippets/${1}/${1}.json ${HOME}/.vim/plugged/friendly-snippets/snippets/${1}/${1}.json
+  cp "${HOME}"/code/friendly-snippets/snippets/"${1}"/"${1}".json "${HOME}"/.vim/plugged/friendly-snippets/snippets/"${1}"/"${1}".json
 }
 
 function cpp_flags {
@@ -165,8 +165,8 @@ function generate_new_key {
 
 # fzf
 function fzfupdate {
-    mkdir -p ${HOME}/.fzf
-    cd ${HOME}/.fzf && git pull && ./install
+    mkdir -p "${HOME}"/.fzf
+    cd "${HOME}"/.fzf && git pull && ./install
 }
 
 function ftstats {
@@ -185,7 +185,7 @@ function ftstats {
 }
 
 function mcd {
-    mkdir -pv $1 && cd $1
+    mkdir -pv "$1" && cd "$1" || exit
 }
 
 function ls {
@@ -193,62 +193,70 @@ function ls {
 }
 
 function setup {
-  fc -ln "$1" "$1" | sed '1s/^[[:space:]]*//' | xargs echo >> $DOT_SETUP_FILE
+  fc -ln "$1" "$1" | sed '1s/^[[:space:]]*//' | xargs echo >> "$DOT_SETUP_FILE"
 }
 
 function lmedia {
-  find $1 -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdfh > $2
+  find "$1" -maxdepth 2 -mindepth 2 -type d  | sed -e 's/^.*\///g' | sort -bdfh > "$2"
 }
 
 function mp {
-  touch $1.cpp && touch $1.in && vim -O $1.cpp $1.in
+  touch "$1".cpp && touch "$1".in && vim -O "$1".cpp "$1".in
 }
 
 function op {
   # open multiple files matching the glob in vim
     if [[ -z $1 ]]; then
         echo "no glob..."
-    elif [[ `ls -l $1* | wc -l` -gt 2 ]]; then
+    elif [[ "$(ls -l "$1"* | wc -l)" -gt 2 ]]; then
         echo "too many matches..."
     else
-        vim -O $(ls $1*)
+        vim -O "$(ls "$1"*)"
     fi
 }
 
 function bench {
-  time $@ 1>/dev/null 2>&1
+  time "$@" 1>/dev/null 2>&1
 }
 
 
 function grl {
-  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
 }
 
 function grn {
-  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} $@ 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
 }
 
 # ex - archive extractor
 function ex {
-  if [ -f $1 ] ; then
+  [[ -z "$1" ]] && { 
+    echo "Usage: ex <file>"
+    return 1 
+  }
+
+  if [ -f "$1" ] ; then
     case $1 in
-      *.7z)                   7z x $1           ;;
-      *.bz2)                  bunzip2 -kd $1    ;;
-      *.deb)                  ar x $1           ;;
-      *.gz)                   gunzip $1         ;;
-      *.lzip)                 tar -vkxf --lzip $1 ;;
-      *.lzma)                 tar -vkxf --lzma $1 ;;
-      *.lzop)                 tar -vkxf --lzop $1 ;;
-      *.rar)                  unrar x $1        ;;
-      *.tar)                  tar -vkxf $1        ;;
-      *.tar.bz2|*.tbz2|*.tb2) tar -vkxjf $1       ;;
-      *.tar.bz|*.tbz)         tar -vkxjf $1       ;;
-      *.tar.gz|*.tgz)         tar -vkxzf $1       ;;
-      *.tar.xz|*.txz)         tar -vkxJf $1       ;;
-      *.tar.zst)              tar -vkxf $1        ;;
-      *.Z)                    uncompress $1     ;;
-      *.zip)                  unzip $1          ;;
-      *)                      echo "'$1' cannot be extracted via ex()" ;;
+      *.tar.bz|*.tbz|*.tar.bz2|*.tbz2|*.tb2) tar -vkxjf "$1"       ;;
+      *.tar.gz|*.tgz)                        tar -vkxzf "$1"       ;;
+      *.tar.xz|*.txz)                        tar -vkxJf "$1"       ;;
+      *.pkg.tar.zst)                         bsdtar -xvf "$1"      ;;
+      *.tar.zst)                             tar -vkxf "$1"        ;;
+      *.tar.lz)                              tar --lzip -vkxf "$1" ;;
+      *.tar.lzma)                            tar --lzma -vkxf "$1" ;;
+      *.tar.lzo)                             tar --lzop -vkxf "$1" ;;
+      *.7z)                                  7z x "$1"             ;;
+      *.bz2)                                 bunzip2 -kd "$1"      ;;
+      *.gz)                                  gunzip "$1"           ;;
+      *.deb)                                 ar x "$1"             ;;
+      *.rpm)                                 rpm2cpio "$1" | cpio -idmv ;;
+      *.flatpak)                             flatpak build-extract "$1" ;;
+      *.snap)                                unsquashfs "$1"       ;;
+      *.rar)                                 unrar x "$1"          ;;
+      *.tar)                                 tar -vkxf "$1"        ;;
+      *.Z)                                   uncompress "$1"       ;;
+      *.zip)                                 unzip "$1"            ;;
+      *)                                     echo "'$1' cannot be extracted via ex()" ;;
     esac
   else
     echo "'$1' is not a valid file"
@@ -257,28 +265,86 @@ function ex {
 
 # ar - archiver
 function ar {
-  if [ -f $2 ] ; then
-    case $1 in
-      tbz2) tar -kcjf $2       ;;
-      tbz)  tar -kcjf $2       ;;
-      tgz)  tar -kczf $2       ;;
-      txz)  tar -kcJf $2       ;;
-      tar)  tar -kcf $2        ;;
-      lzip) tar -kcf --lzip $2 ;;
-      lzop) tar -kcf --lzop $2 ;;
-      lzma) tar -kcf --lzma $2 ;;
-      *)    echo "'$1' cannot be compressed via ar()" ;;
+  while getopts "f:t:" opt; do
+    case $opt in
+      f) file=$OPTARG ;;
+      t) type=$OPTARG ;;
+      *) echo "Invalid option"; return 1 ;;
     esac
-  else
-    echo "'$1' is not a valid file"
+  done
+  [[ -z $file || -z $type ]] && { 
+    echo "Usage: ar -f <file> -t <type>"
+    echo "Supported types: 7z, bz2, gz, pkg.tar.zst, rar, tar.bz, tbz, tbz2, tar.bz2, tb2, tgz,"
+    echo "                 tar.gz, txz, tar.xz, tar.zst, tar.lz, tar.lzma, tar.lzo, tar, Z, zip"
+    return 1 
+  }
+
+  case $type in
+    tbz|tar.bz|tbz2|tar.bz2|tb2) tar -cvjf "$file.tar.bz2" "$file" ;;
+    tgz|tar.gz) tar -cvzf "$file.tar.gz" "$file" ;;
+    txz|tar.xz) tar -cvJf "$file.tar.xz" "$file" ;;
+    tar.zst) tar --zstd -cvf "$file.tar.zst" "$file" ;;
+    tar.lz) tar --lzip -cvf "$file.tar.lz" "$file" ;;
+    tar.lzma) tar --lzma -cvf "$file.tar.lzma" "$file" ;;
+    tar.lzo) tar --lzop -cvf "$file.tar.lzo" "$file" ;;
+    7z) 7z a "$file.7z" "$file" ;;
+    bz2) bzip2 -k -v "$file" ;;
+    gz) gzip -k -v "$file" ;;
+    pkg.tar.zst) bsdtar -cvf "$file.pkg.tar.zst" "$file" ;;
+    rar) rar a "$file.rar" "$file" ;;
+    tar) tar -cvf "$file.tar" "$file" ;;
+    Z) compress -v "$file" ;;
+    zip) zip -r -v "$file.zip" "$file" ;;
+    deb) echo "Creating .deb archives is complex; use dpkg-deb" ;;
+    rpm) echo "Creating .rpm archives is complex; use rpmbuild" ;;
+    flatpak) echo "Creating .flatpak archives is complex; use flatpak-builder" ;;
+    snap) echo "Creating .snap archives is complex; use snapcraft" ;;
+    *) echo "Unsupported archive type"; return 1 ;;
+  esac
+}
+
+# peek an archive without extracting
+function peek {
+  file="$1"
+  [[ -z $file ]] && { 
+    echo "Usage: peek <file>"
+    return 1 
+  }
+
+  if [[ ! -f "$file" ]]; then
+    echo "File '$file' not found"
+    return 1
   fi
+
+  case $file in
+    *.tar.bz|*.tbz|*.tar.bz2|*.tbz2|*.tb2) tar -tvjf "$file" ;;
+    *.tar.gz|*.tgz) tar -tvzf "$file" ;;
+    *.tar.xz|*.txz) tar -tvJf "$file" ;;
+    *.pkg.tar.zst) bsdtar -tvf "$file" ;;
+    *.tar.zst) tar --zstd -tvf "$file" ;;
+    *.tar.lz) tar --lzip -tvf "$file" ;;
+    *.tar.lzma) tar --lzma -tvf "$file" ;;
+    *.tar.lzo) tar --lzop -tvf "$file" ;;
+    *.7z) 7z l "$file" ;;
+    *.bz2) bzip2 -l "$file" ;;
+    *.gz) gzip -l "$file" ;;
+    *.deb) dpkg-deb --contents "$file" ;;
+    *.rpm) rpm -qlp "$file" ;;
+    *.flatpak) flatpak info "$file" ;;
+    *.snap) unsquashfs -l "$file" ;;
+    *.rar) unrar l "$file" ;;
+    *.tar) tar -tvf "$file" ;;
+    *.Z) uncompress -c -l "$file" ;;
+    *.zip) unzip -l "$file" ;;
+    *) echo "Unsupported file type"; return 1 ;;
+  esac
 }
 
 # WSL 'git' wrapper. Named the function git to get bash completion
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
 function git {
-  REALPATH=`readlink -f ${PWD}`
-  if grep -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/cygdrive/" -o "${REALPATH:0:3}" == "/c/" ]; then
+  REALPATH=$(readlink -f "${PWD}")
+  if grep -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/cygdrive/" ] || [ "${REALPATH:0:3}" == "/c/" ]; then
     # /c/ for git bash and /cygdrive/ for cygwin
     git.exe "$@"
   elif grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
@@ -337,24 +403,24 @@ function colors {
 
       seq0="${vals:+\e[${vals}m}"
       printf "  %-9s" "${seq0:-(default)}"
-      printf " ${seq0}TEXT\e[m"
-      printf " \e[${vals:+${vals+$vals;}}1mBOLD\e[m"
+      printf '%s' " ${seq0}TEXT\e[m"
+      printf '%s' " \e[${vals:+${vals+$vals;}}1mBOLD\e[m"
     done
     echo; echo
   done
 }
 
 function nonzero_error_code {
-  printf "`local e=$? ; if [ $e -ne 0 ]; then echo ${e}: ; else echo '' ; fi`"
+  printf '%s' "$(local e=$? ; if [ $e -ne 0 ]; then echo ${e}: ; else echo '' ; fi)"
 }
 
 # get current branch in git repo
 function parse_git_branch {
-  BRANCH=`git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/\1/'`
+  BRANCH=$(git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/\1/')
   if [ ! "${BRANCH}" == "" ]
   then
-    STAT=`parse_git_dirty`
-    printf "(${BRANCH}${STAT})"
+    STAT=$(parse_git_dirty)
+    printf '(%s)' "${BRANCH}${STAT}"
   fi
 
   printf ""
@@ -362,16 +428,16 @@ function parse_git_branch {
 
 # get current status of git repo
 function parse_git_dirty {
-  status=`git status 2>&1 | tee`
+  status=$(git status 2>&1 | tee)
 
-  dirty=`echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?"`
-  untracked=`echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?"`
-  ahead=`echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?"`
-  behind=`echo -n "${status}" 2> /dev/null | grep "Your branch is behind" &> /dev/null; echo "$?"`
-  newfile=`echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?"`
-  renamed=`echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?"`
-  deleted=`echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?"`
-  diverged=`echo -n "${status}" 2> /dev/null | grep "Your branch and.\+\?have diverged" &> /dev/null; echo "$?"`
+  dirty=$(echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?")
+  untracked=$(echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?")
+  ahead=$(echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?")
+  behind=$(echo -n "${status}" 2> /dev/null | grep "Your branch is behind" &> /dev/null; echo "$?")
+  newfile=$(echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?")
+  renamed=$(echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?")
+  deleted=$(echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?")
+  diverged=$(echo -n "${status}" 2> /dev/null | grep "Your branch and.\+\?have diverged" &> /dev/null; echo "$?")
 
   bits=""
   if [ "${renamed}" == "0" ]; then
@@ -458,13 +524,13 @@ function nerd_font_install {
 }
 
 rcopen() {
-  [ -z ${1} ] && ls -l ${DOTRC} && return 0;
-  nvim $DOTRC/$1
+  [ -z "${1}" ] && ls -l "${DOTRC}" && return 0;
+  nvim "$DOTRC"/"$1"
 }
 
 rclang() {
-  [ -z $1 ] && ls -l ${DOTRC}/languages && return 0
-  nvim ${DOTRC}/languages/${1}
+  [ -z "$1" ] && ls -l "${DOTRC}"/languages && return 0
+  nvim "${DOTRC}"/languages/"${1}"
 }
 
 #########################################
@@ -472,29 +538,28 @@ rclang() {
 #########################################
 
 function spac {
-    sudo -i pacman -Sy $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/paclist
+    
+    if sudo -i pacman -Sy "$@"; then
+        echo "$@" | tr ' ' '\n' >> "$DOTFILES"/paclist
     fi
 }
 
 function syay {
-    yay -Sy $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/yaylist
+    
+    if yay -Sy "$@" ; then
+        echo "$@" | tr ' ' '\n' >> "$DOTFILES"/yaylist
     fi
 }
 
 function spip {
-    pip3 install $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/piplist
+    
+    if pip3 install "$@"; then
+        echo "$@" | tr ' ' '\n' >> "$DOTFILES"/piplist
     fi
 }
 
 function ssnap {
-    sudo -i snap install $@
-    if [[ $? == 0 ]]; then
-        echo $@ | tr ' ' '\n' >> $DOTFILES/snaplist
+    if sudo -i snap install "$@" ; then
+        echo "$@" | tr ' ' '\n' >> "$DOTFILES"/snaplist
     fi
 }
