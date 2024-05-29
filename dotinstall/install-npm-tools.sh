@@ -4,3 +4,4 @@
 npm i diff-so-fancy
 npm i git-trim
 sudo npm install typescript -g
+sudo npm install -g wsl-open

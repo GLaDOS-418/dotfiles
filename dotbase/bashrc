@@ -129,16 +129,19 @@ unalias -a
 
 for f in ${DOTRC}/*; do [ -f "$f" ] && source "$f"; done
 
-if [ -e $HOME/.personalrc ]; then
-  source $HOME/.personalrc
+if [ -e "$HOME"/.personalrc ]; then
+  source "$HOME"/.personalrc
 fi
 
 ##############################################
 #  quote
 ##############################################
-if [ -z ${WORK} ]; then
-  curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
-fi
+# NOTE: this project has been paused indefinitely
+# TODO: explore alternative
+# https://github.com/rocktimsaikia/animechan
+# if [ -z ${WORK} ]; then
+#   curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
+# fi
 
 ################################################################
 ##  CONFIG
@@ -270,7 +273,7 @@ function __build_prompt_command {
 
   # username and hostname already in tmux bar
   # cmd input is on new line in case the screen width is not enough for dirname len
-  printf "${BYELLOW}[ ${BWHITE}${cwd} ${BCYAN}${pbranch} ${BRED}${pstatus}${BGREEN}${SHLVL} ${BYELLOW}]${RESET}\n$ "
+  printf "${YELLOW}[ ${BWHITE}${cwd} ${BCYAN}${pbranch} ${BRED}${pstatus}${BGREEN}${SHLVL} ${YELLOW}]${RESET}\n$ "
 }
 
 if ${use_color} ; then
@@ -350,7 +353,7 @@ unset use_color safe_term match_lhs sh
 #cpufetch
 #colorscript random
 
-#Fuzzy search files using fzf
+# fuzzy search files using fzf
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
 FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
@@ -364,10 +367,12 @@ if [ -e  ${git_completion} ]; then
     source ${git_completion}
 fi
 
+# rust env
 . "$HOME/.cargo/env"
 
 # https://github.com/nvbn/thefuck
-eval $(thefuck --alias --enable-experimental-instant-mode)
+# TODO: below option starts a new shell at $HOME. fucks up tmux pane_current_path settings.
+# eval $(thefuck --alias --enable-experimental-instant-mode)
 
 # https://github.com/ajeetdsouza/zoxide
 eval "$(zoxide init bash)"
