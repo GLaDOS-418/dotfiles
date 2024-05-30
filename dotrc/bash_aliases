@@ -25,9 +25,9 @@ alias links='find . -maxdepth 1 -type l -ls' # list all links in current folder
 # alias mv='mv -i'
 
 TRASH="${HOME}/.local/share/trash/files/"
-mkdir -p ${TRASH}
+mkdir -p "${TRASH}"
 
-alias rm='mv -t "${TRASH}" --backup=numbered -- "$@"'
+alias rm='mv -t "${TRASH}" --backup=numbered -- '
 alias nuke_trash='/bin/rm -rf ${TRASH:?}/*'
 
 # cleanup shortcut
@@ -50,17 +50,17 @@ alias suvim='sudo -E gvim'
 alias sv='sudo -E vim'
 [ -x "$(command -v bat)" ] && alias less='bat'
 alias more='less'
-alias vb="v ${DOTBASE}/bashrc"
+alias vb="v \${DOTBASE}/bashrc"
 alias sb='source ~/.bashrc'
 alias vv='v ~/.vimrc'
 alias vc='v ~/.vim/sources/custom_functions.vim'
 alias va='v ~/.vim/sources/abbreviations.vim'
 alias vs='v ~/.vim/sources/statusline.vim'
 alias vp='v ~/.vim/sources/plugins.vim'
-alias vba="v ${DOTRC}/bash_aliases"
-alias sba="source ${DOTRC}/bash_aliases"
-alias vbf="v ${DOTRC}/bash_functions"
-alias sbf="source ${DOTRC}/bash_functions"
+alias vba="v \${DOTRC}/bash_aliases"
+alias sba="source \${DOTRC}/bash_aliases"
+alias vbf="v \${DOTRC}/bash_functions"
+alias sbf="source \${DOTRC}/bash_functions"
 alias vn='v -u NONE'
 
 

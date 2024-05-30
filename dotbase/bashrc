@@ -18,7 +18,7 @@ if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] &&
 fi
 
 ################################################################
-# LOCAL VARIABLE
+# LOCAL VARS
 ################################################################
 
 DOTFILES=${HOME}/dotfiles
@@ -39,7 +39,7 @@ SNAP="/snap/bin/hugo"
 PERF="$(echo /usr/lib/linux-tools/*-generic)"
 
 ################################################################
-# EXPORT
+# ENV VARS
 ################################################################
 
 export SHELL=/bin/bash
@@ -77,9 +77,32 @@ for d in $HOME/thirdparty/*/; do
     [ -d "$d" ] && PATH+=":$d"
 done
 
-##########################################
-# FZF
-##########################################
+#########################################
+### BASH HISTORY
+#########################################
+
+# don't put duplicate lines or lines starting with space in the history.
+export HISTCONTROL=ignoreboth:erasedups
+
+# save last 2k commands on disk and of that load last 1k commands in memory.
+export HISTSIZE=1000
+export HISTFILESIZE=20000
+export HISTFILE="$HOME/.bash_history"
+export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
+
+##############################################
+#  THIRD PARTY
+##############################################
+
+# NOTE: this project has been paused indefinitely
+# TODO: explore alternative
+# https://github.com/rocktimsaikia/animechan
+# if [ -z ${WORK} ]; then
+#   curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
+# fi
+
+# fuzzy search files using fzf
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
 
 # use Fzf with 'fd'
 export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
@@ -103,18 +126,26 @@ export FZF_CTRL_R_OPTS="
 # morhetz/gruvbox
 export FZF_DEFAULT_OPTS='--color=bg+:#3c3836,bg:#32302f,spinner:#fb4934,hl:#928374,fg:#ebdbb2,header:#928374,info:#8ec07c,pointer:#fb4934,marker:#fb4934,fg+:#ebdbb2,prompt:#fb4934,hl+:#fb4934'
 
-#########################################
-### BASH HISTORY
-#########################################
+FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
+if [ -e "${FZF_UTILITIES}" ]; then
+  source "${FZF_UTILITIES}"
+fi
 
-# don't put duplicate lines or lines starting with space in the history.
-export HISTCONTROL=ignoreboth:erasedups
+# git completion
+git_completion=${DOTFILES}/tools/git-completion-bash.sh
+if [ -e  "${git_completion}" ]; then
+    source "${git_completion}"
+fi
 
-# save last 2k commands on disk and of that load last 1k commands in memory.
-export HISTSIZE=1000
-export HISTFILESIZE=2000
-export HISTFILE="$HOME/.bash_history"
-export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
+# rust env
+. "$HOME/.cargo/env"
+
+# https://github.com/nvbn/thefuck
+# TODO: below option starts a new shell at $HOME. fucks up tmux pane_current_path settings.
+# eval $(thefuck --alias --enable-experimental-instant-mode)
+
+# https://github.com/ajeetdsouza/zoxide
+eval "$(zoxide init bash)"
 
 ################################################################
 # SOURCES
@@ -132,16 +163,6 @@ for f in ${DOTRC}/*; do [ -f "$f" ] && source "$f"; done
 if [ -e "$HOME"/.personalrc ]; then
   source "$HOME"/.personalrc
 fi
-
-##############################################
-#  quote
-##############################################
-# NOTE: this project has been paused indefinitely
-# TODO: explore alternative
-# https://github.com/rocktimsaikia/animechan
-# if [ -z ${WORK} ]; then
-#   curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
-# fi
 
 ################################################################
 ##  CONFIG
@@ -334,7 +355,7 @@ export GROFF_NO_SGR=1         # For Konsole and Gnome-terminal
 unset use_color safe_term match_lhs sh
 
 #################################
-# third party
+# THIRD PARTY
 #################################
 
 # reporting tools - install when not installed
@@ -352,30 +373,6 @@ unset use_color safe_term match_lhs sh
 #sysinfo-retro
 #cpufetch
 #colorscript random
-
-# fuzzy search files using fzf
-[ -f ~/.fzf.bash ] && source ~/.fzf.bash
-
-FZF_UTILITIES="$HOME/dotfiles/.fzf_utilities"
-if [ -e ${FZF_UTILITIES} ]; then
-  source ${FZF_UTILITIES}
-fi
-
-# git completion
-git_completion=${DOTFILES}/tools/git-completion-bash.sh
-if [ -e  ${git_completion} ]; then
-    source ${git_completion}
-fi
-
-# rust env
-. "$HOME/.cargo/env"
-
-# https://github.com/nvbn/thefuck
-# TODO: below option starts a new shell at $HOME. fucks up tmux pane_current_path settings.
-# eval $(thefuck --alias --enable-experimental-instant-mode)
-
-# https://github.com/ajeetdsouza/zoxide
-eval "$(zoxide init bash)"
 
 #THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
 export SDKMAN_DIR="$HOME/.sdkman"
