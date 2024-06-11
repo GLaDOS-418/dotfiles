@@ -84,8 +84,8 @@ done
 # don't put duplicate lines or lines starting with space in the history.
 export HISTCONTROL=ignoreboth:erasedups
 
-# save last 2k commands on disk and of that load last 1k commands in memory.
-export HISTSIZE=1000
+# save last 20k commands on disk and of that load last 10k commands in memory.
+export HISTSIZE=10000
 export HISTFILESIZE=20000
 export HISTFILE="$HOME/.bash_history"
 export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
@@ -260,14 +260,15 @@ BWHITE='\e[1;37m'
 BGWHITE='\e[1;37m'
 
 # Change the window title of X terminals
-case ${TERM} in
-  xterm*|rxvt*|Eterm*|aterm|kterm|gnome*|interix|konsole*)
-    PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\007"'
-    ;;
-  screen*)
-    PROMPT_COMMAND='echo -ne "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\033\\"'
-    ;;
-esac
+# TODO: is it even required anymore?
+# case ${TERM} in
+#   xterm*|rxvt*|Eterm*|aterm|kterm|gnome*|interix|konsole*)
+#     PROMPT_COMMAND+='echo -ne "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\007"'
+#     ;;
+#   screen*)
+#     PROMPT_COMMAND+='echo -ne "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\033\\"'
+#     ;;
+# esac
 
 use_color=true
 

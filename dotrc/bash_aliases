@@ -7,6 +7,7 @@
 alias u0='du --max-depth=0 -h'
 alias u1='du --max-depth=1 -h'
 alias l='ls -lrth'   # ls is function declared later
+alias ll='ls -lh'   # ls is function declared later
 alias la='ls -lrtAh' # ls is function declared later
 alias l.='find . -maxdepth 1 -name ".*" -ls' # list dotfiles
 alias df='df -h'                          # human-readable sizes
