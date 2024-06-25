@@ -223,43 +223,106 @@ autocd direxpand histverify nocaseglob no_empty_cmd_completion cmdhist
 # COLORS
 ###################################################################
 
+# NOTE: example usage
+# Example usage:
+# echo -e "${BOLD}${RED}This is bold red text${RESET}"
+# echo -e "${ITALIC}${GREEN}This is italic green text${RESET}"
+# echo -e "${UNDERLINE}${BLUE}This is underlined blue text${RESET}"
+# echo -e "${BLINK}${MAGENTA}This is blinking magenta text${RESET}"
+# echo -e "${REVERSE}${CYAN}This is reverse video cyan text${RESET}"
+# echo -e "${BGBLACK}${WHITE}This is white text on black background${RESET}"
+# echo -e "${BGYELLOW}${BRED}This is bright red text on yellow background${RESET}"
+# echo -e "${DIM}${YELLOW}This is dim yellow text${RESET}"
+# echo -e "${HIDDEN}${WHITE}This is hidden white text${RESET}"
+# echo -e "${STRIKETHROUGH}${BLUE}This is strikethrough blue text${RESET}"s
+#
 ## colors? used for the prompt.
 
 esc_color(){
   printf "\["${1}"\]"
 }
 
-# no color
-RESET='\e[m'
-# regular text color
-BLACK='\e[0;30m'
-# bold text color
-BBLACK='\e[1;30m'
-# background color
-BGBLACK='\e[40m'
-RED='\e[0;31m'
-BRED='\e[1;31m'
-BGRED='\e[41m'
-GREEN='\e[0;32m'
-BGREEN='\e[1;32m'
-BGGREEN='\e[1;32m'
-YELLOW='\e[0;33m'
-BYELLOW='\e[1;33m'
-BGYELLOW='\e[1;33m'
-BLUE='\e[0;34m'
-BBLUE='\e[1;34m'
-BGBLUE='\e[1;34m'
-MAGENTA='\e[0;35m'
-BMAGENTA='\e[1;35m'
-BGMAGENTA='\e[1;35m'
-CYAN='\e[0;36m'
-BCYAN='\e[1;36m'
-BGCYAN='\e[1;36m'
-WHITE='\e[0;37m'
-BWHITE='\e[1;37m'
-BGWHITE='\e[1;37m'
+# Function to define regular, bright, and background colors
+define_color() {
+  local color_name=$1
+  local color_code=$2
+  eval "$color_name='\e[0;${color_code}m'"
+  eval "B$color_name='\e[1;${color_code}m'"
+  eval "BG$color_name='\e[4${color_code:1}m'"
+}
 
-# Change the window title of X terminals
+# Function to define text styles
+define_style() {
+  local style_name=$1
+  local style_code=$2
+  eval "$style_name='\e[${style_code}m'"
+}
+
+# Reset color
+RESET='\e[m'
+
+# Define text styles
+define_style BOLD 1
+define_style DIM 2
+define_style ITALIC 3
+define_style UNDERLINE 4
+define_style BLINK 5
+define_style REVERSE 7
+define_style HIDDEN 8
+define_style STRIKETHROUGH 9
+define_style BOLDOFF 21
+define_style ITALICOFF 23
+define_style UNDERLINEOFF 24
+define_style BLINKOFF 25
+define_style REVERSEOFF 27
+define_style STRIKETHROUGHOFF 29
+
+# Define colors
+define_color BLACK 30
+define_color RED 31
+define_color GREEN 32
+define_color YELLOW 33
+define_color BLUE 34
+define_color MAGENTA 35
+define_color CYAN 36
+define_color WHITE 37
+
+# Define colors for dark mode
+DARK_SLATE_GRAY_FG='\e[38;2;47;79;79m'
+DARK_SLATE_GRAY_BG='\e[48;2;47;79;79m'
+
+OLIVE_GREEN_FG='\e[38;2;128;128;0m'
+OLIVE_GREEN_BG='\e[48;2;128;128;0m'
+
+DARK_OLIVE_GREEN_FG='\e[38;2;85;107;47m'
+DARK_OLIVE_GREEN_BG='\e[48;2;85;107;47m'
+
+SIENNA_FG='\e[38;2;160;82;45m'
+SIENNA_BG='\e[48;2;160;82;45m'
+
+TEAL_FG='\e[38;2;0;128;128m'
+TEAL_BG='\e[48;2;0;128;128m'
+
+DARK_GOLDENROD_FG='\e[38;2;184;134;11m'
+DARK_GOLDENROD_BG='\e[48;2;184;134;11m'
+
+SLATE_BLUE_FG='\e[38;2;106;90;205m'
+SLATE_BLUE_BG='\e[48;2;106;90;205m'
+
+DARK_CYAN_FG='\e[38;2;0;139;139m'
+DARK_CYAN_BG='\e[48;2;0;139;139m'
+
+DARK_ORANGE_FG='\e[38;2;255;140;0m'
+DARK_ORANGE_BG='\e[48;2;255;140;0m'
+
+DARK_MAGENTA_FG='\e[38;2;139;0;139m'
+DARK_MAGENTA_BG='\e[48;2;139;0;139m'
+
+LIGHT_GRAY_FG='\e[38;2;211;211;211m'
+LIGHT_GRAY_BG='\e[48;2;211;211;211m'
+
+
+# Change the window title of X terminal
 # TODO: is it even required anymore?
 # case ${TERM} in
 #   xterm*|rxvt*|Eterm*|aterm|kterm|gnome*|interix|konsole*)
@@ -295,7 +358,7 @@ function __build_prompt_command {
 
   # username and hostname already in tmux bar
   # cmd input is on new line in case the screen width is not enough for dirname len
-  printf "${YELLOW}[ ${BWHITE}${cwd} ${BCYAN}${pbranch} ${BRED}${pstatus}${BGREEN}${SHLVL} ${YELLOW}]${RESET}\n$ "
+  printf "${YELLOW}[ ${BOLD}${BLACK}${BGBLUE}${cwd}${RESET} ${BCYAN}${pbranch} ${BRED}${pstatus}${BGREEN}${SHLVL} ${YELLOW}]${RESET}\n$ "
 }
 
 if ${use_color} ; then
@@ -326,8 +389,6 @@ fi
 
 # better yaourt colors
 export YAOURT_COLORS="nb=1:pkg=1:ver=1;32:lver=1;45:installed=1;42:grp=1;34:od=1;41;5:votes=1;44:dsc=0:other=1;35"
-#export PS1=${debian_chroot:+($debian_chroot)}\u@\h:\w\$ #old value
-#export PS1="[\u]:[\W]$" #[username]:[baseWorkingDirectory]
 
 # colored GCC warnings and errors
 export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
