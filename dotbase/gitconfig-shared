@@ -44,7 +44,7 @@
     autopull = !git stash && git pull && git stash apply
     mtg = mergetool --gui
     pt =  !git pull origin $(git rev-parse --abbrev-ref HEAD)
-    unfuck = !git fsck && git remote prune origin && git gc # attempt to cleanup some common problems
+    unfuck = !git fsck && git remote prune origin && git gc # better than just "garbage collection(gc)"
 [system "core"]
    longpaths = true
 [diff]
@@ -69,18 +69,18 @@
 [apply]
         #whitespace = fix
 [color]
-	ui = true
-        status = always
-        advice = always
-        branch = always
-        diff = always
-        grep = always
-        interactive = always
+	ui = auto
+        status = true
+        advice = true
+        branch = true
+        diff = true
+        grep = true
+        interactive = true
         pager = true
-        push = always
-        remote = always
-        showBranch = always
-        transport = always
+        push = true
+        remote = true
+        showBranch = true
+        transport = true
 [color "diff-highlight"]
 	oldNormal = red bold
 	oldHighlight = red bold 52
