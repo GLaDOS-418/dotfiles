@@ -12,8 +12,7 @@ alias la='ls -lrtAh' # ls is function declared later
 alias l.='find . -maxdepth 1 -name ".*" -ls' # list dotfiles
 alias df='df -h'                          # human-readable sizes
 alias free='free -mht'                    # show sizes in MB
-alias grep='grep --colour=always'
-alias egrep='grep -E --colour=always'
+alias eg='grep -E --colour=always'
 alias fgrep='grep -F --colour=always'
 alias rsync='rsync -azvhP'
 alias navic='navi --cheatsh'
@@ -33,7 +32,6 @@ alias nuke_trash='/bin/rm -rf ${TRASH:?}/*'
 
 # cleanup shortcut
 alias rout='rm *.out'
-alias git='/usr/bin/git'
 
 ################################################################
 # EDITOR ALIAS

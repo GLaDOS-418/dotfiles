@@ -344,13 +344,13 @@ function peek {
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
 function git {
   REALPATH=$(readlink -f "${PWD}")
-  if grep -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/cygdrive/" ] || [ "${REALPATH:0:3}" == "/c/" ]; then
+  if grep --color=never -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/cygdrive/" ] || [ "${REALPATH:0:3}" == "/c/" ]; then
     # /c/ for git bash and /cygdrive/ for cygwin
     git.exe "$@"
-  elif grep -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
+  elif grep --color=never -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
     # /mnt/ for microsoft wsl. WSL doesn't allow windows programs to alter subsystem files. Thus no /home/
     git.exe "$@"
-  elif grep -qE "(MSYS_NT)" /proc/version &> /dev/null ;  then
+  elif grep --color=never -qE "(MSYS_NT)" /proc/version &> /dev/null ;  then
     /mingw64/bin/git "$@"
   else
     /usr/bin/git "$@"
