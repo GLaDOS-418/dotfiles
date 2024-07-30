@@ -103,10 +103,11 @@
 [gui]
 	encoding = utf-8
 [rebase]
+        stat = true
 	autoStash = true
         updateRefs = true
         missingCommitsCheck = error
-        instructionFormat = %s ⦿ %an (%cr)  %d
+#instructionFormat = %s ⦿ %an (%cr)  %d # this fucks up update-refs by adding update-ref for HEAD
 [init]
 	defaultBranch = main
 
@@ -118,5 +119,4 @@
 	autocorrect = prompt
 [push]
 	autoSetupRemote = true
-        useForceIfIncludes = true
 	default = current

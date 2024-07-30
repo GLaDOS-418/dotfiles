@@ -80,7 +80,7 @@ alias dh='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-chang
 alias dhead='dh HEAD'
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
 alias gp='git rev-parse --abbrev-ref HEAD | xargs git push origin --set-upstream'
-alias gpf='gp --force-with-lease --force-if-includes'
+alias gpf='gp --force-with-lease' # --force-if-includes makes you merge changes??
 alias gl='git pull'
 alias st='git status'
 alias br='git branch --format="%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - %(contents:subject) %(color:green)(%(committerdate:relative)) [%(authorname)]" --sort=-committerdate'
