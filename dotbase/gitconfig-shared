@@ -5,7 +5,6 @@
 	editor = nvim
 	#pager = diff-so-fancy | less --tabs=4 -RFX
 	pager = delta
-	#excludesfile = C:/users/abh/.gitignore_global
         #whitespace = trailing-space,space-before-tab
 [interactive]
     diffFilter = delta --color-only
@@ -23,9 +22,10 @@
     cob=checkout -b
     squash="!f(){ git reset --soft HEAD~${1} && git commit --edit -m\"$(git log --format=%B --reverse HEAD..HEAD@{1})\"; };f"
     lo="log --oneline --no-merges -n 20 --pretty=format:'%Cred%h%Creset - %C(cyan)%an%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative"
-    abh="log --oneline --no-merges --pretty=format:'%Cred%h%Creset - %C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit  --author='Arnob Bhanja' --date=relative"
+    abh="log --oneline --no-merges --pretty=format:'%Cred%h%Creset - %C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit  --author='abhanja' --date=relative"
     patch = !git --no-pager diff --no-color
     pick="!g(){ git cherry-pick ${1} -n; };g"
+    cp="!g(){ git cherry-pick ${1} ; };g"
     dsf="!f() { [ -z \"$GIT_PREFIX\" ] || cd \"$GIT_PREFIX\" && git diff --color \"$@\" | diff-so-fancy  | less --tabs=4 -RFX; }; f"
     hide="update-index --assume-unchanged"
     unhide="update-index --no-assume-unchanged"
@@ -104,6 +104,9 @@
 	encoding = utf-8
 [rebase]
 	autoStash = true
+        updateRefs = true
+        missingCommitsCheck = error
+        instructionFormat = %s ⦿ %an (%cr)  %d
 [init]
 	defaultBranch = main
 
@@ -115,4 +118,5 @@
 	autocorrect = prompt
 [push]
 	autoSetupRemote = true
+        useForceIfIncludes = true
 	default = current
