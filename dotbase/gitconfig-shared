@@ -42,32 +42,45 @@
     slist = stash list --format='%gd (%cr): %gs'
     sdiff = stash show -p
     autopull = !git stash && git pull && git stash apply
-    mtg = mergetool --gui
+    mt=mergetool
+    mtg=mergetool --gui
     pt =  !git pull origin $(git rev-parse --abbrev-ref HEAD)
     unfuck = !git fsck && git remote prune origin && git gc # better than just "garbage collection(gc)"
+
+    # print all branches that have diverged from remote
+    diverged = "!for b in $(git for-each-ref --format='%(refname:short)' refs/heads/); do git rev-list --left-right --count origin/$b...$b &>/dev/null && git rev-list --left-right --count origin/$b...$b | awk '{if ($1 > 0 || $2 > 0) print b}' b=\"$b\"; done"
+
+    # see a specific version of a file
+    fileat="!g(){ git show ${1}:${GIT_PREFIX:-./}${2} ; };g" # {2} is filepath (relative), {1} is revision/commit/branch etc.
 [system "core"]
    longpaths = true
+
 [diff]
 	tool = nvimdiff
 	renameLimit = 1000
 	guitool = kdiff3
-#[merge]
-        #tool = fugitive
 
 [merge]
     tool = nvimdiff
     guitool = kdiff3
+
+[mergetool]
+	prompt = true
+
+[mergetool "nvimdiff"]
+    # https://git-scm.com/docs/vimdiff/2.39.3
+    layout = LOCAL,BASE,REMOTE/MERGED + LOCAL,MERGED,REMOTE
+    keepBackup = false
+    trustExitCode = false
+
 [mergetool "kdiff3"]
-    #path = "C:\\Program Files\\KDiff3\\kdiff3.exe"
     path = "/mnt/c/Program Files/KDiff3/kdiff3.exe"
     keepBackup = false
     trustExitCode = false
-[mergetool]
-	prompt = true
-[mergetool "fugitive"]
-	cmd = nvim -f -c \"Gdiff\" \"$MERGED\"
+
 [apply]
         #whitespace = fix
+#
 [color]
 	ui = auto
         status = true
@@ -81,11 +94,13 @@
         remote = true
         showBranch = true
         transport = true
+
 [color "diff-highlight"]
 	oldNormal = red bold
 	oldHighlight = red bold 52
 	newNormal = green bold
 	newHighlight = green bold 22
+
 [color "diff"]
 	meta = yellow
 	frag = magenta bold
@@ -93,6 +108,7 @@
 	old = red bold
 	new = green bold
 	whitespace = red reverse
+
 [diff-so-fancy]
 	stripLeadingSymbols = false
 	changeHunkIndicators = false
@@ -102,12 +118,13 @@
 	first-run = false
 [gui]
 	encoding = utf-8
+
 [rebase]
         stat = true
-	autoStash = true
+        autoStash = true
         updateRefs = true
         missingCommitsCheck = error
-#instructionFormat = %s ⦿ %an (%cr)  %d # this fucks up update-refs by adding update-ref for HEAD
+        #instructionFormat = %s ⦿ %an (%cr)  %d # this fucks up update-refs by adding update-ref for HEAD
 [init]
 	defaultBranch = main
 
