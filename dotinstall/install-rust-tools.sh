@@ -8,5 +8,6 @@ cargo install \
         ripgrep \
         sd \
         tree-sitter-cli \
-        zoxide
+        zoxide \
+        typos-cli
 #cargo install cargo-update
