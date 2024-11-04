@@ -96,6 +96,7 @@ alias log='git log --oneline --no-merges HEAD~20..HEAD'
 alias gap='git add -p'
 alias gcp='git checkout -p'
 alias f='git fetch'
+alias groot='cd $(git rev-parse --show-toplevel)'
 
 
 # PACMAN

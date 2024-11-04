@@ -13,7 +13,7 @@ function new_cpp_project {
     return
   fi
 
-  git clone --depth 1 --single-branch --branch basic git@github.com:GLaDOS-418/cpp-project-template.git "${1}"
+  git clone --depth 1 --single-branch --branch main git@github.com:GLaDOS-418/cpp-project-template.git "${1}"
   cd "${1}" || exit
   /usr/bin/rm -rf .git
   echo "# ${1}" >| README.md
@@ -73,6 +73,7 @@ function gpp {
     -pedantic-errors \
     -pthread -latomic -mavx2 \
     -std=c++2b \
+    -g3 \
     "$@"
     # -fno-omit-frame-pointer \  # https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html#C
     # -Waggregate-return \  # https://stackoverflow.com/questions/14016993/confusion-in-regards-to-purpose-behavior-of-waggregate-return
@@ -255,7 +256,7 @@ function ex {
       *.rar)                                 unrar x "$1"          ;;
       *.tar)                                 tar -vkxf "$1"        ;;
       *.Z)                                   uncompress "$1"       ;;
-      *.zip)                                 unzip "$1"            ;;
+      *.vsix|*.zip)                          unzip "$1"            ;;
       *)                                     echo "'$1' cannot be extracted via ex()" ;;
     esac
   else
