@@ -236,32 +236,42 @@ function ex {
     return 1 
   }
 
-  if [ -f "$1" ] ; then
-    case $1 in
-      *.tar.bz|*.tbz|*.tar.bz2|*.tbz2|*.tb2) tar -vkxjf "$1"       ;;
-      *.tar.gz|*.tgz)                        tar -vkxzf "$1"       ;;
-      *.tar.xz|*.txz)                        tar -vkxJf "$1"       ;;
-      *.pkg.tar.zst)                         bsdtar -xvf "$1"      ;;
-      *.tar.zst)                             tar -vkxf "$1"        ;;
-      *.tar.lz)                              tar --lzip -vkxf "$1" ;;
-      *.tar.lzma)                            tar --lzma -vkxf "$1" ;;
-      *.tar.lzo)                             tar --lzop -vkxf "$1" ;;
-      *.7z)                                  7z x "$1"             ;;
-      *.bz2)                                 bunzip2 -kd "$1"      ;;
-      *.gz)                                  gunzip "$1"           ;;
-      *.deb)                                 ar x "$1"             ;;
-      *.rpm)                                 rpm2cpio "$1" | cpio -idmv ;;
-      *.flatpak)                             flatpak build-extract "$1" ;;
-      *.snap)                                unsquashfs "$1"       ;;
-      *.rar)                                 unrar x "$1"          ;;
-      *.tar)                                 tar -vkxf "$1"        ;;
-      *.Z)                                   uncompress "$1"       ;;
-      *.vsix|*.zip)                          unzip "$1"            ;;
-      *)                                     echo "'$1' cannot be extracted via ex()" ;;
-    esac
-  else
+  if [[ ! -f "$1" ]]; then
     echo "'$1' is not a valid file"
+    return 1
   fi
+
+  file_path=$(realpath "$1")
+  archive_name=$(basename "$file_path")
+  extract_dir="${archive_name}.extracted"
+
+  mkdir -p "$extract_dir"
+  cd "$extract_dir" || { echo "Failed to change directory to $extract_dir"; return 1; }
+
+  case $file_path in
+    *.tar.bz|*.tbz|*.tar.bz2|*.tbz2|*.tb2) tar -xjf "$file_path" ;;
+    *.tar.gz|*.tgz)                        tar -xzf "$file_path" ;;
+    *.tar.xz|*.txz)                        tar -xJf "$file_path" ;;
+    *.pkg.tar.zst)                         bsdtar -xvf "$file_path" ;;
+    *.tar.zst)                             tar --zstd -xvf "$file_path" ;;
+    *.tar.lz)                              tar --lzip -xvf "$file_path" ;;
+    *.tar.lzma)                            tar --lzma -xvf "$file_path" ;;
+    *.tar.lzo)                             tar --lzop -xvf "$file_path" ;;
+    *.7z)                                  7z x "$file_path" ;;
+    *.bz2)                                 bunzip2 -k "$file_path" ;;
+    *.gz)                                  gunzip -k "$file_path" ;;
+    *.deb)                                 ar x "$file_path" ;;
+    *.rpm)                                 rpm2cpio "$file_path" | cpio -idmv ;;
+    *.flatpak)                             flatpak build-extract "$file_path" ;;
+    *.snap)                                unsquashfs "$file_path" ;;
+    *.rar)                                 unrar x "$file_path" ;;
+    *.tar)                                 tar -xvf "$file_path" ;;
+    *.Z)                                   uncompress "$file_path" ;;
+    *.vsix|*.zip)                          unzip -o "$file_path" ;;
+    *)                                     echo "'$1' cannot be extracted via ex()" ;;
+  esac
+
+  cd - > /dev/null || return
 }
 
 # ar - archiver
@@ -563,4 +573,8 @@ function ssnap {
     if sudo -i snap install "$@" ; then
         echo "$@" | tr ' ' '\n' >> "$DOTFILES"/snaplist
     fi
+}
+
+run_plantuml_server() {
+  docker run --name plantuml-server -d -p 6969:8080 plantuml/plantuml-server:tomcat
 }

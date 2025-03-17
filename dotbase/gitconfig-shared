@@ -23,7 +23,7 @@
     squash="!f(){ git reset --soft HEAD~${1} && git commit --edit -m\"$(git log --format=%B --reverse HEAD..HEAD@{1})\"; };f"
     lo="log --oneline --no-merges -n 30 --pretty=format:'%Cred%h%Creset - %C(cyan)%an%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit --date=relative"
     abh="log --oneline --no-merges --pretty=format:'%Cred%h%Creset - %C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' --abbrev-commit  --author='abhanja' --date=relative"
-    patch = !git --no-pager diff --no-color
+    patch = !git --no-pager diff --patch --binary --no-color
     pick="!g(){ git cherry-pick ${1} -n; };g"
     cp="!g(){ git cherry-pick ${1} ; };g"
     dsf="!f() { [ -z \"$GIT_PREFIX\" ] || cd \"$GIT_PREFIX\" && git diff --color \"$@\" | diff-so-fancy  | less --tabs=4 -RFX; }; f"

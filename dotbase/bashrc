@@ -94,12 +94,14 @@ export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 #  THIRD PARTY
 ##############################################
 
-# NOTE: this project has been paused indefinitely
-# TODO: explore alternative
-# https://github.com/rocktimsaikia/animechan
-# if [ -z ${WORK} ]; then
-#   curl -m 2 -f -s "https://animechan.xyz/api/random" 2>/dev/null | jq -r '"\n\t\(.quote)\n\t\t-\(.character) (\(.anime))\n"' | fold -s -w 80 | awk '{printf "%" int((60-length) / 2) "s%s\n", "", $0}'
-# fi
+# anime quotes on startup
+# alternative to: https://github.com/rocktimsaikia/animechan
+if [ "${WORK}" = "false" ]; then
+  curl --max-time 3 --fail --silent "https://animechan.io/api/v1/quotes/random" |
+    jq -r '"\n\t\(.data.content)\n\t\t- \(.data.character.name) (\(.data.anime.name))\n"' |
+    fold --spaces --width=80 |
+    awk '{pad = (60 > length) ? int((60 - length) / 2) : 0; printf "%*s%s\n", pad, "", $0}'
+fi
 
 # fuzzy search files using fzf
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
@@ -439,3 +441,7 @@ unset use_color safe_term match_lhs sh
 #THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
 export SDKMAN_DIR="$HOME/.sdkman"
 [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+export NVM_DIR="$HOME/.config/nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
