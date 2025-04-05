@@ -162,10 +162,6 @@ unalias -a
 
 for f in ${DOTRC}/*; do [ -f "$f" ] && source "$f"; done
 
-if [ -e "$HOME"/.personalrc ]; then
-  source "$HOME"/.personalrc
-fi
-
 ################################################################
 ##  CONFIG
 ################################################################
@@ -445,3 +441,11 @@ export SDKMAN_DIR="$HOME/.sdkman"
 export NVM_DIR="$HOME/.config/nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+
+###############################################################################
+# Load this after everything else has been loaded.
+###############################################################################
+if [ -e "$HOME"/.personalrc ]; then
+  source "$HOME"/.personalrc
+fi
