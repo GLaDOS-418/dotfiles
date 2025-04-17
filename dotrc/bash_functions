@@ -368,6 +368,23 @@ function git {
   fi
 }
 
+# Interactively fuzzy-find and checkout a local Git branch.
+# Lists only local branches, sorted by last commit date (most recent first).
+# Displays a 1-line preview of the latest commit for each branch (excluding merges).
+# Automatically updates the preview as you move the selection.
+# Uses a small floating window (40% height), preserving most of the terminal.
+# Checks out the selected branch.
+#
+# Dependencies:
+# - fzf        (https://github.com/junegunn/fzf)
+function gco {
+  git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/ | \
+    fzf --height=40% --reverse --inline-info --no-multi --ansi \
+        --preview="git log -n 1 --no-merges --color=always --graph --oneline {}" \
+        --preview-window=up:1:wrap | \
+    xargs git checkout
+}
+
 function git_ignore {
   # Usage : generates .gitignore file for languages, IDEs and Operating Systems
   # $ git_ignore vim c++ linux
