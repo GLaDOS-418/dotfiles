@@ -35,6 +35,9 @@ alias rout='rm *.out'
 
 alias make='make -s'
 
+# some shells might have 'time' command built-in which is not the standardised one.
+alias time='/usr/bin/time'
+
 ################################################################
 # EDITOR ALIAS
 ################################################################
@@ -65,6 +68,7 @@ alias sba="source \${DOTRC}/bash_aliases"
 alias vbf="v \${DOTRC}/bash_functions"
 alias sbf="source \${DOTRC}/bash_functions"
 alias vn='v -u NONE'
+alias jupyter-notebook="~/.local/bin/jupyter-notebook --no-browser"
 
 
 #### WINDOWS
