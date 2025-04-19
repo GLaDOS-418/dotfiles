@@ -359,6 +359,14 @@ function __build_prompt_command {
   printf "${YELLOW}[ ${BOLD}${BLACK}${BGBLUE}${cwd}${RESET} ${BCYAN}${pbranch} ${BRED}${pstatus}${BGREEN}${SHLVL} ${YELLOW}]${RESET}\n$ "
 }
 
+_git_branch_insert() {
+  READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}$(git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/\1/')${READLINE_LINE:$READLINE_POINT}"
+  READLINE_POINT=$(( READLINE_POINT + ${#BRANCH_NAME} ))
+}
+
+# <C-g> prints current git branch name in console. For example, git commit -m "<C-g> <-- insert branch name
+bind -x '"\C-g": _git_branch_insert'
+
 if ${use_color} ; then
   # Enable colors for ls, etc.  Prefer $HOME/.dir_colors #64489
   if type -P dircolors >/dev/null ; then
