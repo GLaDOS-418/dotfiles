@@ -14,6 +14,11 @@
     # delta detects terminal colors automatically; set one of these to disable auto-detection
     # dark = true
     # light = true
+
+    side-by-side = true
+    syntax-theme = zenburn
+    line-numbers = true
+
 [alias]
     try="clone --depth 1"
     co=checkout
