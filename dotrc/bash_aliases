@@ -103,6 +103,7 @@ alias gcp='git checkout -p'
 alias f='git fetch'
 alias groot='cd $(git rev-parse --show-toplevel)'
 
+alias todo='v ${HOME}/todo.md'
 
 # PACMAN
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
@@ -136,6 +137,8 @@ alias ytlist='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 
 # zoxide
 [ -x "$(command -v zoxide)" ] && alias cd='z'
 
+# valgrind
+alias vg='valgrind --error-exitcode=1 --tool=memcheck --leak-check=full --errors-for-leak-kinds=definite --show-leak-kinds=definite'
 ################################################################
 #fix obvious typo's
 ################################################################

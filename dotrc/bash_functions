@@ -592,6 +592,6 @@ function ssnap {
     fi
 }
 
-run_plantuml_server() {
+plantuml_server() {
   docker run --name plantuml-server -d -p 6969:8080 plantuml/plantuml-server:tomcat
 }
