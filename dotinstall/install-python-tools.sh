@@ -7,3 +7,4 @@ pipx install bpytop
 pipx install conan
 pipx install thefuck
 pipx install jupyter --include-deps
+pipx install animdl
