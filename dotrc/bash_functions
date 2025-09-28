@@ -72,7 +72,7 @@ function gpp {
     -pedantic  \
     -pedantic-errors \
     -pthread -latomic -mavx2 \
-    -std=c++2b \
+    -std=c++2a \
     -g3 \
     "$@"
     # -fno-omit-frame-pointer \  # https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html#C
@@ -222,11 +222,11 @@ function bench {
 
 
 function grl {
-  grep -Rl --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
+  grep -Rl --exclude-dir={docs,deploy,.git,_build,build,.vscode} --include=\*.{ts,t4,tt,json,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
 }
 
 function grn {
-  grep -Rn --exclude-dir={docs,deploy,.git} --include=\*.{ts,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
+  grep -Rn --exclude-dir={docs,deploy,.git,_build,build,.vscode} --include=\*.{ts,cs,t4,tt,json,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
 }
 
 # ex - archive extractor

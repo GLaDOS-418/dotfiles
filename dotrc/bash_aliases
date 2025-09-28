@@ -104,6 +104,7 @@ alias f='git fetch'
 alias groot='cd $(git rev-parse --show-toplevel)'
 
 alias todo='v ${HOME}/todo.md'
+alias note='v ${HOME}/note.md'
 
 # PACMAN
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
