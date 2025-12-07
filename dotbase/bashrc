@@ -64,11 +64,12 @@ export LOCALNVIM=${HOME}/.local/nvim/bin
 
 # required only if JAVA_HOME is not set by sdkman in the end of this script
 # export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+# export PATH=$JAVA_HOME/bin:$PATH
 
 # DOTNET=$HOME/.dotnet
 
-export PATH=$BOB_NVIM:$UNICTAGS/bin:$CHROME:$LIVE_LATEX_PREVIEW:$GNUGLOBAL:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
-export PATH=${JAVA_HOME}/bin:${GOBIN}:${PERF}:${DOTNET}:$PATH
+export PATH=$BOB_NVIM:$UNICTAGS/bin:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
+export PATH=${GOBIN}:${PERF}:${DOTNET}:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
 
@@ -96,12 +97,12 @@ export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
 
 # anime quotes on startup
 # alternative to: https://github.com/rocktimsaikia/animechan
-if [ "${WORK}" = "false" ]; then
-  curl --max-time 3 --fail --silent "https://animechan.io/api/v1/quotes/random" |
-    jq -r '"\n\t\(.data.content)\n\t\t- \(.data.character.name) (\(.data.anime.name))\n"' |
-    fold --spaces --width=80 |
-    awk '{pad = (60 > length) ? int((60 - length) / 2) : 0; printf "%*s%s\n", pad, "", $0}'
-fi
+# if [ "${WORK}" = "false" ]; then
+#   curl --max-time 3 --fail --silent "https://animechan.io/api/v1/quotes/random" |
+#     jq -r '"\n\t\(.data.content)\n\t\t- \(.data.character.name) (\(.data.anime.name))\n"' |
+#     fold --spaces --width=80 |
+#     awk '{pad = (60 > length) ? int((60 - length) / 2) : 0; printf "%*s%s\n", pad, "", $0}'
+# fi
 
 # fuzzy search files using fzf
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash

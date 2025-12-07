@@ -222,11 +222,11 @@ function bench {
 
 
 function grl {
-  grep -Rl --exclude-dir={docs,deploy,.git,_build,build,.vscode} --include=\*.{ts,t4,tt,json,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
+  grep -Rl --exclude-dir={node_modules,docs,deploy,.git,_build,build,.vscode} --include=\*.{ts,t4,tt,json,cs,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcsxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
 }
 
 function grn {
-  grep -Rn --exclude-dir={docs,deploy,.git,_build,build,.vscode} --include=\*.{ts,cs,t4,tt,json,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
+  grep -Rn --exclude-dir={node_modules,docs,deploy,.git,_build,build,.vscode} --include=\*.{ts,cs,t4,tt,json,cpp,CPP,cc,h,H,hpp,xslt,xml,makefile,mk,yml,log\*,ksh,sh,bat,vcxproj,inc,pck,sql,lua,rs,go,ts,js} "$@" 2>/dev/null
 }
 
 # ex - archive extractor
@@ -383,6 +383,21 @@ function gco {
         --preview="git log -n 1 --no-merges --color=always --graph --oneline {}" \
         --preview-window=up:1:wrap | \
     xargs git checkout
+}
+
+find_large_files() {
+    # Default to 100M if no size is provided
+    local size="${1:-100M}"
+
+    # Check if fd is available
+    if command -v fd >/dev/null 2>&1; then
+        echo "Using fd..."
+        # Use -X for batch execution (like find ... +)
+        fd --type f --size +"${size}" -X ls -lh
+    else
+        echo "fd not found, using find..."
+        sudo find / -type f -size +"${size}" -exec ls -lh {} \;
+    fi
 }
 
 function git_ignore {
