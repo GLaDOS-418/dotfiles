@@ -45,7 +45,10 @@ alias time='/usr/bin/time'
 alias v='nvim'
 alias vnone='nvim -u NONE'
 alias nv='nvim'
-[ -x "$(command -v nvim)" ] && alias vim='nvim'
+
+# maybe it's a good idea to leave vim alone ??
+# [ -x "$(command -v nvim)" ] && alias vim='nvim'
+
 # NOTE: uv is also a python virtual env manager.
 # alias uv='v +PlugInstall +UpdateRemotePlugins +qa'
 alias gv='gvim'
