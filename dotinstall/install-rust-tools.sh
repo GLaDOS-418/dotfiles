@@ -2,12 +2,13 @@
 cargo install \
         bat \
         bob-nvim \
+        dust \
         fd-find \
         git-delta \
         navi \
         ripgrep \
         sd \
         tree-sitter-cli \
-        zoxide \
-        typos-cli
+        typos-cli \
+        zoxide
 #cargo install cargo-update
