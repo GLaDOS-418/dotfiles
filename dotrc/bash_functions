@@ -610,3 +610,74 @@ function ssnap {
 plantuml_server() {
   docker run --name plantuml-server -d -p 6969:8080 plantuml/plantuml-server:tomcat
 }
+
+linux_cleanup() {
+  set -Eeuo pipefail
+
+  echo "[cleanup] apt"
+  sudo apt autoremove -y
+  sudo apt autoclean -y
+  sudo apt clean
+
+  echo "[cleanup] systemd journal (keep last 7 days)"
+  if command -v journalctl >/dev/null 2>&1; then
+    sudo journalctl --vacuum-time=7d
+  fi
+
+  echo "[cleanup] user caches"
+  rm -rf \
+    "$HOME/.cache/thumbnails" \
+    "$HOME/.cache/fontconfig" \
+    "$HOME/.cache/npm" \
+    "$HOME/.cache/pip" \
+    "$HOME/.cache/pip-tools" \
+    "$HOME/.cache/yarn" \
+    "$HOME/.cache/node-gyp"
+
+  #####################################
+  # LSP logs and editor caches
+  #####################################
+  echo "[cleanup] LSP logs"
+
+  # Neovim (standard paths)
+  rm -rf \
+    "$HOME/.cache/nvim/log" \
+    "$HOME/.cache/nvim/lsp.log" \
+    "$HOME/.cache/nvim/lsp" \
+    "$HOME/.local/state/nvim/lsp.log"
+
+  # Vim (if used)
+  rm -rf \
+    "$HOME/.vim/log" \
+    "$HOME/.vim/lsp.log"
+
+  # VS Code (user-level logs only)
+  rm -rf \
+    "$HOME/.config/Code/logs" \
+    "$HOME/.vscode/logs"
+
+  #####################################
+  # Trash
+  #####################################
+  echo "[cleanup] trash"
+  rm -rf "$HOME/.local/share/Trash/files/"*
+
+  #####################################
+  # Docker
+  #####################################
+  echo "[cleanup] docker (if installed)"
+  if command -v docker >/dev/null 2>&1; then
+    docker system prune -af --volumes
+  fi
+
+  #####################################
+  # Snap
+  #####################################
+  echo "[cleanup] snap (if installed)"
+  if command -v snap >/dev/null 2>&1; then
+    sudo snap set system refresh.retain=2
+    sudo snap remove --purge $(snap list | awk '/disabled/{print $1}') 2>/dev/null || true
+  fi
+
+  echo "[cleanup] done"
+}

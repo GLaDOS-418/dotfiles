@@ -1,8 +1,9 @@
 #! /bin/bash
+
 cargo install \
         bat \
         bob-nvim \
-        dust \
+        du-dust \
         fd-find \
         git-delta \
         navi \
@@ -11,4 +12,3 @@ cargo install \
         tree-sitter-cli \
         typos-cli \
         zoxide
-#cargo install cargo-update

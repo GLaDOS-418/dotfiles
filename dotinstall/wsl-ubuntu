@@ -3,6 +3,7 @@ clang
 cmake
 docker-compose
 fuse2fs
+fzf
 gdb
 jq
 linux-tools-common
@@ -22,12 +23,9 @@ pipx
 postgresql
 python3
 python3-pip
-sqlite3
 strace
-thefuck
 tmux
 tree
-tree-sitter-cli
 unzip
 xclip
 xdg-utils

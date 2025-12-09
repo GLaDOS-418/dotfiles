@@ -3,7 +3,7 @@
 ######################
 # UTILITY
 ######################
-supported=("cpp" "rust" "go" "java")
+supported=("cpp" "rust" "go" "java" "node")
 
 function install_language {
   if [[ ! " ${supported[@]} " =~ " ${1} " ]]; then
@@ -12,7 +12,7 @@ function install_language {
     return 1
   fi
 
-  if check_${1} ; then
+  if _helper_check_${1} ; then
     echo "${1} not found. installing ${1}..."
     install_${1}
     echo "${1} instalation completed."
@@ -31,7 +31,7 @@ install_all() {
 ######################
 # RUST 
 ######################
-function check_rust {
+function _helper_check_rust {
    ! command -v rustc &> /dev/null
 }
 
@@ -44,23 +44,55 @@ function install_rust {
 ######################
 # CLANG C/C++
 ######################
-#
-check_cpp() {
+
+
+_helper_detect_latest_clang() {
+    /bin/ls /usr/bin/clang-[0-9]* 2>/dev/null \
+      | sed 's/.*clang-//' \
+      | sort -n \
+      | tail -1
+}
+
+_helper__helper_check_cpp() {
    ! command -v clang &> /dev/null
 }
 
 install_cpp() {
     curl -s -L https://apt.llvm.org/llvm.sh | sudo bash
+
+    VERSION=$(_helper_detect_latest_clang)
+
+    if [ -n "${VERSION}" ]; then
+        sudo update-alternatives \
+          --install /usr/bin/clang clang /usr/bin/clang-${VERSION} 200 \
+          --slave   /usr/bin/clang++ clang++ /usr/bin/clang++-${VERSION} \
+          --slave   /usr/bin/clangd clangd /usr/bin/clangd-${VERSION}
+    fi
+}
+
+uninstall_cpp() {
+    VERSION=$(detect_latest_clang)
+
+    if [ -n "${VERSION}" ]; then
+        sudo update-alternatives \
+          --remove clang /usr/bin/clang-${VERSION} || true
+    fi
+
+    sudo apt remove -y \
+      clang-${VERSION} clang-tools-${VERSION} clangd-${VERSION} \
+      lld-${VERSION} lldb-${VERSION} llvm-${VERSION} llvm-${VERSION}-dev \
+      libclang-rt-${VERSION}-dev || true
 }
 
 
 ######################
 # GOLANG
 ######################
-#
-check_go() {
+
+_helper_check_go() {
    ! command -v go &> /dev/null
 }
+
 install_go() {
     VERSION=$(curl -s -L https://golang.org/VERSION?m=text | head -n1)
     sudo rm -rf /usr/local/go || true
@@ -72,20 +104,53 @@ install_go() {
 }
 
 ######################
-# JAVA 
+# JAVA (+SDKMAN)
 ######################
-install_sdkman() {
-  if ! command -v sdk ; then
-    curl -s "https://get.sdkman.io" | bash
-    source "${HOME}/.sdkman/bin/sdkman-init.sh"
-  fi
-}
 
-check_java(){
+_helper_check_java(){
   ! command -v javac &> /dev/null
 }
 
 install_java() {
-    install_sdkman
+    if ! command -v sdk ; then
+      curl -s "https://get.sdkman.io" | bash
+      source "${HOME}/.sdkman/bin/sdkman-init.sh"
+    fi
+
     sdk install java
+}
+
+#######################
+# NODE (+NVM +TS)
+#######################
+_helper_check_node() {
+  ! command -v node &> /dev/null
+}
+
+install_node() {
+  # install latest
+  if ! command -v nvm ; then
+    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+  fi
+
+  # load nvm into current shell
+  local NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+  # install absolute latest node (not LTS)
+  nvm install node
+  nvm alias default node
+  nvm use default
+
+  # typescript
+  npm install -g typescript
+}
+
+uninstall_node() {
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+  nvm deactivate || true
+  nvm uninstall node || true
+  rm -rf "$HOME/.nvm"
 }
