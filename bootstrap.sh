@@ -4,8 +4,8 @@ set -euo pipefail
 # -------------------------
 # logging helpers
 # -------------------------
-log()   { printf '[BOOTSTRAP] %s\n' "$*" >&2; }
-die()   { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
+log() { printf '[BOOTSTRAP] %s\n' "$*" >&2; }
+die() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 
 # -------------------------
 # distro detection
@@ -22,6 +22,28 @@ fi
 
 is_debian_like() { [[ "$DISTRO_ID" == "debian" || "$DISTRO_ID" == "ubuntu" || "$DISTRO_LIKE" == *debian* ]]; }
 is_rhel_like()   { [[ "$DISTRO_ID" == "ol"     || "$DISTRO_ID" == "rhel"   || "$DISTRO_ID" == "centos" || "$DISTRO_ID" == "rocky" || "$DISTRO_LIKE" == *rhel* ]]; }
+
+# -------------------------
+# checkpoints
+# -------------------------
+CHECKPOINT_DIR="$HOME/.bootstrap_checkpoints"
+
+ensure_checkpoint_dir() { mkdir -p "$CHECKPOINT_DIR"; }
+is_done()               { [[ -f "$CHECKPOINT_DIR/$1.done" ]]; }
+mark_done()             { : > "$CHECKPOINT_DIR/$1.done"; }
+
+run_step() {
+  # usage: run_step STEP_FUNCTION_NAME
+  local step="$1"
+  if is_done "$step"; then
+    log "skip $step (already done)"
+    return 0
+  fi
+  log "running $step"
+  "$step"
+  mark_done "$step"
+  log "completed $step"
+}
 
 # -------------------------
 # locale ensure: en_US.UTF-8
@@ -67,7 +89,8 @@ install_base_packages() {
       git \
       curl \
       ca-certificates \
-      build-essential
+      build-essential \
+      hostname
 
   elif is_rhel_like; then
     log "dnf update"
@@ -79,7 +102,8 @@ install_base_packages() {
       openssh-clients \
       git \
       curl \
-      ca-certificates
+      ca-certificates \
+      hostname
 
     # development toolchain equivalent to build-essential
     log "dnf groupinstall \"Development Tools\""
@@ -100,13 +124,12 @@ install_base_packages() {
 setup_ssh() {
   install -d -m 700 "$HOME/.ssh"
 
-  # build a useful key comment automatically
   local USER_NAME="${USER:-$(id -un)}"
   local HOST_INFO
   HOST_INFO="$(hostname -f 2>/dev/null || hostname)"
   local OS_NAME="$DISTRO_PRETTY"
   local DATE_TAG
-  DATE_TAG="$(date -u +%Y%m%dT%H%M%SZ)"
+  DATE_TAG="$(date -u +%Y_%b_%d__%H.%M.%SZ)"
 
   local SSH_COMMENT="${USER_NAME}@${HOST_INFO}:${OS_NAME}:${DATE_TAG}"
   local KEY_PRIV="$HOME/.ssh/id_ed25519"
@@ -119,7 +142,6 @@ setup_ssh() {
     log "ssh key already exists: $KEY_PRIV"
   fi
 
-  # add github host key safely
   ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
   sort -u "$HOME/.ssh/known_hosts" -o "$HOME/.ssh/known_hosts"
   chmod 644 "$HOME/.ssh/known_hosts"
@@ -170,8 +192,8 @@ install_extra_from_dotinstall() {
   local PKGLIST_FILE=
   if is_debian_like && [[ -f "wsl-ubuntu" ]]; then
     PKGLIST_FILE="wsl-ubuntu"
-  elif is_rhel_like && [[ -f "ol8" ]]; then
-    PKGLIST_FILE="ol8"
+  elif is_rhel_like && [[ -f "wsl-oracle" ]]; then
+    PKGLIST_FILE="wsl-oracle"
   fi
 
   [[ -n "$PKGLIST_FILE" ]] || { log "no per-distro package list found in $DOTINSTALL"; return 0; }
@@ -192,13 +214,8 @@ install_extra_from_dotinstall() {
 # -------------------------
 remove_old_configs() {
   cd "$HOME"
-
-  for f in .bashrc .inputrc .tmux.conf .gitconfig .rgignore .vimrc .gvimrc; do
-    [[ -e "$f" ]] && rm -f "$f"
-  done
-
-  [[ -d .vim ]] && rm -rf .vim
-  [[ -d .config/nvim ]] && rm -rf .config/nvim
+  rm -f .{bashrc,inputrc,tmux.conf,gitconfig,rgignore,vimrc,gvimrc}
+  rm -rf .vim .config/nvim
 }
 
 # -------------------------
@@ -220,7 +237,6 @@ create_symlinks() {
   touch "$HOME/.gitconfig"
   git config --global include.path "$DOTRC/gitconfig-shared"
 
-  # optional wsl-specific config
   if grep -qi microsoft /proc/version; then
     sudo cp "$DOTBASE/wsl.conf" /etc/wsl.conf
   fi
@@ -229,15 +245,25 @@ create_symlinks() {
 # -------------------------
 # main
 # -------------------------
+ensure_checkpoint_dir
+
 log "distro: $DISTRO_PRETTY ($DISTRO_ID)"
-ensure_locale
-install_base_packages
-setup_ssh
-clone_dot_repos
-install_extra_from_dotinstall
-remove_old_configs
-create_symlinks
+read -r -p "Do you want to perform from start? type 'yes' to start from the beginning [default: NO]: " START_OVER
+if [[ "${START_OVER,,}" == "yes" ]]; then
+  rm -rf "$CHECKPOINT_DIR"
+  ensure_checkpoint_dir
+  log "resetting checkpoints and starting from the beginning"
+fi
+
+run_step ensure_locale
+run_step install_base_packages
+run_step setup_ssh
+run_step clone_dot_repos
+run_step install_extra_from_dotinstall
+run_step remove_old_configs
+run_step create_symlinks
 
 echo
 echo "==== bootstrap complete on ${DISTRO_PRETTY} ===="
 echo "==== for language supports see install_* functions in ${DOTRC}/languagerc ===="
+
