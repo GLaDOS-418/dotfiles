@@ -29,3 +29,5 @@ tree
 unzip
 xclip
 xdg-utils
+libxml2-dev
+libxslt1-dev

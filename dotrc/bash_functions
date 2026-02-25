@@ -4,6 +4,60 @@
 # CODE MANAGEMENT
 ################################################################
 
+flame() {
+    local prog="$1"
+    local out="$2"
+
+    if [[ -z "$prog" || -z "$out" ]]; then
+        echo "usage: flamegraph <program> <output.svg>" >&2
+        return 1
+    fi
+
+    # required tools
+    local tools=(
+        perf
+        c++filt
+        stackcollapse-perf.pl
+        flamegraph.pl
+    )
+
+    for t in "${tools[@]}"; do
+        if ! command -v "$t" >/dev/null 2>&1; then
+            echo "error: required tool not found in PATH: $t" >&2
+            return 1
+        fi
+    done
+
+    if [[ ! -x "$prog" ]]; then
+        echo "error: program not executable: $prog" >&2
+        return 1
+    fi
+
+    local tmpdir
+    tmpdir="$(mktemp -d)" || return 1
+    trap 'rm -rf "$tmpdir"' RETURN
+
+    echo "recording perf data..."
+    perf record -F 99 -g -- "$prog" > /dev/null 2>&1
+    if [[ $? -ne 0 ]]; then
+        echo "error: perf record failed" >&2
+        return 1
+    fi
+
+    echo "generating flame graph..."
+    perf script \
+        | c++filt \
+        | stackcollapse-perf.pl \
+        | flamegraph.pl > "$out"
+
+    if [[ $? -ne 0 ]]; then
+        echo "error: flame graph generation failed" >&2
+        return 1
+    fi
+
+    echo "flame graph written to: $out"
+}
+
 # C++
 
 function new_cpp_project {
@@ -72,7 +126,7 @@ function gpp {
     -pedantic  \
     -pedantic-errors \
     -pthread -latomic -mavx2 \
-    -std=c++2a \
+    --std=c++23 \
     -g3 \
     "$@"
     # -fno-omit-frame-pointer \  # https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html#C

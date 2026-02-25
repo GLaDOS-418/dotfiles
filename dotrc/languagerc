@@ -154,3 +154,7 @@ uninstall_node() {
   nvm uninstall node || true
   rm -rf "$HOME/.nvm"
 }
+
+intall_python_env() {
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+}
