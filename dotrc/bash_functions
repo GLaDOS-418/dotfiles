@@ -121,14 +121,16 @@ function gpp {
     -Wunused-variable \
     -Wvariadic-macros \
     -Wwrite-strings \
-    -fsanitize=pointer-compare -fsanitize=pointer-subtract \
-    -fsanitize=undefined -fsanitize=address \
     -pedantic  \
     -pedantic-errors \
     -pthread -latomic -mavx2 \
-    --std=c++23 \
+    -std=c++23 \
     -g3 \
     "$@"
+    # -fsanitize=pointer-compare -fsanitize=pointer-subtract \
+    # -fsanitize=undefined \
+    # -latomic \
+    # -fsanitize=address \
     # -fno-omit-frame-pointer \  # https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html#C
     # -Waggregate-return \  # https://stackoverflow.com/questions/14016993/confusion-in-regards-to-purpose-behavior-of-waggregate-return
 }

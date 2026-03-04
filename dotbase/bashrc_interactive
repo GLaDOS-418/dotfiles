@@ -93,7 +93,12 @@ unalias -a
 # $DOTRC/bash_aliases, instead of adding them here directly.
 # See /usr/share/doc/bash-doc/examples in the bash-doc package.
 
+# Avoid alias/function name collisions while loading files
+shopt -u expand_aliases
+
 for f in ${DOTRC}/*; do [ -f "$f" ] && source "$f"; done
+shopt -s expand_aliases
+
 
 ################################################################
 ##  CONFIG
