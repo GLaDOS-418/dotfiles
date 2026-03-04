@@ -10,7 +10,7 @@ need_cmd() {
 }
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DOTFILES="${DOTFILES:-$SCRIPT_DIR}"
+DOTFILES="${HOME}/dotfiles"
 DOTBASE="$DOTFILES/home-config"
 DOTINSTALL="$DOTFILES/installers"
 DOTRC="$DOTFILES/shell-config"
@@ -127,7 +127,7 @@ install_base_packages() {
   case "$PKG_MGR" in
     pacman)
       sudo pacman -Syu --noconfirm || true
-      sudo pacman -S --needed --noconfirm openssh git curl ca-certificates base-devel
+      sudo pacman -S --needed --noconfirm openssh git curl ca-certificates base-devel inetutils
       ;;
     apt)
       sudo apt-get update
@@ -305,7 +305,7 @@ verify_references() {
   require_file "$DOTBASE/inputrc"
   require_file "$DOTBASE/tmux.conf"
   require_file "$DOTBASE/rgignore"
-  require_file "$DOTRC/gitconfig-shared"
+  require_file "$DOTBASE/gitconfig-shared"
 
   require_file "$(selected_pkglist)"
   require_file "$DOTINSTALL/post-setup.sh"
