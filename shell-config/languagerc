@@ -1,160 +1,359 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ######################
 # UTILITY
 ######################
 supported=("cpp" "rust" "go" "java" "node")
 
-function install_language {
-  if [[ ! " ${supported[@]} " =~ " ${1} " ]]; then
-    echo "${1} is not supported."
-    echo "supported languages are: ${supported[@]}"
-    return 1
+_log() {
+  printf '[languagerc] %s\n' "$*"
+}
+
+_err() {
+  printf '[languagerc][error] %s\n' "$*" >&2
+}
+
+# Set LANGUAGERC_DRY_RUN=1 to print commands without executing them.
+_run() {
+  if [[ "${LANGUAGERC_DRY_RUN:-0}" == "1" ]]; then
+    printf '[languagerc][dry-run]'
+    printf ' %q' "$@"
+    printf '\n'
+    return 0
   fi
 
-  if _helper_check_${1} ; then
-    echo "${1} not found. installing ${1}..."
-    install_${1}
-    echo "${1} instalation completed."
+  "$@"
+}
+
+_detect_pkg_manager() {
+  if command -v pacman >/dev/null 2>&1; then
+    echo "pacman"
+  elif command -v apt-get >/dev/null 2>&1; then
+    echo "apt"
+  elif command -v dnf >/dev/null 2>&1; then
+    echo "dnf"
   else
-    echo "${1} is already installed. skipping installation."
+    echo "unknown"
   fi
 }
 
+_normalize_arch() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo "amd64" ;;
+    aarch64|arm64) echo "arm64" ;;
+    *) echo "$(uname -m)" ;;
+  esac
+}
+
+install_language() {
+  local lang="${1:-}"
+  if [[ -z "$lang" ]]; then
+    _err "usage: install_language <${supported[*]}>"
+    return 1
+  fi
+
+  lang="${lang,,}"
+
+  if [[ ! " ${supported[*]} " =~ " ${lang} " ]]; then
+    _err "${lang} is not supported. supported: ${supported[*]}"
+    return 1
+  fi
+
+  local helper="_helper_check_${lang}"
+  local installer="install_${lang}"
+
+  if ! declare -F "$installer" >/dev/null 2>&1; then
+    _err "installer function not found: ${installer}"
+    return 1
+  fi
+
+  if declare -F "$helper" >/dev/null 2>&1; then
+    if "$helper"; then
+      _log "${lang} not found. installing latest..."
+      "$installer"
+      _log "${lang} installation completed."
+    else
+      _log "${lang} already installed. skipping."
+    fi
+  else
+    _log "no checker found for ${lang}; running installer."
+    "$installer"
+  fi
+}
 
 install_all() {
-  for lang in $$supported[@]} ; do
-    install_language ${lang}
+  local lang
+  for lang in "${supported[@]}"; do
+    install_language "$lang"
   done
 }
 
 ######################
-# RUST 
+# RUST
 ######################
-function _helper_check_rust {
-   ! command -v rustc &> /dev/null
+_helper_check_rust() {
+  ! command -v rustc >/dev/null 2>&1
 }
 
-function install_rust {
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain beta --profile default
-    source "$HOME/.cargo/env"
-}
+install_rust() {
+  # Official rustup installer installs rustup and latest stable toolchain by default.
+  if ! command -v rustup >/dev/null 2>&1; then
+    _run bash -c "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+  fi
 
+  [[ -s "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+
+  if command -v rustup >/dev/null 2>&1 || [[ "${LANGUAGERC_DRY_RUN:-0}" == "1" ]]; then
+    _run rustup default stable
+    _run rustup update stable
+  else
+    _err "rustup not found after installation"
+    return 1
+  fi
+}
 
 ######################
 # CLANG C/C++
 ######################
-
-
 _helper_detect_latest_clang() {
-    /bin/ls /usr/bin/clang-[0-9]* 2>/dev/null \
-      | sed 's/.*clang-//' \
-      | sort -n \
-      | tail -1
+  /bin/ls /usr/bin/clang-[0-9]* 2>/dev/null \
+    | sed 's/.*clang-//' \
+    | sort -n \
+    | tail -1
 }
 
+_helper_check_cpp() {
+  ! command -v clang >/dev/null 2>&1
+}
+
+# Backward-compat wrapper for old typo.
 _helper__helper_check_cpp() {
-   ! command -v clang &> /dev/null
+  _helper_check_cpp
 }
 
 install_cpp() {
-    curl -s -L https://apt.llvm.org/llvm.sh | sudo bash
+  local pm
+  pm="$(_detect_pkg_manager)"
 
-    VERSION=$(_helper_detect_latest_clang)
+  case "$pm" in
+    apt)
+      # Official apt.llvm.org helper script for latest stable LLVM/Clang.
+      local tmp
+      tmp="$(mktemp)"
+      _run curl -fsSL "https://apt.llvm.org/llvm.sh" -o "$tmp"
+      _run chmod +x "$tmp"
+      _run sudo "$tmp"
+      _run rm -f "$tmp"
 
-    if [ -n "${VERSION}" ]; then
-        sudo update-alternatives \
-          --install /usr/bin/clang clang /usr/bin/clang-${VERSION} 200 \
-          --slave   /usr/bin/clang++ clang++ /usr/bin/clang++-${VERSION} \
-          --slave   /usr/bin/clangd clangd /usr/bin/clangd-${VERSION}
-    fi
+      local version
+      version="$(_helper_detect_latest_clang)"
+      if [[ -n "$version" ]] && command -v update-alternatives >/dev/null 2>&1; then
+        _run sudo update-alternatives \
+          --install /usr/bin/clang clang "/usr/bin/clang-${version}" 200 \
+          --slave /usr/bin/clang++ clang++ "/usr/bin/clang++-${version}" \
+          --slave /usr/bin/clangd clangd "/usr/bin/clangd-${version}"
+      fi
+      ;;
+    pacman)
+      _run sudo pacman -Syu --noconfirm
+      _run sudo pacman -S --needed --noconfirm clang lld lldb
+      ;;
+    dnf)
+      _run sudo dnf -y install clang lld lldb
+      ;;
+    *)
+      _err "unsupported package manager for install_cpp"
+      return 1
+      ;;
+  esac
 }
 
 uninstall_cpp() {
-    VERSION=$(detect_latest_clang)
+  local pm
+  pm="$(_detect_pkg_manager)"
 
-    if [ -n "${VERSION}" ]; then
-        sudo update-alternatives \
-          --remove clang /usr/bin/clang-${VERSION} || true
-    fi
+  case "$pm" in
+    apt)
+      local version
+      version="$(_helper_detect_latest_clang)"
 
-    sudo apt remove -y \
-      clang-${VERSION} clang-tools-${VERSION} clangd-${VERSION} \
-      lld-${VERSION} lldb-${VERSION} llvm-${VERSION} llvm-${VERSION}-dev \
-      libclang-rt-${VERSION}-dev || true
+      if [[ -n "$version" ]]; then
+        _run sudo update-alternatives --remove clang "/usr/bin/clang-${version}" || true
+        _run sudo apt-get remove -y \
+          "clang-${version}" "clang-tools-${version}" "clangd-${version}" \
+          "lld-${version}" "lldb-${version}" "llvm-${version}" "llvm-${version}-dev" \
+          "libclang-rt-${version}-dev" || true
+      fi
+      ;;
+    pacman)
+      _run sudo pacman -Rns --noconfirm clang lld lldb || true
+      ;;
+    dnf)
+      _run sudo dnf remove -y clang lld lldb || true
+      ;;
+    *)
+      _err "unsupported package manager for uninstall_cpp"
+      return 1
+      ;;
+  esac
 }
-
 
 ######################
 # GOLANG
 ######################
-
 _helper_check_go() {
-   ! command -v go &> /dev/null
+  ! command -v go >/dev/null 2>&1
 }
 
 install_go() {
-    VERSION=$(curl -s -L https://golang.org/VERSION?m=text | head -n1)
-    sudo rm -rf /usr/local/go || true
+  local go_os go_arch version archive url tmp
+  go_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  go_arch="$(_normalize_arch)"
 
-    ARCHIVE_NAME="${VERSION}.linux-amd64.tar.gz"
-    wget "https://go.dev/dl/${ARCHIVE_NAME}"
-    sudo tar -C /usr/local -xzf "${ARCHIVE_NAME}"
-    rm "${ARCHIVE_NAME}"
+  if [[ "${LANGUAGERC_DRY_RUN:-0}" == "1" ]]; then
+    version="goLATEST"
+    _log "dry-run: would resolve latest stable Go from https://go.dev/dl/?mode=json"
+  else
+    if command -v python3 >/dev/null 2>&1; then
+      version="$(curl -fsSL "https://go.dev/dl/?mode=json" | python3 -c 'import json,sys; d=json.load(sys.stdin); s=[x for x in d if x.get("stable")]; print((s[0] if s else d[0])["version"])')"
+    else
+      version="$(curl -fsSL "https://go.dev/dl/?mode=json" | sed -n 's/.*"version":"\(go[^"]*\)".*/\1/p' | head -n1)"
+    fi
+  fi
+
+  if [[ -z "$version" ]]; then
+    _err "unable to determine latest Go version"
+    return 1
+  fi
+
+  archive="${version}.${go_os}-${go_arch}.tar.gz"
+  url="https://go.dev/dl/${archive}"
+  tmp="$(mktemp)"
+
+  _run curl -fsSL "$url" -o "$tmp"
+  _run sudo rm -rf /usr/local/go
+  _run sudo tar -C /usr/local -xzf "$tmp"
+  _run rm -f "$tmp"
+
+  if [[ "${LANGUAGERC_DRY_RUN:-0}" != "1" ]]; then
+    if command -v go >/dev/null 2>&1; then
+      go version
+    elif [[ -x /usr/local/go/bin/go ]]; then
+      /usr/local/go/bin/go version
+    fi
+  fi
 }
 
 ######################
-# JAVA (+SDKMAN)
+# JAVA
 ######################
+_helper_check_java() {
+  ! command -v javac >/dev/null 2>&1
+}
 
-_helper_check_java(){
-  ! command -v javac &> /dev/null
+_install_sdkman_if_missing() {
+  if ! command -v sdk >/dev/null 2>&1; then
+    # Official SDKMAN installer.
+    _run bash -c "curl -s https://get.sdkman.io | bash"
+  fi
+
+  if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    source "$HOME/.sdkman/bin/sdkman-init.sh"
+    return 0
+  fi
+
+  if [[ "${LANGUAGERC_DRY_RUN:-0}" == "1" ]]; then
+    _log "dry-run: SDKMAN init script missing; command would run after installation"
+    return 0
+  fi
+
+  _err "sdkman init script not found"
+  return 1
 }
 
 install_java() {
-    if ! command -v sdk ; then
-      curl -s "https://get.sdkman.io" | bash
-      source "${HOME}/.sdkman/bin/sdkman-init.sh"
-    fi
+  _install_sdkman_if_missing || return 1
 
-    sdk install java
+  # SDKMAN installs latest stable Java when no version is provided.
+  _run sdk install java
 }
 
 #######################
 # NODE (+NVM +TS)
 #######################
 _helper_check_node() {
-  ! command -v node &> /dev/null
+  ! command -v node >/dev/null 2>&1
+}
+
+_detect_nvm_dir() {
+  if [[ -n "${NVM_DIR:-}" ]]; then
+    echo "$NVM_DIR"
+  elif [[ -d "$HOME/.config/nvm" ]]; then
+    echo "$HOME/.config/nvm"
+  else
+    echo "$HOME/.nvm"
+  fi
+}
+
+_load_nvm() {
+  export NVM_DIR="$(_detect_nvm_dir)"
+
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck disable=SC1090
+    source "$NVM_DIR/nvm.sh"
+    return 0
+  fi
+
+  return 1
 }
 
 install_node() {
-  # install latest
-  if ! command -v nvm ; then
-    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+  if ! command -v nvm >/dev/null 2>&1; then
+    local nvm_version
+
+    if [[ "${LANGUAGERC_DRY_RUN:-0}" == "1" ]]; then
+      nvm_version="vLATEST"
+      _log "dry-run: would resolve latest nvm release from GitHub"
+    else
+      nvm_version="$(curl -fsSL "https://api.github.com/repos/nvm-sh/nvm/releases/latest" | sed -n 's/.*"tag_name": "\(v[^"]*\)".*/\1/p' | head -n1)"
+      [[ -z "$nvm_version" ]] && nvm_version="v0.40.3"
+    fi
+
+    export NVM_DIR="$(_detect_nvm_dir)"
+    _run mkdir -p "$NVM_DIR"
+    _run bash -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${nvm_version}/install.sh | bash"
   fi
 
-  # load nvm into current shell
-  local NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  if ! _load_nvm; then
+    if [[ "${LANGUAGERC_DRY_RUN:-0}" == "1" ]]; then
+      _log "dry-run: nvm not loaded in current shell; would source \$NVM_DIR/nvm.sh"
+    else
+      _err "nvm could not be loaded"
+      return 1
+    fi
+  fi
 
-  # install absolute latest node (not LTS)
-  nvm install node
-  nvm alias default node
-  nvm use default
-
-  # typescript
-  npm install -g typescript
+  # 'node' alias means latest release.
+  _run nvm install node --latest-npm
+  _run nvm alias default node
+  _run nvm use default
+  _run npm install -g typescript
 }
 
 uninstall_node() {
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  _load_nvm || true
 
-  nvm deactivate || true
-  nvm uninstall node || true
-  rm -rf "$HOME/.nvm"
+  _run nvm deactivate || true
+  _run nvm uninstall node || true
+
+  _run rm -rf "$HOME/.nvm" "$HOME/.config/nvm"
 }
 
+install_python_env() {
+  _run bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh"
+}
+
+# Backward-compat for old typo.
 intall_python_env() {
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+  install_python_env "$@"
 }
