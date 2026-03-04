@@ -9,6 +9,32 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES="${DOTFILES:-$SCRIPT_DIR}"
+DOTBASE="$DOTFILES/dotbase"
+DOTINSTALL="$DOTFILES/dotinstall"
+DOTRC="$DOTFILES/dotrc"
+VIM="${VIM:-$HOME/vim}"
+
+CHECKPOINT_DIR="${HOME}/.dot_setup_checkpoints"
+START_OVER=false
+ASSUME_YES=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --start-over)
+      START_OVER=true
+      ;;
+    -y|--yes|--non-interactive)
+      ASSUME_YES=true
+      ;;
+    *)
+      die "unknown argument: $1 (supported: --start-over, --yes)"
+      ;;
+  esac
+  shift
+done
+
 if [[ -r /etc/os-release ]]; then
   # shellcheck disable=SC1091
   . /etc/os-release
@@ -39,11 +65,22 @@ pkg_manager() {
 PKG_MGR="$(pkg_manager)"
 [[ "$PKG_MGR" != "unknown" ]] || die "unsupported distro/package manager: $OS_PRETTY"
 
-DOTFILES="$HOME/dotfiles"
-DOTBASE="$DOTFILES/dotbase"
-DOTINSTALL="$DOTFILES/dotinstall"
-DOTRC="$DOTFILES/dotrc"
-VIM="$HOME/vim"
+ensure_checkpoint_dir() { mkdir -p "$CHECKPOINT_DIR"; }
+is_done()               { [[ -f "$CHECKPOINT_DIR/$1.done" ]]; }
+mark_done()             { : > "$CHECKPOINT_DIR/$1.done"; }
+
+run_step() {
+  local step="$1"
+  if is_done "$step"; then
+    log "skip $step (already done)"
+    return 0
+  fi
+
+  log "running $step"
+  "$step"
+  mark_done "$step"
+  log "completed $step"
+}
 
 require_file() {
   [[ -e "$1" ]] || die "missing required file: $1"
@@ -101,10 +138,19 @@ install_base_packages() {
   esac
 }
 
+verify_bootstrap_tools() {
+  need_cmd git
+  need_cmd curl
+  need_cmd ssh-keygen
+  need_cmd ssh-keyscan
+}
+
 prompt_ssh_setup() {
-  local ans
-  read -r -p "Generate SSH key if missing? [Y/n]: " ans
-  ans="${ans,,}"
+  local ans="y"
+  if ! $ASSUME_YES; then
+    read -r -p "Generate SSH key if missing? [Y/n]: " ans
+    ans="${ans,,}"
+  fi
 
   install -d -m 700 "$HOME/.ssh"
 
@@ -130,7 +176,9 @@ prompt_ssh_setup() {
     cat "$HOME/.ssh/id_ed25519.pub"
     echo "-----------------------------------"
     echo
-    read -r -p "Press Enter after adding the key (or Ctrl+C to stop)... " _
+    if ! $ASSUME_YES; then
+      read -r -p "Press Enter after adding the key (or Ctrl+C to stop)... " _
+    fi
   else
     warn "no public key found at ~/.ssh/id_ed25519.pub; continuing with HTTPS clone"
   fi
@@ -142,6 +190,10 @@ clone_or_update_repo() {
 
   if [[ -d "$dst/.git" ]]; then
     log "updating $(basename "$dst")"
+    if [[ -n "$(git -C "$dst" status --porcelain 2>/dev/null || true)" ]]; then
+      warn "repo has local changes; skipping pull for $dst"
+      return 0
+    fi
     git -C "$dst" pull --rebase || warn "git pull failed for $dst"
   else
     log "cloning $(basename "$dst")"
@@ -214,6 +266,10 @@ install_packages_from_list() {
   fi
 }
 
+install_distro_packages() {
+  install_packages_from_list "$(selected_pkglist)"
+}
+
 install_optional_tools() {
   if [[ "$PKG_MGR" == "pacman" && -f "$DOTINSTALL/yaylist" ]]; then
     if command -v yay >/dev/null 2>&1; then
@@ -240,14 +296,14 @@ install_optional_tools() {
 
 verify_references() {
   require_file "$DOTBASE/bashrc"
+  require_file "$DOTBASE/bashrc_common"
+  require_file "$DOTBASE/bashrc_interactive"
   require_file "$DOTBASE/inputrc"
   require_file "$DOTBASE/tmux.conf"
   require_file "$DOTBASE/rgignore"
   require_file "$DOTRC/gitconfig-shared"
 
-  local list
-  list="$(selected_pkglist)"
-  require_file "$list"
+  require_file "$(selected_pkglist)"
 
   require_file "$VIM/vimrc"
   require_file "$VIM/gvimrc"
@@ -288,21 +344,31 @@ create_symlinks() {
 
 main() {
   need_cmd sudo
-  need_cmd git
-  need_cmd curl
-  need_cmd ssh-keygen
+
+  ensure_checkpoint_dir
+  if $START_OVER; then
+    rm -rf "$CHECKPOINT_DIR"
+    ensure_checkpoint_dir
+    log "reset checkpoints and restarting from beginning"
+  fi
 
   log "detected distro: $OS_PRETTY ($OS_ID); package manager: $PKG_MGR"
+  if is_wsl; then
+    log "WSL environment detected"
+  else
+    warn "WSL not detected; continuing anyway"
+  fi
 
-  ensure_locale
-  install_base_packages
-  prompt_ssh_setup
-  clone_repos
-  verify_references
-  install_packages_from_list "$(selected_pkglist)"
-  install_optional_tools
-  remove_old_configs
-  create_symlinks
+  run_step ensure_locale
+  run_step install_base_packages
+  run_step verify_bootstrap_tools
+  run_step prompt_ssh_setup
+  run_step clone_repos
+  run_step verify_references
+  run_step install_distro_packages
+  run_step install_optional_tools
+  run_step remove_old_configs
+  run_step create_symlinks
 
   log "setup completed successfully"
   log "open a new shell (or run: source ~/.bashrc)"
