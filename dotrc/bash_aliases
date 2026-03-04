@@ -82,6 +82,15 @@ alias explorer='/mnt/c/Windows/explorer.exe'
 # TOOL ALIAS
 ################################################################
 
+# flamegraph for perf
+# measure: perf record -F 99 -a -g -- sleep 60
+# -F: sampling frequency
+# -a: system-wide collection
+# -g: call-graph (stack trace) recording
+#
+# this assumes that stackcollapse-perf.pl and flamegraph.pl are in your PATH.
+alias flame='perf script | stackcollapse-perf.pl | flamegraph.pl > flamegraph.svg && xdg-open flamegraph.svg &'
+
 # get timing metrics of curl
 alias curltime="curl -w \"@$HOME/.curl_format\" -o /dev/null -s "
 

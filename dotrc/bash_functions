@@ -666,8 +666,6 @@ plantuml_server() {
 }
 
 linux_cleanup() {
-  set -Eeuo pipefail
-
   echo "[cleanup] apt"
   sudo apt autoremove -y
   sudo apt autoclean -y
@@ -679,7 +677,7 @@ linux_cleanup() {
   fi
 
   echo "[cleanup] user caches"
-  rm -rf \
+  /bin/rm -rf \
     "$HOME/.cache/thumbnails" \
     "$HOME/.cache/fontconfig" \
     "$HOME/.cache/npm" \
@@ -694,19 +692,19 @@ linux_cleanup() {
   echo "[cleanup] LSP logs"
 
   # Neovim (standard paths)
-  rm -rf \
+  /bin/rm -rf \
     "$HOME/.cache/nvim/log" \
     "$HOME/.cache/nvim/lsp.log" \
     "$HOME/.cache/nvim/lsp" \
     "$HOME/.local/state/nvim/lsp.log"
 
   # Vim (if used)
-  rm -rf \
+  /bin/rm -rf \
     "$HOME/.vim/log" \
     "$HOME/.vim/lsp.log"
 
   # VS Code (user-level logs only)
-  rm -rf \
+  /bin/rm -rf \
     "$HOME/.config/Code/logs" \
     "$HOME/.vscode/logs"
 
@@ -714,7 +712,7 @@ linux_cleanup() {
   # Trash
   #####################################
   echo "[cleanup] trash"
-  rm -rf "$HOME/.local/share/Trash/files/"*
+  /bin/rm -rf "$HOME/.local/share/Trash/files/"*
 
   #####################################
   # Docker
