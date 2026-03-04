@@ -1,140 +1,311 @@
-#!/bin/env bash
-# the file is maintained in 'dotfiles' repo.
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-# generating locale
-if  grep -q '#en_US.UTF-8 UTF-8' '/etc/locale.gen'
-then
-  sudo sed -i 's/#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/g' /etc/locale.gen
-  echo "locale value activated in /etc/locale.gen"
-  sudo locale-gen
-  echo "reboot...."
-  exit
-elif grep -q '^en_US.UTF-8 UTF-8' '/etc/locale.gen'
-then
-  echo "locale value already active in /etc/locale.gen"
+log()  { printf '[dot_setup] %s\n' "$*"; }
+warn() { printf '[dot_setup][warn] %s\n' "$*" >&2; }
+die()  { printf '[dot_setup][error] %s\n' "$*" >&2; exit 1; }
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+if [[ -r /etc/os-release ]]; then
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  OS_ID="${ID:-unknown}"
+  OS_LIKE="${ID_LIKE:-}"
+  OS_PRETTY="${PRETTY_NAME:-$OS_ID}"
 else
-  echo 'en_US.UTF-8 UTF-8' | tee -a /etc/locale.gen
-  echo "locale value added in /etc/locale.gen"
-  sudo locale-gen
-  echo "reboot...."
-  exit
+  die "cannot detect distro: /etc/os-release not found"
 fi
 
-if [ -x "$(command -v pacman)" ]; then
-  sudo -i pacman -Syu
-  sudo -i pacman --needed --noconfirm -Sy openssh git curl
-elif [ -x "$(command -v apt)" ]; then
-  sudo apt update
-  sudo apt install -y openssh-server openssh-client git curl
-elif [ -x "$(command -v dnf)" ]; then
-  sudo dnf update
-  sudo dnf install -y openssh-server openssh git curl
-fi
+is_wsl() {
+  grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null || \
+  grep -qi microsoft /proc/version 2>/dev/null
+}
 
-read -rp "generate ssh key? (y/N)" is_generate_key
-is_generate_key=${is_generate_key,,}
-
-if [[ ${is_generate_key} == y* ]]
-then
-    if [[ -e $HOME/.ssh ]]; then
-      /bin/rm -rf "$HOME"/.ssh
-    fi
-
-    cat /dev/zero | ssh-keygen -t ed25519 -q -N "" -C $(whoami)@$(echo $(uname -nmo; grep -P ^NAME /etc/os-release | sed -E -e 's/NAME="(.*)"/\1/g' | tr ' ' '_' ; date +%F) | tr ' ' '::')
-fi
-
-ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-
-# TODO: add ssh key to github via github api
-# printf '\nenter github username: '
-# read -p
-# read -sp "enter github pass: " pass
-#
-# curl -u "${user}:${pass}" --data "{ \"key\": \"$(cat ~/.ssh/id_rsa.pub)\"}" https://api.github.com/user/keys
-
-printf '\n\n ::::::::::  ADD THIS KEY TO YOUR GIT REPO :::::::::: \n\n'
-cat "$HOME"/.ssh/id_ed25519.pub
-
-printf '\n\n'
-read -rp "press 'enter'..." enter
-
-
-cd || exit
-curl -L https://github.com/GLaDOS-418/dotfiles/raw/main/dotbase/bashrc -o .bashrc
-source .bashrc
-
-[ ! -d dotfiles ] && git clone git@github.com:glados-418/dotfiles.git
-[ ! -d vim ] && git clone git@github.com:glados-418/vim.git
-
-
-DOTFILES=${HOME}/dotfiles
-DOTBASE=${DOTFILES}/dotbase
-DOTINSTALL=${DOTFILES}/dotinstall
-DOTRC=${DOTFILES}/dotrc
-VIM=${HOME}/vim
-
-
-cd "${DOTINSTALL}" || exit
-printf '\n\n ::::: INSTALLING PACKAGES :::::\n\n'
-if [ -x "$(command -v pacman)" ]; then
-  tr '\n' ' ' < paclist  | xargs sudo -i pacman --needed --noconfirm -Sy
-  os_id=$(grep -oP '^ID=\K\w+' /etc/os-release)
-  if [[ ${os_id} == manjaro ]]; then
-    sudo -i pacman --needed --noconfirm -Sy yay
-    tr '\n' ' ' < yaylist  | xargs yay --needed --noconfirm -Sy
+pkg_manager() {
+  if command -v pacman >/dev/null 2>&1; then
+    echo "pacman"
+  elif command -v apt-get >/dev/null 2>&1; then
+    echo "apt"
+  elif command -v dnf >/dev/null 2>&1; then
+    echo "dnf"
   else
-    tr '\n' ' ' < yaylist | xargs sudo -i pacman --needed --noconfirm -Sy
+    echo "unknown"
   fi
-elif [ -x "$(command -v apt)" ]; then
-  wsl-ubuntu | xargs echo | xargs sudo DEBIAN_FRONTEND=noninteractive apt install -y
-elif [ -x "$(command -v dnf)" ]; then
-   tr '\n' ' ' < wsl-oracle | xargs sudo dnf install -y
-else
-  echo "package manager not installed..."
-fi
+}
 
+PKG_MGR="$(pkg_manager)"
+[[ "$PKG_MGR" != "unknown" ]] || die "unsupported distro/package manager: $OS_PRETTY"
 
-cd || exit
-## remove old configs
-[ -f .bashrc ]    && /bin/rm .bashrc
-[ -f .inputrc ]   && /bin/rm .inputrc
-[ -f .tmux.conf ] && /bin/rm .tmux.conf
-[ -f .gitconfig ] && /bin/rm .gitconfig
-[ -f .rgignore ]  && /bin/rm .rgignore
+DOTFILES="$HOME/dotfiles"
+DOTBASE="$DOTFILES/dotbase"
+DOTINSTALL="$DOTFILES/dotinstall"
+DOTRC="$DOTFILES/dotrc"
+VIM="$HOME/vim"
 
-[ -f .vimrc ]  && /bin/rm .vimrc
-[ -f .gvimrc ] && /bin/rm .gvimrc
-[ -d .vim ]    && /bin/rm -rf .vim
-[ -d .config/nvim ]  && /bin/rm -rf .config/nvim
-[ -f /etc/wsl.conf ] && sudo /bin/rm -f /etc/wsl.conf
+require_file() {
+  [[ -e "$1" ]] || die "missing required file: $1"
+}
 
+ensure_locale() {
+  log "ensuring locale en_US.UTF-8"
 
-## link new configs
-ln -s "$DOTBASE"/bashrc    .bashrc
-ln -s "$DOTBASE"/inputrc   .inputrc
-ln -s "$DOTBASE"/tmux.conf .tmux.conf
-ln -s "$DOTBASE"/rgignore  .rgignore
+  case "$PKG_MGR" in
+    pacman|apt)
+      if [[ -f /etc/locale.gen ]]; then
+        if grep -Eq '^[[:space:]]*#?[[:space:]]*en_US\.UTF-8[[:space:]]+UTF-8' /etc/locale.gen; then
+          sudo sed -i -E 's/^[[:space:]]*#?[[:space:]]*en_US\.UTF-8[[:space:]]+UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+        else
+          echo 'en_US.UTF-8 UTF-8' | sudo tee -a /etc/locale.gen >/dev/null
+        fi
+        sudo locale-gen || warn "locale-gen failed; continuing"
+      else
+        warn "/etc/locale.gen not found; skipping locale-gen"
+      fi
 
-touch .gitconfig
-git config --global include.path "$DOTRC"/gitconfig-shared
+      if [[ "$PKG_MGR" == "apt" ]] && command -v update-locale >/dev/null 2>&1; then
+        sudo update-locale LANG=en_US.UTF-8 || warn "update-locale failed; continuing"
+      elif [[ "$PKG_MGR" == "pacman" ]]; then
+        echo 'LANG=en_US.UTF-8' | sudo tee /etc/locale.conf >/dev/null || warn "failed to write /etc/locale.conf"
+      fi
+      ;;
+    dnf)
+      sudo dnf -y install glibc-langpack-en || warn "failed installing glibc-langpack-en"
+      if command -v localectl >/dev/null 2>&1; then
+        sudo localectl set-locale LANG=en_US.UTF-8 || warn "localectl failed; writing /etc/locale.conf"
+      fi
+      echo 'LANG=en_US.UTF-8' | sudo tee /etc/locale.conf >/dev/null || warn "failed to write /etc/locale.conf"
+      ;;
+  esac
+}
 
-mkdir -p .config
-ln -s "${VIM}"/nvim   .config/nvim
-ln -s "${VIM}"/vim    .vim
-ln -s "${VIM}"/vimrc  .vimrc
-ln -s "${VIM}"/gvimrc .gvimrc
+install_base_packages() {
+  log "installing base packages for $PKG_MGR"
+  case "$PKG_MGR" in
+    pacman)
+      sudo pacman -Syu --noconfirm || true
+      sudo pacman -S --needed --noconfirm openssh git curl ca-certificates base-devel
+      ;;
+    apt)
+      sudo apt-get update
+      sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        openssh-server openssh-client git curl ca-certificates build-essential
+      ;;
+    dnf)
+      sudo dnf -y update
+      sudo dnf -y install openssh-server openssh-clients git curl ca-certificates
+      sudo dnf -y group install "Development Tools" || true
+      ;;
+  esac
+}
 
-source .bashrc
+prompt_ssh_setup() {
+  local ans
+  read -r -p "Generate SSH key if missing? [Y/n]: " ans
+  ans="${ans,,}"
 
-# wsl.conf is relevant only for WSL2 distributions
-sudo cp "$DOTBASE"/wsl.conf /etc/wsl.conf
+  install -d -m 700 "$HOME/.ssh"
 
-# enable snapd -- snaplist
-if [ -x "$(command -v snap)" ]; then
-  sudo systemctl enable --now snapd.socket
-  sudo ln -s /var/lib/snapd/snap /snap
-  xargs sudo -i snap install < snaplist
-fi
+  if [[ "$ans" != "n" && ! -f "$HOME/.ssh/id_ed25519" ]]; then
+    local user_name host_info date_tag comment
+    user_name="${USER:-$(id -un)}"
+    host_info="$(hostname -f 2>/dev/null || hostname)"
+    date_tag="$(date -u +%Y-%m-%d)"
+    comment="${user_name}@${host_info}:${OS_ID}:${date_tag}"
 
-printf "\n\n:::: INITIAL SETUP DONE ::::\n\n"
+    log "generating ed25519 key"
+    ssh-keygen -t ed25519 -a 100 -N "" -C "$comment" -f "$HOME/.ssh/id_ed25519"
+  fi
+
+  ssh-keyscan github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+  sort -u "$HOME/.ssh/known_hosts" -o "$HOME/.ssh/known_hosts" || true
+  chmod 644 "$HOME/.ssh/known_hosts" || true
+
+  if [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
+    echo
+    echo "ADD THIS SSH KEY TO GITHUB:"
+    echo "-----------------------------------"
+    cat "$HOME/.ssh/id_ed25519.pub"
+    echo "-----------------------------------"
+    echo
+    read -r -p "Press Enter after adding the key (or Ctrl+C to stop)... " _
+  else
+    warn "no public key found at ~/.ssh/id_ed25519.pub; continuing with HTTPS clone"
+  fi
+}
+
+clone_or_update_repo() {
+  local url_https="$1"
+  local dst="$2"
+
+  if [[ -d "$dst/.git" ]]; then
+    log "updating $(basename "$dst")"
+    git -C "$dst" pull --rebase || warn "git pull failed for $dst"
+  else
+    log "cloning $(basename "$dst")"
+    git clone "$url_https" "$dst"
+  fi
+}
+
+clone_repos() {
+  clone_or_update_repo "https://github.com/GLaDOS-418/dotfiles.git" "$DOTFILES"
+  clone_or_update_repo "https://github.com/glados-418/vim.git" "$VIM"
+
+  if [[ -d "$DOTFILES/.git" && -f "$HOME/.ssh/id_ed25519" ]]; then
+    git -C "$DOTFILES" remote set-url origin git@github.com:glados-418/dotfiles.git || true
+  fi
+}
+
+selected_pkglist() {
+  case "$PKG_MGR" in
+    pacman)
+      echo "$DOTINSTALL/wsl-arch"
+      ;;
+    apt)
+      echo "$DOTINSTALL/wsl-ubuntu"
+      ;;
+    dnf)
+      echo "$DOTINSTALL/wsl-oracle"
+      ;;
+  esac
+}
+
+install_packages_from_list() {
+  local list_file="$1"
+  [[ -f "$list_file" ]] || { warn "package list not found: $list_file"; return 0; }
+
+  mapfile -t pkgs < <(grep -Ev '^[[:space:]]*(#|$)' "$list_file")
+  [[ ${#pkgs[@]} -gt 0 ]] || { log "no packages in $list_file"; return 0; }
+
+  log "installing packages from $(basename "$list_file")"
+  local failed=()
+  local p
+
+  case "$PKG_MGR" in
+    pacman)
+      sudo pacman -Sy --noconfirm || true
+      for p in "${pkgs[@]}"; do
+        if ! sudo pacman -S --needed --noconfirm "$p"; then
+          failed+=("$p")
+        fi
+      done
+      ;;
+    apt)
+      sudo apt-get update || true
+      for p in "${pkgs[@]}"; do
+        if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "$p"; then
+          failed+=("$p")
+        fi
+      done
+      ;;
+    dnf)
+      for p in "${pkgs[@]}"; do
+        if ! sudo dnf -y install "$p"; then
+          failed+=("$p")
+        fi
+      done
+      ;;
+  esac
+
+  if [[ ${#failed[@]} -gt 0 ]]; then
+    warn "some packages failed from $(basename "$list_file"): ${failed[*]}"
+  fi
+}
+
+install_optional_tools() {
+  if [[ "$PKG_MGR" == "pacman" && -f "$DOTINSTALL/yaylist" ]]; then
+    if command -v yay >/dev/null 2>&1; then
+      mapfile -t yay_pkgs < <(grep -Ev '^[[:space:]]*(#|$)' "$DOTINSTALL/yaylist")
+      if [[ ${#yay_pkgs[@]} -gt 0 ]]; then
+        log "installing packages from yaylist"
+        yay --needed --noconfirm -S "${yay_pkgs[@]}" || warn "some yay packages failed"
+      fi
+    else
+      warn "yay not installed; skipping yaylist"
+    fi
+  fi
+
+  if command -v snap >/dev/null 2>&1 && [[ -f "$DOTINSTALL/snaplist" ]]; then
+    log "installing packages from snaplist"
+    sudo systemctl enable --now snapd.socket || true
+    [[ -e /snap ]] || sudo ln -s /var/lib/snapd/snap /snap || true
+    while IFS= read -r pkg; do
+      [[ -z "$pkg" || "$pkg" =~ ^[[:space:]]*# ]] && continue
+      sudo snap install "$pkg" || warn "snap install failed: $pkg"
+    done < "$DOTINSTALL/snaplist"
+  fi
+}
+
+verify_references() {
+  require_file "$DOTBASE/bashrc"
+  require_file "$DOTBASE/inputrc"
+  require_file "$DOTBASE/tmux.conf"
+  require_file "$DOTBASE/rgignore"
+  require_file "$DOTRC/gitconfig-shared"
+
+  local list
+  list="$(selected_pkglist)"
+  require_file "$list"
+
+  require_file "$VIM/vimrc"
+  require_file "$VIM/gvimrc"
+  require_file "$VIM/vim"
+  require_file "$VIM/nvim"
+
+  if is_wsl; then
+    require_file "$DOTBASE/wsl.conf"
+  fi
+}
+
+remove_old_configs() {
+  rm -f "$HOME/.bashrc" "$HOME/.inputrc" "$HOME/.tmux.conf" "$HOME/.rgignore"
+  rm -f "$HOME/.vimrc" "$HOME/.gvimrc"
+  rm -rf "$HOME/.vim" "$HOME/.config/nvim"
+}
+
+create_symlinks() {
+  mkdir -p "$HOME/.config"
+
+  ln -sfn "$DOTBASE/bashrc" "$HOME/.bashrc"
+  ln -sfn "$DOTBASE/inputrc" "$HOME/.inputrc"
+  ln -sfn "$DOTBASE/tmux.conf" "$HOME/.tmux.conf"
+  ln -sfn "$DOTBASE/rgignore" "$HOME/.rgignore"
+
+  ln -sfn "$VIM/nvim" "$HOME/.config/nvim"
+  ln -sfn "$VIM/vim" "$HOME/.vim"
+  ln -sfn "$VIM/vimrc" "$HOME/.vimrc"
+  ln -sfn "$VIM/gvimrc" "$HOME/.gvimrc"
+
+  touch "$HOME/.gitconfig"
+  git config --global include.path "$DOTRC/gitconfig-shared"
+
+  if is_wsl; then
+    sudo cp "$DOTBASE/wsl.conf" /etc/wsl.conf
+  fi
+}
+
+main() {
+  need_cmd sudo
+  need_cmd git
+  need_cmd curl
+  need_cmd ssh-keygen
+
+  log "detected distro: $OS_PRETTY ($OS_ID); package manager: $PKG_MGR"
+
+  ensure_locale
+  install_base_packages
+  prompt_ssh_setup
+  clone_repos
+  verify_references
+  install_packages_from_list "$(selected_pkglist)"
+  install_optional_tools
+  remove_old_configs
+  create_symlinks
+
+  log "setup completed successfully"
+  log "open a new shell (or run: source ~/.bashrc)"
+}
+
+main "$@"
