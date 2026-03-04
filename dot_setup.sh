@@ -19,6 +19,7 @@ VIM="${VIM:-$HOME/vim}"
 CHECKPOINT_DIR="${HOME}/.dot_setup_checkpoints"
 START_OVER=false
 ASSUME_YES=false
+RUN_POST_SETUP=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,8 +29,11 @@ while [[ $# -gt 0 ]]; do
     -y|--yes|--non-interactive)
       ASSUME_YES=true
       ;;
+    --run-post-setup)
+      RUN_POST_SETUP=true
+      ;;
     *)
-      die "unknown argument: $1 (supported: --start-over, --yes)"
+      die "unknown argument: $1 (supported: --start-over, --yes, --run-post-setup)"
       ;;
   esac
   shift
@@ -304,6 +308,7 @@ verify_references() {
   require_file "$DOTRC/gitconfig-shared"
 
   require_file "$(selected_pkglist)"
+  require_file "$DOTINSTALL/post-setup.sh"
 
   require_file "$VIM/vimrc"
   require_file "$VIM/gvimrc"
@@ -342,6 +347,21 @@ create_symlinks() {
   fi
 }
 
+run_post_setup() {
+  local script="$DOTINSTALL/post-setup.sh"
+
+  if [[ ! -x "$script" ]]; then
+    warn "post-setup script not found or not executable: $script"
+    return 0
+  fi
+
+  if $ASSUME_YES; then
+    bash "$script" --yes
+  else
+    bash "$script"
+  fi
+}
+
 main() {
   need_cmd sudo
 
@@ -370,8 +390,21 @@ main() {
   run_step remove_old_configs
   run_step create_symlinks
 
+  if $RUN_POST_SETUP; then
+    run_post_setup
+  fi
+
   log "setup completed successfully"
   log "open a new shell (or run: source ~/.bashrc)"
+
+  if ! $RUN_POST_SETUP; then
+    log "next step: run post-setup automation"
+    if $ASSUME_YES; then
+      log "bash \"$DOTINSTALL/post-setup.sh\" --yes"
+    else
+      log "bash \"$DOTINSTALL/post-setup.sh\""
+    fi
+  fi
 }
 
 main "$@"
