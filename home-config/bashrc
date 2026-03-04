@@ -1,8 +1,8 @@
 #!/bin/env bash
 
 DOTFILES=${HOME}/dotfiles
-BASHRC_COMMON="${DOTFILES}/dotbase/bashrc_common"
-BASHRC_INTERACTIVE="${DOTFILES}/dotbase/bashrc_interactive"
+BASHRC_COMMON="${DOTFILES}/home-config/bashrc_common"
+BASHRC_INTERACTIVE="${DOTFILES}/home-config/bashrc_interactive"
 
 # Always load common env/path for both interactive and non-interactive shells.
 [ -f "${BASHRC_COMMON}" ] && source "${BASHRC_COMMON}"

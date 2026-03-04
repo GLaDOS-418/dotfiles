@@ -11,9 +11,9 @@ need_cmd() {
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES="${DOTFILES:-$SCRIPT_DIR}"
-DOTBASE="$DOTFILES/dotbase"
-DOTINSTALL="$DOTFILES/dotinstall"
-DOTRC="$DOTFILES/dotrc"
+DOTBASE="$DOTFILES/home-config"
+DOTINSTALL="$DOTFILES/installers"
+DOTRC="$DOTFILES/shell-config"
 VIM="${VIM:-$HOME/vim}"
 
 CHECKPOINT_DIR="${HOME}/.dot_setup_checkpoints"

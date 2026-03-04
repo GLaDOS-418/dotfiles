@@ -70,7 +70,7 @@ if [ -e "${FZF_UTILITIES}" ]; then
 fi
 
 # git completion
-git_completion=${DOTFILES}/tools/git-completion-bash.sh
+git_completion=${DOTFILES}/bin/git-completion-bash.sh
 if [ -e  "${git_completion}" ]; then
     source "${git_completion}"
 fi

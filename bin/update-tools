@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function update_ctags {
-  ./install-universal-ctags.sh
+  ./installers/install-universal-ctags.sh
 }
 
 # all commands from 'dotfiles' folder...
@@ -26,7 +26,7 @@ function update_diff_so_fancy
 
   latest_release_url=$(curl -s "https://api.github.com/repos/${repo_owner}/${repo_name}/releases/latest" | grep -Eo --color=never '"browser_download_url": "[^"]+"' | sed -E 's/.*"([^"]+)"/\1/' | tr -cd '[:graph:]')
 
-  dsh_path="$HOME/dotfiles/tools/diff-so-fancy"
+  dsh_path="$HOME/dotfiles/bin/diff-so-fancy"
 
   curl -L "${latest_release_url}" -o "${dsh_path}"
   chmod u+x ${dsh_path}
@@ -46,5 +46,5 @@ function update_neovim {
 
 update_neovim
 
-curl -Ls 'https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash' >| $HOME/dotfiles/tools/git-completion-bash.sh
+curl -Ls 'https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash' >| $HOME/dotfiles/bin/git-completion-bash.sh
 

@@ -5,13 +5,13 @@
 DOTFILES=${HOME}/dotfiles
 DOT_SETUP_FILE="${DOTFILES}/dot_setup.sh"
 
-DOTBASE=${DOTFILES}/dotbase
-DOTSCRIPTS=${DOTFILES}/dotscripts
-DOTINSTALL=${DOTFILES}/dotinstall
-DOTRC=${DOTFILES}/dotrc
+DOTBASE=${DOTFILES}/home-config
+DOTSCRIPTS=${DOTFILES}/automation
+DOTINSTALL=${DOTFILES}/installers
+DOTRC=${DOTFILES}/shell-config
 
 VIM=${HOME}/vim
-TOOL_SCRIPTS="$HOME/dotfiles/tools"
+TOOL_SCRIPTS="$HOME/dotfiles/bin"
 BOB_NVIM="$HOME/.local/share/bob/nvim-bin"
 GOBIN="/usr/local/go/bin"
 SNAP="/snap/bin/hugo"

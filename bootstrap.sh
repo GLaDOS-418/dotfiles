@@ -178,13 +178,13 @@ clone_dot_repos() {
 # variables
 # -------------------------
 DOTFILES="$HOME/dotfiles"
-DOTBASE="$DOTFILES/dotbase"
-DOTINSTALL="$DOTFILES/dotinstall"
-DOTRC="$DOTFILES/dotrc"
+DOTBASE="$DOTFILES/home-config"
+DOTINSTALL="$DOTFILES/installers"
+DOTRC="$DOTFILES/shell-config"
 VIM="$HOME/vim"
 
 # -------------------------
-# package install from dotinstall (per distro file)
+# package install from installers (per distro file)
 # -------------------------
 install_extra_from_dotinstall() {
   cd "$DOTINSTALL" || return 0
