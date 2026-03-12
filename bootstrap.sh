@@ -235,7 +235,7 @@ create_symlinks() {
   ln -sf "$VIM/gvimrc"        "$HOME/.gvimrc"
 
   touch "$HOME/.gitconfig"
-  git config --global include.path "$DOTRC/gitconfig-shared"
+  git config --global include.path "$DOTBASE/gitconfig-shared"
 
   if grep -qi microsoft /proc/version; then
     sudo cp "$DOTBASE/wsl.conf" /etc/wsl.conf
