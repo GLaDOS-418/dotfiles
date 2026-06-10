@@ -1,0 +1,44 @@
+# shellcheck shell=bash
+
+# Login shells on macOS start here after dot_setup switches to Homebrew bash.
+# Keep Homebrew and GNU paths here rather than in ~/.bashrc so non-login shells
+# inherit a stable PATH without repeating setup work.
+_dot_homebrew_prefix=""
+if command -v brew >/dev/null 2>&1; then
+  _dot_homebrew_prefix="$(brew --prefix 2>/dev/null || true)"
+elif [[ -x /opt/homebrew/bin/brew ]]; then
+  _dot_homebrew_prefix="/opt/homebrew"
+elif [[ -x /usr/local/bin/brew ]]; then
+  _dot_homebrew_prefix="/usr/local"
+fi
+
+if [[ -n "$_dot_homebrew_prefix" && -x "$_dot_homebrew_prefix/bin/brew" ]]; then
+  eval "$("$_dot_homebrew_prefix/bin/brew" shellenv)"
+fi
+
+_dot_prepend_path() {
+  [[ -d "$1" ]] || return 0
+  case ":$PATH:" in
+    *:"$1":*) ;;
+    *) PATH="$1:$PATH" ;;
+  esac
+}
+
+if [[ -n "${HOMEBREW_PREFIX:-}" ]]; then
+  # Prefer GNU tools because the shared shell config uses GNU-style flags.
+  _dot_prepend_path "$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin"
+  _dot_prepend_path "$HOMEBREW_PREFIX/opt/findutils/libexec/gnubin"
+  _dot_prepend_path "$HOMEBREW_PREFIX/opt/gnu-sed/libexec/gnubin"
+  _dot_prepend_path "$HOMEBREW_PREFIX/opt/grep/libexec/gnubin"
+  _dot_prepend_path "$HOMEBREW_PREFIX/opt/gnu-tar/libexec/gnubin"
+fi
+export PATH
+
+# This bridge is optional and only runs when a local ~/.configure_tools.sh exists.
+[[ -f "$HOME/dotfiles/home-config/configure_tools_bridge.bash" ]] && \
+  source "$HOME/dotfiles/home-config/configure_tools_bridge.bash"
+
+[[ -f "$HOME/.bashrc" ]] && source "$HOME/.bashrc"
+
+unset -f _dot_prepend_path 2>/dev/null || true
+unset _dot_homebrew_prefix

@@ -9,15 +9,23 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+lower() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 ENABLE_SSHD=0
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DOTFILES="${HOME}/dotfiles"
-DOTBASE="$DOTFILES/home-config"
-DOTINSTALL="$DOTFILES/installers"
-DOTRC="$DOTFILES/shell-config"
+
+# Normal first-run path: this file is downloaded as ~/dot_setup.sh, then it
+# clones ~/dotfiles and continues with files from that repo. When developing
+# inside the repo, use the checkout directly so edits can be tested in place.
+DOTFILES="${DOTFILES:-$HOME/dotfiles}"
+if [[ -f "$SCRIPT_DIR/.root" && -d "$SCRIPT_DIR/home-config" ]]; then
+  DOTFILES="$SCRIPT_DIR"
+fi
 VIM="${VIM:-$HOME/vim}"
 
-CHECKPOINT_DIR="${HOME}/.dot_setup_checkpoints"
+CHECKPOINT_ROOT="${HOME}/.dot_setup_checkpoints"
 START_OVER=false
 ASSUME_YES=false
 RUN_POST_SETUP=false
@@ -40,23 +48,50 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-if [[ -r /etc/os-release ]]; then
-  # shellcheck disable=SC1091
-  . /etc/os-release
-  OS_ID="${ID:-unknown}"
-  OS_LIKE="${ID_LIKE:-}"
-  OS_PRETTY="${PRETTY_NAME:-$OS_ID}"
-else
-  die "cannot detect distro: /etc/os-release not found"
-fi
+UNAME_S="$(uname -s)"
+
+# Keep OS detection separate from package installation. The package lists live
+# under installers/* so macOS can follow the same flow as the WSL distros.
+detect_os() {
+  case "$UNAME_S" in
+    Darwin)
+      OS_ID="macos"
+      OS_LIKE="darwin"
+      if command -v sw_vers >/dev/null 2>&1; then
+        OS_PRETTY="$(sw_vers -productName) $(sw_vers -productVersion)"
+      else
+        OS_PRETTY="macOS"
+      fi
+      ;;
+    Linux)
+      if [[ -r /etc/os-release ]]; then
+        # shellcheck disable=SC1091
+        . /etc/os-release
+        OS_ID="${ID:-unknown}"
+        OS_LIKE="${ID_LIKE:-}"
+        OS_PRETTY="${PRETTY_NAME:-$OS_ID}"
+      else
+        die "cannot detect distro: /etc/os-release not found"
+      fi
+      ;;
+    *)
+      die "unsupported OS: $UNAME_S"
+      ;;
+  esac
+}
+
+is_macos() { [[ "$UNAME_S" == "Darwin" ]]; }
 
 is_wsl() {
+  [[ "$UNAME_S" == "Linux" ]] || return 1
   grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null || \
   grep -qi microsoft /proc/version 2>/dev/null
 }
 
 pkg_manager() {
-  if command -v pacman >/dev/null 2>&1; then
+  if is_macos; then
+    echo "brew"
+  elif command -v pacman >/dev/null 2>&1; then
     echo "pacman"
   elif command -v apt-get >/dev/null 2>&1; then
     echo "apt"
@@ -67,8 +102,19 @@ pkg_manager() {
   fi
 }
 
+refresh_dotfile_paths() {
+  # DOTFILES can change after clone_repos when this script starts outside the
+  # repo, so derived paths are refreshed after cloning.
+  DOTBASE="$DOTFILES/home-config"
+  DOTINSTALL="$DOTFILES/installers"
+  DOTRC="$DOTFILES/shell-config"
+}
+
+detect_os
 PKG_MGR="$(pkg_manager)"
 [[ "$PKG_MGR" != "unknown" ]] || die "unsupported distro/package manager: $OS_PRETTY"
+CHECKPOINT_DIR="$CHECKPOINT_ROOT/$OS_ID"
+refresh_dotfile_paths
 
 ensure_checkpoint_dir() { mkdir -p "$CHECKPOINT_DIR"; }
 is_done()               { [[ -f "$CHECKPOINT_DIR/$1.done" ]]; }
@@ -91,7 +137,28 @@ require_file() {
   [[ -e "$1" ]] || die "missing required file: $1"
 }
 
+read_list_file() {
+  local list_file="$1"
+  local _n_ref="$2"
+  local line
+
+  # Bash 3.2 has no namerefs or mapfile, so append through eval carefully.
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      ''|[[:space:]]'#'*|'#'*)
+        continue
+        ;;
+    esac
+    eval "$_n_ref+=(\"\$line\")"
+  done < "$list_file"
+}
+
 ensure_locale() {
+  if is_macos; then
+    log "macOS manages locale through system settings; skipping locale-gen"
+    return 0
+  fi
+
   log "ensuring locale en_US.UTF-8"
 
   case "$PKG_MGR" in
@@ -126,6 +193,39 @@ ensure_locale() {
 install_base_packages() {
   log "installing base packages for $PKG_MGR"
   case "$PKG_MGR" in
+    brew)
+      # macOS has no distro package manager on a fresh install. This step only
+      # gets Homebrew online so the later common package-list step can use it.
+      if ! xcode-select -p >/dev/null 2>&1; then
+        warn "Xcode Command Line Tools are missing"
+        xcode-select --install >/dev/null 2>&1 || true
+        die "Xcode Command Line Tools install has been requested; rerun this script after it completes"
+      fi
+
+      local brew_bin=""
+      if command -v brew >/dev/null 2>&1; then
+        brew_bin="$(command -v brew)"
+      elif [[ -x /opt/homebrew/bin/brew ]]; then
+        brew_bin="/opt/homebrew/bin/brew"
+      elif [[ -x /usr/local/bin/brew ]]; then
+        brew_bin="/usr/local/bin/brew"
+      fi
+
+      if [[ -z "$brew_bin" ]]; then
+        log "installing Homebrew"
+        need_cmd curl
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        if [[ -x /opt/homebrew/bin/brew ]]; then
+          brew_bin="/opt/homebrew/bin/brew"
+        elif [[ -x /usr/local/bin/brew ]]; then
+          brew_bin="/usr/local/bin/brew"
+        else
+          die "Homebrew installed, but brew was not found"
+        fi
+      fi
+
+      eval "$("$brew_bin" shellenv)"
+      ;;
     pacman)
       sudo pacman -Syu --noconfirm || true
       sudo pacman -S --needed --noconfirm openssh git curl ca-certificates base-devel inetutils
@@ -156,7 +256,7 @@ prompt_ssh_setup() {
   local ans="y"
   if ! $ASSUME_YES; then
     read -r -p "Generate SSH key if missing? [Y/n]: " ans
-    ans="${ans,,}"
+    ans="$(lower "$ans")"
   fi
 
   install -d -m 700 "$HOME/.ssh"
@@ -231,6 +331,8 @@ clone_repos() {
   clone_or_update_repo "https://github.com/GLaDOS-418/dotfiles.git" "$DOTFILES"
   clone_or_update_repo "https://github.com/glados-418/vim.git" "$VIM"
 
+  refresh_dotfile_paths
+
   if [[ -d "$DOTFILES/.git" && -f "$HOME/.ssh/id_ed25519" ]]; then
     git -C "$DOTFILES" remote set-url origin git@github.com:glados-418/dotfiles.git || true
   fi
@@ -238,6 +340,9 @@ clone_repos() {
 
 selected_pkglist() {
   case "$PKG_MGR" in
+    brew)
+      echo "$DOTINSTALL/brewlist"
+      ;;
     pacman)
       echo "$DOTINSTALL/wsl-arch"
       ;;
@@ -247,6 +352,9 @@ selected_pkglist() {
     dnf)
       echo "$DOTINSTALL/wsl-oracle"
       ;;
+    *)
+      return 1
+      ;;
   esac
 }
 
@@ -254,7 +362,8 @@ install_packages_from_list() {
   local list_file="$1"
   [[ -f "$list_file" ]] || { warn "package list not found: $list_file"; return 0; }
 
-  mapfile -t pkgs < <(grep -Ev '^[[:space:]]*(#|$)' "$list_file")
+  local pkgs=()
+  read_list_file "$list_file" pkgs
   [[ ${#pkgs[@]} -gt 0 ]] || { log "no packages in $list_file"; return 0; }
 
   log "installing packages from $(basename "$list_file")"
@@ -262,6 +371,29 @@ install_packages_from_list() {
   local p
 
   case "$PKG_MGR" in
+    brew)
+      local brew_bin=""
+      if command -v brew >/dev/null 2>&1; then
+        brew_bin="$(command -v brew)"
+      elif [[ -x /opt/homebrew/bin/brew ]]; then
+        brew_bin="/opt/homebrew/bin/brew"
+      elif [[ -x /usr/local/bin/brew ]]; then
+        brew_bin="/usr/local/bin/brew"
+      else
+        die "Homebrew is required to install packages from $list_file"
+      fi
+
+      eval "$("$brew_bin" shellenv)"
+      "$brew_bin" update || warn "brew update failed; continuing"
+      for p in "${pkgs[@]}"; do
+        if "$brew_bin" list --formula "$p" >/dev/null 2>&1; then
+          continue
+        fi
+        if ! "$brew_bin" install "$p"; then
+          failed+=("$p")
+        fi
+      done
+      ;;
     pacman)
       sudo pacman -Sy --noconfirm || true
       for p in "${pkgs[@]}"; do
@@ -297,9 +429,15 @@ install_distro_packages() {
 }
 
 install_optional_tools() {
+  if is_macos; then
+    log "skipping optional Linux package managers on macOS"
+    return 0
+  fi
+
   if [[ "$PKG_MGR" == "pacman" && -f "$DOTINSTALL/yaylist" ]]; then
     if command -v yay >/dev/null 2>&1; then
-      mapfile -t yay_pkgs < <(grep -Ev '^[[:space:]]*(#|$)' "$DOTINSTALL/yaylist")
+      local yay_pkgs=()
+      read_list_file "$DOTINSTALL/yaylist" yay_pkgs
       if [[ ${#yay_pkgs[@]} -gt 0 ]]; then
         log "installing packages from yaylist"
         yay --needed --noconfirm -S "${yay_pkgs[@]}" || warn "some yay packages failed"
@@ -329,6 +467,11 @@ verify_references() {
   require_file "$DOTBASE/rgignore"
   require_file "$DOTBASE/gitconfig-shared"
 
+  if is_macos; then
+    require_file "$DOTBASE/bash_profile"
+    require_file "$DOTBASE/configure_tools_bridge.bash"
+  fi
+
   require_file "$(selected_pkglist)"
   require_file "$DOTINSTALL/post-setup.sh"
 
@@ -346,6 +489,10 @@ remove_old_configs() {
   rm -f "$HOME/.bashrc" "$HOME/.inputrc" "$HOME/.tmux.conf" "$HOME/.rgignore"
   rm -f "$HOME/.vimrc" "$HOME/.gvimrc"
   rm -rf "$HOME/.vim" "$HOME/.config/nvim"
+
+  if is_macos; then
+    rm -f "$HOME/.bash_profile"
+  fi
 }
 
 create_symlinks() {
@@ -355,6 +502,10 @@ create_symlinks() {
   ln -sfn "$DOTBASE/inputrc" "$HOME/.inputrc"
   ln -sfn "$DOTBASE/tmux.conf" "$HOME/.tmux.conf"
   ln -sfn "$DOTBASE/rgignore" "$HOME/.rgignore"
+
+  if is_macos; then
+    ln -sfn "$DOTBASE/bash_profile" "$HOME/.bash_profile"
+  fi
 
   ln -sfn "$VIM/nvim" "$HOME/.config/nvim"
   ln -sfn "$VIM/vim" "$HOME/.vim"
@@ -366,6 +517,41 @@ create_symlinks() {
 
   if is_wsl; then
     sudo cp "$DOTBASE/wsl.conf" /etc/wsl.conf
+  fi
+}
+
+configure_macos_bash_shell() {
+  is_macos || return 0
+
+  # bash is installed from installers/brewlist. This step only registers it as an
+  # allowed login shell and switches the current user after all symlinks exist.
+  local brew_bin="" brew_bash
+  if command -v brew >/dev/null 2>&1; then
+    brew_bin="$(command -v brew)"
+  elif [[ -x /opt/homebrew/bin/brew ]]; then
+    brew_bin="/opt/homebrew/bin/brew"
+  elif [[ -x /usr/local/bin/brew ]]; then
+    brew_bin="/usr/local/bin/brew"
+  else
+    die "Homebrew is required before configuring macOS bash"
+  fi
+
+  eval "$("$brew_bin" shellenv)"
+  brew_bash="$(dirname "$brew_bin")/bash"
+  [[ -x "$brew_bash" ]] || die "Homebrew bash not found at $brew_bash"
+
+  if ! grep -Fxq "$brew_bash" /etc/shells; then
+    log "adding $brew_bash to /etc/shells"
+    echo "$brew_bash" | sudo tee -a /etc/shells >/dev/null
+  fi
+
+  local current_shell
+  current_shell="$(dscl . -read "/Users/${USER}" UserShell 2>/dev/null | awk '{print $2}' || true)"
+  current_shell="${current_shell:-${SHELL:-}}"
+
+  if [[ "$current_shell" != "$brew_bash" ]]; then
+    log "switching login shell to $brew_bash"
+    sudo chsh -s "$brew_bash" "$USER" || warn "failed to switch login shell; run: chsh -s \"$brew_bash\""
   fi
 }
 
@@ -391,13 +577,13 @@ main() {
   if $START_OVER; then
     rm -rf "$CHECKPOINT_DIR"
     ensure_checkpoint_dir
-    log "reset checkpoints and restarting from beginning"
+    log "reset checkpoints for $OS_ID and restarting from beginning"
   fi
 
-  log "detected distro: $OS_PRETTY ($OS_ID); package manager: $PKG_MGR"
+  log "detected OS: $OS_PRETTY ($OS_ID); package manager: $PKG_MGR"
   if is_wsl; then
     log "WSL environment detected"
-  else
+  elif ! is_macos; then
     warn "WSL not detected; continuing anyway"
   fi
 
@@ -411,13 +597,18 @@ main() {
   run_step install_optional_tools
   run_step remove_old_configs
   run_step create_symlinks
+  run_step configure_macos_bash_shell
 
   if $RUN_POST_SETUP; then
     run_post_setup
   fi
 
   log "setup completed successfully"
-  log "open a new shell (or run: source ~/.bashrc)"
+  if is_macos; then
+    log "open a new terminal to start Homebrew bash"
+  else
+    log "open a new shell (or run: source ~/.bashrc)"
+  fi
 
   if ! $RUN_POST_SETUP; then
     log "next step: run post-setup automation"

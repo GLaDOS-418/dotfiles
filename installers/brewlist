@@ -1,0 +1,29 @@
+# Formulae installed by dot_setup on macOS after the dotfiles repo exists.
+# Keep language/toolchain-managed tools out of this list:
+# - Rust-owned tools: ripgrep, fd, bat, git-delta, zoxide, bob-nvim
+# - Neovim setup stays in post-setup/install-* flows
+
+# login shell and GNU compatibility for Linux-oriented dotfiles
+bash
+coreutils
+findutils
+gnu-sed
+grep
+gawk
+gnu-tar
+
+# bootstrap/runtime basics
+git
+curl
+openssh
+ca-certificates
+tmux
+vim
+openssl
+rsync
+unzip
+wget
+
+# lightweight CLI utilities used broadly by scripts and shell helpers
+jq
+tree
