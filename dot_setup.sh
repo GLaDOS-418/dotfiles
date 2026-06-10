@@ -340,7 +340,7 @@ create_symlinks() {
   ln -sfn "$VIM/gvimrc" "$HOME/.gvimrc"
 
   touch "$HOME/.gitconfig"
-  git config --global include.path "$DOTRC/gitconfig-shared"
+  git config --global include.path "$DOTBASE/gitconfig-shared"
 
   if is_wsl; then
     sudo cp "$DOTBASE/wsl.conf" /etc/wsl.conf
