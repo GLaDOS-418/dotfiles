@@ -9,6 +9,7 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+ENABLE_SSHD=0
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES="${HOME}/dotfiles"
 DOTBASE="$DOTFILES/home-config"
@@ -132,14 +133,16 @@ install_base_packages() {
     apt)
       sudo apt-get update
       sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        openssh-server openssh-client git curl ca-certificates build-essential
+        openssh-server openssh-client git curl ca-certificates build-essential hostname
       ;;
     dnf)
       sudo dnf -y update
-      sudo dnf -y install openssh-server openssh-clients git curl ca-certificates
+      sudo dnf -y install openssh-server openssh-clients git curl ca-certificates hostname
       sudo dnf -y group install "Development Tools" || true
       ;;
   esac
+
+  [[ "$ENABLE_SSHD" == "1" ]] && enable_ssh_server_if_available
 }
 
 verify_bootstrap_tools() {
@@ -161,9 +164,9 @@ prompt_ssh_setup() {
   if [[ "$ans" != "n" && ! -f "$HOME/.ssh/id_ed25519" ]]; then
     local user_name host_info date_tag comment
     user_name="${USER:-$(id -un)}"
-    host_info="$(hostname -f 2>/dev/null || hostname)"
-    date_tag="$(date -u +%Y-%m-%d)"
-    comment="${user_name}@${host_info}:${OS_ID}:${date_tag}"
+    host_info="$(hostname -f 2>/dev/null || hostname 2>/dev/null || uname -n)"
+    date_tag="$(date -u +%Y_%b_%d__%H.%M.%SZ)"
+    comment="${user_name}@${host_info}:${OS_PRETTY}:${date_tag}"
 
     log "generating ed25519 key"
     ssh-keygen -t ed25519 -a 100 -N "" -C "$comment" -f "$HOME/.ssh/id_ed25519"
@@ -186,6 +189,25 @@ prompt_ssh_setup() {
   else
     warn "no public key found at ~/.ssh/id_ed25519.pub; continuing with HTTPS clone"
   fi
+}
+
+enable_ssh_server_if_available() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+
+  local unit
+  # Unit names vary by platform:
+  # - sshd.service: RHEL/Fedora/Oracle and Arch
+  # - ssh.service: Debian and older Ubuntu
+  # - ssh.socket: Ubuntu 24.04+ socket-activated OpenSSH
+  for unit in sshd.service ssh.service ssh.socket; do
+    if systemctl list-unit-files "$unit" >/dev/null 2>&1; then
+      echo "Enabling OpenSSH server via systemd unit: $unit"
+      sudo systemctl enable --now "$unit" || warn "failed to enable/start $unit"
+      return 0
+    fi
+  done
+
+  warn "OpenSSH server installed, but no known systemd unit found: sshd.service, ssh.service, ssh.socket"
 }
 
 clone_or_update_repo() {
