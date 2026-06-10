@@ -2,12 +2,12 @@
 
 [core]
 	filemode = false
-	editor = nvim
+	editor = vim
 	#pager = diff-so-fancy | less --tabs=4 -RFX
-	pager = delta
+	pager = sh -c 'command -v delta >/dev/null 2>&1 && exec delta "$@" || exec less -FRX "$@"' -
         #whitespace = trailing-space,space-before-tab
 [interactive]
-    diffFilter = delta --color-only
+    diffFilter = sh -c 'command -v delta >/dev/null 2>&1 && exec delta --color-only || exec cat'
 [delta]
     navigate = true    # use n and N to move between diff sections
 
@@ -62,18 +62,18 @@
 
 [diff]
         algorithm = histogram
-	tool = nvimdiff
+	tool = vimdiff
 	renameLimit = 1000
 	guitool = kdiff3
 
 [merge]
-    tool = nvimdiff
+    tool = vimdiff
     guitool = kdiff3
 
 [mergetool]
 	prompt = true
 
-[mergetool "nvimdiff"]
+[mergetool "vimdiff"]
     # https://git-scm.com/docs/vimdiff/2.39.3
     layout = LOCAL,BASE,REMOTE/MERGED + LOCAL,MERGED,REMOTE
     keepBackup = false

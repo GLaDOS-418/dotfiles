@@ -42,9 +42,9 @@ alias time='/usr/bin/time'
 # EDITOR ALIAS
 ################################################################
 
-alias v='nvim'
-alias vnone='nvim -u NONE'
-alias nv='nvim'
+alias v='${EDITOR:-vim}'
+alias vnone='${EDITOR:-vim} -u NONE'
+alias nv='${EDITOR:-vim}'
 
 # maybe it's a good idea to leave vim alone ??
 # [ -x "$(command -v nvim)" ] && alias vim='nvim'
@@ -141,8 +141,8 @@ alias ipshow='ip link show'
 alias tux='sudo arpon -d -i wlp3s0 -D'
 
 # FZF
-alias of=' fd --follow -j4 --type f --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
-alias od=' fd --follow -j4 --type d --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs nvim'
+alias of=' fd --follow -j4 --type f --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs ${EDITOR:-vim}'
+alias od=' fd --follow -j4 --type d --hidden --follow --exclude .git | fzf --header "open file..." --preview "bat -n --color=always {}" --bind "ctrl-/:change-preview-window(down|hidden|)" --preview-window down | xargs ${EDITOR:-vim}'
 
 # YT-DLP
 alias ytlist='yt-dlp --restrict-filename --sub-lang en --playlist-items 139-204 --embed-subs --continue --ignore-errors -f 43 -o "%(autonumber)s - %(title)s.%(ext)s"'
@@ -161,4 +161,3 @@ alias pdw="pwd"
 alias gti='git'
 alias gi='git'
 alias sl='ls'
-

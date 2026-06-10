@@ -13,6 +13,13 @@ if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] &&
   exec tmux
 fi
 
+_shopt_enable() {
+  local opt
+  for opt in "$@"; do
+    shopt -s "$opt" 2>/dev/null || true
+  done
+}
+
 #########################################
 ### BASH HISTORY
 #########################################
@@ -80,7 +87,9 @@ fi
 # eval $(thefuck --alias --enable-experimental-instant-mode)
 
 # https://github.com/ajeetdsouza/zoxide
-eval "$(zoxide init bash)"
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init bash)"
+fi
 
 ################################################################
 # SOURCES
@@ -116,7 +125,7 @@ if ! shopt -oq posix; then
 fi
 
 # running gui apps as root
-xhost +local:root > /dev/null 2>&1
+command -v xhost >/dev/null 2>&1 && xhost +local:root > /dev/null 2>&1
 # sudo with tab completion
 complete -cf sudo
 
@@ -131,11 +140,11 @@ fi
 # Bash won't get SIGWINCH if another process is in the foreground.
 # Enable checkwinsize so that bash will check the terminal size when
 # it regains control.
-shopt -s checkwinsize
+_shopt_enable checkwinsize
 
 # the pattern "**" used in a pathname expansion context will
 # match all files and zero or more directories and subdirectories.
-shopt -s globstar
+_shopt_enable globstar
 
 # Prevent file overwrite on stdout redirection.
 # Use `>|` to force redirection to an existing file.
@@ -152,8 +161,10 @@ set -o noclobber
 # no_empty_cmd_completion - don't TAB expand empty lines
 # cmdhist                 - save multiline commands as single line in history
 
-shopt -s expand_aliases cdspell checkjobs dirspell histappend \
+_shopt_enable expand_aliases cdspell checkjobs dirspell histappend \
 autocd direxpand histverify nocaseglob no_empty_cmd_completion cmdhist
+
+unset -f _shopt_enable
 
 ###################################################################
 # COLORS

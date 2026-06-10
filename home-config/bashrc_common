@@ -17,17 +17,27 @@ GOBIN="/usr/local/go/bin"
 SNAP="/snap/bin/hugo"
 
 # wsl update keeps changing the the version prefix
-PERF="$(echo /usr/lib/linux-tools/*-generic)"
+if [[ "$(uname -s)" == "Linux" ]]; then
+  PERF="$(echo /usr/lib/linux-tools/*-generic)"
+else
+  PERF=""
+fi
 
 ################################################################
 # ENV VARS
 ################################################################
 
-export SHELL=/bin/bash
-
 #export https_proxy=""
-export EDITOR=nvim
-export VISUAL=nvim
+if command -v nvim >/dev/null 2>&1; then
+  export EDITOR=nvim
+  export VISUAL=nvim
+elif command -v vim >/dev/null 2>&1; then
+  export EDITOR=vim
+  export VISUAL=vim
+else
+  export EDITOR=vi
+  export VISUAL=vi
+fi
 export MYVIMRC="$HOME/.vimrc"
 export XDG_CONFIG_HOME=${HOME}/.config
 export INPUTRC="$HOME/.inputrc"
@@ -50,7 +60,7 @@ export LOCALNVIM=${HOME}/.local/nvim/bin
 # DOTNET=$HOME/.dotnet
 
 export PATH=$BOB_NVIM:$UNICTAGS/bin:$GOPATH/bin:$TOOL_SCRIPTS:$LOCALBIN:$LOCALNVIM:$PATH
-export PATH=${GOBIN}:${PERF}:${DOTNET}:$PATH
+export PATH=${GOBIN}:${PERF}:${DOTNET:-}:$PATH
 # export MANPATH=$MANPATH:$HOME/share/man
 
 ## INSTALL MANAUAL BINARIES IN ~/thirdparty/*
@@ -59,4 +69,4 @@ for d in $HOME/thirdparty/*/; do
 done
 
 # rust env
-. "$HOME/.cargo/env"
+[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
