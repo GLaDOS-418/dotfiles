@@ -12,3 +12,5 @@ BASHRC_INTERACTIVE="${DOTFILES}/home-config/bashrc_interactive"
 
 # Interactive-only setup.
 [ -f "${BASHRC_INTERACTIVE}" ] && source "${BASHRC_INTERACTIVE}"
+export MONO_TLS_PROVIDER=legacy
+export PATH="$HOME/.npm-global/bin:$PATH"

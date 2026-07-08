@@ -268,6 +268,14 @@ DARK_MAGENTA_BG='\e[48;2;139;0;139m'
 LIGHT_GRAY_FG='\e[38;2;211;211;211m'
 LIGHT_GRAY_BG='\e[48;2;211;211;211m'
 
+# One Half Dark-inspired prompt colors for consistent rendering across terminal themes.
+ONEHALF_DARK_BG='\e[48;2;40;44;52m'
+ONEHALF_DARK_FG='\e[38;2;220;223;228m'
+ONEHALF_BLUE_FG='\e[38;2;97;175;239m'
+ONEHALF_CYAN_FG='\e[38;2;86;182;194m'
+ONEHALF_GREEN_FG='\e[38;2;152;195;121m'
+ONEHALF_RED_FG='\e[38;2;224;108;117m'
+
 
 # Change the window title of X terminal
 # TODO: is it even required anymore?

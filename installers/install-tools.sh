@@ -44,23 +44,23 @@ install_languagetool() {
 }
 
 install_fzf
-install_languagetool
-
-bash "$SCRIPT_DIR/install-rust-tools.sh"
-bash "$SCRIPT_DIR/install-go-tools.sh"
-bash "$SCRIPT_DIR/install-npm-tools.sh"
-bash "$SCRIPT_DIR/install-python-tools.sh"
-
-if command -v bob >/dev/null 2>&1; then
-  bob use nightly || warn 'bob use nightly failed'
-else
-  warn 'bob not found; skipping bob nightly selection'
-fi
-
-if command -v nvim >/dev/null 2>&1; then
-  nvim --headless '+PlugInstall --sync' +qa || warn 'nvim PlugInstall failed'
-else
-  warn 'nvim not found; skipping PlugInstall'
-fi
+# install_languagetool
+#
+# bash "$SCRIPT_DIR/install-rust-tools.sh"
+# bash "$SCRIPT_DIR/install-go-tools.sh"
+# bash "$SCRIPT_DIR/install-npm-tools.sh"
+# bash "$SCRIPT_DIR/install-python-tools.sh"
+#
+# if command -v bob >/dev/null 2>&1; then
+#   bob use nightly || warn 'bob use nightly failed'
+# else
+#   warn 'bob not found; skipping bob nightly selection'
+# fi
+#
+# if command -v nvim >/dev/null 2>&1; then
+#   nvim --headless '+PlugInstall --sync' +qa || warn 'nvim PlugInstall failed'
+# else
+#   warn 'nvim not found; skipping PlugInstall'
+# fi
 
 log 'done'

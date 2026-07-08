@@ -101,6 +101,8 @@ alias wg='wgold --compression=auto'
 # GIT
 alias dh='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines --diff-algorithm=histogram'
 alias dhc='git diff --diff-algorithm=histogram --cached'
+## when using delta pager, sometimes instead of side-by-side, use the unified diff.
+alias dhu='git -c delta.side-by-side=false diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines --diff-algorithm=histogram'
 # alias dhc='git diff --ignore-space-at-eol --ignore-all-space --ignore-space-change --ignore-blank-lines --diff-algorithm=histogram --cached'
 alias dhead='dh HEAD'
 alias cdr='cd ./"$(git rev-parse --show-cdup)"'
@@ -117,6 +119,7 @@ alias groot='cd $(git rev-parse --show-toplevel)'
 
 alias todo='v ${HOME}/todo.md'
 alias note='v ${HOME}/note.md'
+alias review='v ${HOME}/reviews.md'
 
 # PACMAN
 alias upe="cat updatelog | xargs -I{} pacman -Qo {} 2>&1 | sed 's/^error:.*owns //g' > noowner && cat noowner | xargs sudo rm -rf"
