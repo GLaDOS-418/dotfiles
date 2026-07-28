@@ -113,15 +113,23 @@ shopt -s expand_aliases
 ##  CONFIG
 ################################################################
 
-# enable programmable completion features (you don't need to enable
-# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
-# sources /etc/bash.bashrc).
+# Enable bash-completion (Linux and macOS)
 if ! shopt -oq posix; then
-  if [ -f /usr/share/bash-completion/bash_completion ]; then
-    source /usr/share/bash-completion/bash_completion
-  elif [ -f /etc/bash_completion ]; then
-    source /etc/bash_completion
-  fi
+    # Homebrew (Apple Silicon and Intel)
+    if command -v brew >/dev/null 2>&1; then
+        HOMEBREW_PREFIX="$(brew --prefix)"
+        if [[ -r "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh" ]]; then
+            source "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
+        elif [[ -r "$HOMEBREW_PREFIX/etc/bash_completion" ]]; then
+            source "$HOMEBREW_PREFIX/etc/bash_completion"
+        fi
+
+    # Common Linux locations
+    elif [[ -r /usr/share/bash-completion/bash_completion ]]; then
+        source /usr/share/bash-completion/bash_completion
+    elif [[ -r /etc/bash_completion ]]; then
+        source /etc/bash_completion
+    fi
 fi
 
 # running gui apps as root

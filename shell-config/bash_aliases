@@ -23,6 +23,7 @@ alias links='find . -maxdepth 1 -type l -ls' # list all links in current folder
 #### try to prevent accidental data loss
 # alias cp='cp -i'
 # alias mv='mv -i'
+alias cp='rsync --partial --progress'
 
 TRASH="${HOME}/.local/share/trash/files/"
 mkdir -p "${TRASH}"

@@ -4,7 +4,7 @@
 # CODE MANAGEMENT
 ################################################################
 
-flame() {
+function flame {
     local prog="$1"
     local out="$2"
 
@@ -226,19 +226,26 @@ function fzfupdate {
     cd "${HOME}"/.fzf && git pull && ./install
 }
 
-function ftstats {
-    # recursive statistics on file types in directory
-    # files that do not have any extensions(.foo) are treated as extensions themselves
-    # hidden files and folders are excluded
+function filestats {
+    # Recursive statistics on file types in directory.
+    # Files without an extension are treated as their filename.
+    # Hidden files and directories are excluded.
 
-    dir="${1:-.}"
+    local dir="${1:-.}"
 
     if [ ! -d "$dir" ]; then
         echo "directory '$dir' does not exist."
-        return
+        return 1
     fi
 
-    find "$dir" -type f -not -path '*/\.*' | sed -E 's/.*\././' | sort -r | uniq -c
+    echo "Directory: $dir"
+    echo "Size: $(du -sh "$dir" 2>/dev/null | cut -f1)"
+    echo
+
+    find "$dir" -type f -not -path '*/\.*' \
+        | sed -E 's/.*\././' \
+        | sort -r \
+        | uniq -c
 }
 
 function mcd {
@@ -246,7 +253,7 @@ function mcd {
 }
 
 function ls {
-    command ls -FhvC --color=always --author --time-style=long-iso "$@" | /usr/bin/less -RXF
+  command ls -FhvC --color=always --author --time-style=long-iso "$@" | /usr/bin/less -RXF
 }
 
 function setup {

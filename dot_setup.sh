@@ -14,6 +14,7 @@ lower() {
 }
 
 ENABLE_SSHD=0
+PLATFORM_KIND="unknown"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # Normal first-run path: this file is downloaded as ~/dot_setup.sh, then it
@@ -86,6 +87,32 @@ is_wsl() {
   [[ "$UNAME_S" == "Linux" ]] || return 1
   grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null || \
   grep -qi microsoft /proc/version 2>/dev/null
+}
+
+is_docker() {
+  [[ "$UNAME_S" == "Linux" ]] || return 1
+  [[ -f /.dockerenv ]] ||
+    grep -qE '(docker|kubepods|containerd)' /proc/1/cgroup /proc/self/cgroup 2>/dev/null
+}
+
+configure_ssh_server_policy() {
+  if is_macos; then
+    PLATFORM_KIND="darwin"
+    ENABLE_SSHD=0
+    log "SSHD policy: macOS; managed by Remote Login/system settings"
+  elif is_wsl; then
+    PLATFORM_KIND="wsl"
+    ENABLE_SSHD=0
+    log "SSHD policy: WSL; not enabling a Linux SSH daemon"
+  elif is_docker; then
+    PLATFORM_KIND="docker"
+    ENABLE_SSHD=0
+    log "SSHD policy: Docker; not enabling a service inside the container"
+  else
+    PLATFORM_KIND="linux"
+    ENABLE_SSHD=1
+    log "SSHD policy: native Linux; enabling the SSH server when supported"
+  fi
 }
 
 pkg_manager() {
@@ -242,7 +269,9 @@ install_base_packages() {
       ;;
   esac
 
-  [[ "$ENABLE_SSHD" == "1" ]] && enable_ssh_server_if_available
+  if [[ "$ENABLE_SSHD" == "1" ]]; then
+    enable_ssh_server_if_available
+  fi
 }
 
 verify_bootstrap_tools() {
@@ -581,11 +610,7 @@ main() {
   fi
 
   log "detected OS: $OS_PRETTY ($OS_ID); package manager: $PKG_MGR"
-  if is_wsl; then
-    log "WSL environment detected"
-  elif ! is_macos; then
-    warn "WSL not detected; continuing anyway"
-  fi
+  configure_ssh_server_policy
 
   run_step ensure_locale
   run_step install_base_packages
