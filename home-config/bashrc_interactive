@@ -457,8 +457,32 @@ unset use_color safe_term match_lhs sh
 #colorscript random
 
 export NVM_DIR="$HOME/.config/nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+# Lazy-load nvm: sourcing nvm.sh resolves the default node version via 20-30+
+# subprocess spawns (grep/sed/awk/node --version), adding roughly a second to
+# every single shell startup whether or not that shell ever touches node.
+# Defer it until something nvm-related is actually used:
+# - explicit stubs cover the common entry points directly.
+# - command_not_found_handle catches anything else nvm put on PATH (yarn,
+#   pnpm, tsc, ...) that isn't defined yet because nvm.sh hasn't run.
+_dot_nvm_load() {
+  unset -f nvm node npm npx command_not_found_handle _dot_nvm_load
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+}
+nvm()  { _dot_nvm_load; nvm "$@"; }
+node() { _dot_nvm_load; node "$@"; }
+npm()  { _dot_nvm_load; npm "$@"; }
+npx()  { _dot_nvm_load; npx "$@"; }
+command_not_found_handle() {
+  _dot_nvm_load
+  if command -v "$1" >/dev/null 2>&1; then
+    "$@"
+  else
+    echo "bash: $1: command not found" >&2
+    return 127
+  fi
+}
 
 
 ###############################################################################
