@@ -17,14 +17,16 @@
 if command -v tmux &> /dev/null && [ -n "$PS1" ] && [ -z "$TMUX" ]; then
   # Name remote sessions after the host so they never look like the local tmux.
   if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
-    # -c only applies when a new session is actually created (-A just attaches
-    # to an existing one, keeping its panes' real cwd), i.e. exactly the case
-    # where the previous session fully died and would otherwise land in $HOME.
+    # cd here (instead of passing -c to new-session) because a brand new
+    # session always inherits the caller's cwd; -c is only honored on that
+    # same path anyway (attaching to an existing session ignores it entirely),
+    # so this is one less thing that can silently not apply.
     _dot_last_dir_file="$HOME/.cache/tmux_last_dir.$(hostname -s 2>/dev/null || hostname)"
     _dot_start_dir="$HOME"
     [[ -r "$_dot_last_dir_file" ]] && _dot_start_dir="$(cat "$_dot_last_dir_file")"
     [[ -d "$_dot_start_dir" ]] || _dot_start_dir="$HOME"
-    exec tmux new-session -A -s "remote-$(hostname -s 2>/dev/null || hostname)" -c "$_dot_start_dir"
+    cd "$_dot_start_dir" 2>/dev/null
+    exec tmux new-session -A -s "remote-$(hostname -s 2>/dev/null || hostname)"
   else
     exec tmux
   fi
