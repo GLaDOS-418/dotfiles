@@ -9,7 +9,12 @@
 #########################################
 
 # https://unix.stackexchange.com/a/113768
-if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+# $TMUX alone is enough to detect real nesting (it's a local socket path, never
+# forwarded by ssh); $TERM isn't reliable here because ssh forwards the
+# client's TERM via pty allocation, so it reads "screen"/"tmux" on the remote
+# host whenever you ssh from inside a local tmux pane, even with no tmux
+# server running there yet - the old check just skipped exec tmux in that case.
+if command -v tmux &> /dev/null && [ -n "$PS1" ] && [ -z "$TMUX" ]; then
   # Name remote sessions after the host so they never look like the local tmux.
   if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
     # -c only applies when a new session is actually created (-A just attaches
@@ -341,7 +346,7 @@ function __build_prompt_command {
 
   local remote_tag=""
   if [[ "${IS_SSH_SESSION}" == true ]]; then
-    remote_tag="${BOLD}${BLACK}${BGRED} REMOTE ${username}@${hostname%%.*} ${RESET} "
+    remote_tag=" ${BOLD}${BLACK}${BGRED} (ssh) ${username}@${hostname%%.*} ${RESET} "
   fi
 
   # username and hostname already in tmux bar
