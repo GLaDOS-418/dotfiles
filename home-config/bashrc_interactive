@@ -119,8 +119,16 @@ fi
 # eval $(thefuck --alias --enable-experimental-instant-mode)
 
 # https://github.com/ajeetdsouza/zoxide
+# Cache the generated script instead of shelling out to `zoxide init` on every
+# shell startup; regenerated automatically whenever the zoxide binary changes.
 if command -v zoxide >/dev/null 2>&1; then
-  eval "$(zoxide init bash)"
+  _dot_zoxide_cache="$HOME/.cache/zoxide_init.bash"
+  if [[ ! -s "$_dot_zoxide_cache" || "$(command -v zoxide)" -nt "$_dot_zoxide_cache" ]]; then
+    mkdir -p "$HOME/.cache"
+    zoxide init bash > "$_dot_zoxide_cache"
+  fi
+  source "$_dot_zoxide_cache"
+  unset _dot_zoxide_cache
 fi
 
 ################################################################
@@ -147,9 +155,9 @@ shopt -s expand_aliases
 
 # Enable bash-completion (Linux and macOS)
 if ! shopt -oq posix; then
-    # Homebrew (Apple Silicon and Intel)
-    if command -v brew >/dev/null 2>&1; then
-        HOMEBREW_PREFIX="$(brew --prefix)"
+    # HOMEBREW_PREFIX is already exported by bash_profile's `brew shellenv`;
+    # no need to spawn `brew --prefix` again here.
+    if [[ -n "${HOMEBREW_PREFIX:-}" ]]; then
         if [[ -r "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh" ]]; then
             source "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
         elif [[ -r "$HOMEBREW_PREFIX/etc/bash_completion" ]]; then
@@ -407,19 +415,23 @@ LS_COLORS=$LS_COLORS:'di=01;33:ow=01;37;45:so=01;37;45'
 export LS_COLORS
 
 # colors used for colorful man-pages
-export LESS_TERMCAP_mb=$(tput bold; tput setaf 2) # green
-export LESS_TERMCAP_md=$(tput bold; tput setaf 6) # cyan
-export LESS_TERMCAP_me=$(tput sgr0)
-export LESS_TERMCAP_so=$(tput bold; tput setaf 3; tput setab 4) # yellow on blue
-export LESS_TERMCAP_se=$(tput rmso; tput sgr0)
-export LESS_TERMCAP_us=$(tput smul; tput bold; tput setaf 7) # white
-export LESS_TERMCAP_ue=$(tput rmul; tput sgr0)
-export LESS_TERMCAP_mr=$(tput rev)
-export LESS_TERMCAP_mh=$(tput dim)
-export LESS_TERMCAP_ZN=$(tput ssubm)
-export LESS_TERMCAP_ZV=$(tput rsubm)
-export LESS_TERMCAP_ZO=$(tput ssupm)
-export LESS_TERMCAP_ZW=$(tput rsupm)
+# Hardcoded ANSI/terminfo escapes instead of 13 `tput` subprocess spawns per
+# shell startup (these values are fixed for any ANSI-256 terminal; ssubm/
+# rsubm/ssupm/rsupm - sub/superscript - have no ANSI equivalent so stay empty,
+# matching what tput prints as a no-op on terminals lacking them anyway).
+export LESS_TERMCAP_mb=$'\e[1m\e[32m' # green
+export LESS_TERMCAP_md=$'\e[1m\e[36m' # cyan
+export LESS_TERMCAP_me=$'\e[0m'
+export LESS_TERMCAP_so=$'\e[1m\e[33m\e[44m' # yellow on blue
+export LESS_TERMCAP_se=$'\e[0m'
+export LESS_TERMCAP_us=$'\e[4m\e[1m\e[37m' # white
+export LESS_TERMCAP_ue=$'\e[24m\e[0m'
+export LESS_TERMCAP_mr=$'\e[7m'
+export LESS_TERMCAP_mh=$'\e[2m'
+export LESS_TERMCAP_ZN=''
+export LESS_TERMCAP_ZV=''
+export LESS_TERMCAP_ZO=''
+export LESS_TERMCAP_ZW=''
 export GROFF_NO_SGR=1         # For Konsole and Gnome-terminal
 
 unset use_color safe_term match_lhs sh

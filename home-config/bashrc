@@ -103,10 +103,8 @@ export SDKMAN_DIR="$HOME/.sdkman"
 # Interactive-only setup.
 [ -f "${BASHRC_INTERACTIVE}" ] && source "${BASHRC_INTERACTIVE}"
 
-if [[ "$OSTYPE" == darwin* ]] && command -v brew >/dev/null; then
-    coreutils_bin="$(brew --prefix coreutils 2>/dev/null)/libexec/gnubin"
-    [[ -d "$coreutils_bin" ]] && export PATH="$coreutils_bin:$PATH"
-fi
+# coreutils gnubin is already added to PATH by bash_profile (via
+# $HOMEBREW_PREFIX from `brew shellenv`, no extra brew subprocess needed).
 
 export MONO_TLS_PROVIDER=legacy
 export PATH="$HOME/.npm-global/bin:$PATH"
