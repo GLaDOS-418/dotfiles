@@ -115,6 +115,34 @@ configure_ssh_server_policy() {
   fi
 }
 
+configure_passwordless_sudo() {
+  local user_name="${USER:-$(id -un)}"
+  local sudoers_file="/etc/sudoers.d/99-${user_name}-nopasswd"
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    log "running as root; skipping passwordless sudo setup"
+    return 0
+  fi
+
+  if sudo -n true 2>/dev/null; then
+    log "passwordless sudo already active for $user_name"
+    return 0
+  fi
+
+  log "configuring passwordless sudo for $user_name"
+  local tmp
+  tmp="$(mktemp)"
+  printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$user_name" >| "$tmp"
+
+  if ! sudo visudo -cf "$tmp" >/dev/null; then
+    rm -f "$tmp"
+    die "generated sudoers file failed validation"
+  fi
+
+  sudo install -m 0440 "$tmp" "$sudoers_file"
+  rm -f "$tmp"
+}
+
 pkg_manager() {
   if is_macos; then
     echo "brew"
@@ -489,7 +517,6 @@ install_optional_tools() {
 
 verify_references() {
   require_file "$DOTBASE/bashrc"
-  require_file "$DOTBASE/bashrc_common"
   require_file "$DOTBASE/bashrc_interactive"
   require_file "$DOTBASE/inputrc"
   require_file "$DOTBASE/tmux.conf"
@@ -612,6 +639,7 @@ main() {
   log "detected OS: $OS_PRETTY ($OS_ID); package manager: $PKG_MGR"
   configure_ssh_server_policy
 
+  run_step configure_passwordless_sudo
   run_step ensure_locale
   run_step install_base_packages
   run_step verify_bootstrap_tools

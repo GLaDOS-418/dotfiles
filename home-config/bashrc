@@ -1,16 +1,112 @@
-#!/bin/env bash
+#!/usr/bin/env bash
+
+################################################################
+# LOCAL VARS
+################################################################
 
 DOTFILES=${HOME}/dotfiles
-BASHRC_COMMON="${DOTFILES}/home-config/bashrc_common"
+DOT_SETUP_FILE="${DOTFILES}/dot_setup.sh"
+
+DOTBASE=${DOTFILES}/home-config
+DOTSCRIPTS=${DOTFILES}/automation
+DOTINSTALL=${DOTFILES}/installers
+DOTRC=${DOTFILES}/shell-config
+
 BASHRC_INTERACTIVE="${DOTFILES}/home-config/bashrc_interactive"
 
-# Always load common env/path for both interactive and non-interactive shells.
-[ -f "${BASHRC_COMMON}" ] && source "${BASHRC_COMMON}"
+VIM=${HOME}/vim
+TOOL_SCRIPTS="$HOME/dotfiles/bin"
+BOB_NVIM="$HOME/.local/share/bob/nvim-bin"
+GOBIN="/usr/local/go/bin"
+SNAP="/snap/bin/hugo"
+
+# wsl update keeps changing the the version prefix
+if [[ "$(uname -s)" == "Linux" ]]; then
+  PERF="$(echo /usr/lib/linux-tools/*-generic)"
+else
+  PERF=""
+fi
+
+################################################################
+# ENV VARS (always: interactive and non-interactive shells)
+################################################################
+
+#export https_proxy=""
+if command -v nvim >/dev/null 2>&1; then
+  export EDITOR=nvim
+  export VISUAL=nvim
+elif command -v vim >/dev/null 2>&1; then
+  export EDITOR=vim
+  export VISUAL=vim
+else
+  export EDITOR=vi
+  export VISUAL=vi
+fi
+export MYVIMRC="$HOME/.vimrc"
+export XDG_CONFIG_HOME=${HOME}/.config
+export INPUTRC="$HOME/.inputrc"
+export COLUMNS
+
+export CC=gcc
+export CXX=g++
+
+export GOPATH=${HOME}/go
+export LOCALBIN=${HOME}/.local/bin
+export LOCALNVIM=${HOME}/.local/nvim/bin
+
+# required only if JAVA_HOME is not set by sdkman in the end of this script
+# export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+# export PATH=$JAVA_HOME/bin:$PATH
+
+export DOTNET="$HOME/.dotnet"
+
+# Prepend only directories that actually exist, skipping empty entries
+# (an empty PATH segment means "search the current directory").
+_dot_prepend_path() {
+  [[ -d "$1" ]] || return 0
+  case ":$PATH:" in
+    *:"$1":*) ;;
+    *) PATH="$1:$PATH" ;;
+  esac
+}
+
+# Listed in reverse priority: each prepend wins over the ones before it,
+# so BOB_NVIM ends up first and DOTNET last among these.
+_dot_prepend_path "$DOTNET"
+_dot_prepend_path "$PERF"
+_dot_prepend_path "$GOBIN"
+_dot_prepend_path "$LOCALNVIM"
+_dot_prepend_path "$LOCALBIN"
+_dot_prepend_path "$TOOL_SCRIPTS"
+_dot_prepend_path "$GOPATH/bin"
+_dot_prepend_path "$BOB_NVIM"
+export PATH
+# export MANPATH=$MANPATH:$HOME/share/man
+
+## INSTALL MANAUAL BINARIES IN ~/thirdparty/*
+for d in $HOME/thirdparty/*/; do
+    [ -d "$d" ] && PATH+=":$d"
+done
+
+unset -f _dot_prepend_path
+
+# rust env
+[[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+
+#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
+export SDKMAN_DIR="$HOME/.sdkman"
+[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
 
 # Stop here for non-interactive shells.
 [[ $- != *i* ]] && return
 
 # Interactive-only setup.
 [ -f "${BASHRC_INTERACTIVE}" ] && source "${BASHRC_INTERACTIVE}"
+
+if [[ "$OSTYPE" == darwin* ]] && command -v brew >/dev/null; then
+    coreutils_bin="$(brew --prefix coreutils 2>/dev/null)/libexec/gnubin"
+    [[ -d "$coreutils_bin" ]] && export PATH="$coreutils_bin:$PATH"
+fi
+
 export MONO_TLS_PROVIDER=legacy
 export PATH="$HOME/.npm-global/bin:$PATH"

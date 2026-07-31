@@ -10,7 +10,12 @@
 
 # https://unix.stackexchange.com/a/113768
 if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
-  exec tmux
+  # Name remote sessions after the host so they never look like the local tmux.
+  if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
+    exec tmux new-session -A -s "away-$(hostname -s 2>/dev/null || hostname)"
+  else
+    exec tmux
+  fi
 fi
 
 _shopt_enable() {
@@ -284,17 +289,17 @@ ONEHALF_CYAN_FG='\e[38;2;86;182;194m'
 ONEHALF_GREEN_FG='\e[38;2;152;195;121m'
 ONEHALF_RED_FG='\e[38;2;224;108;117m'
 
+# Detect an SSH session so __build_prompt_command (the actual PS1) can flag it clearly.
+if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
+  IS_SSH_SESSION=true
+else
+  IS_SSH_SESSION=false
+fi
 
-# Change the window title of X terminal
-# TODO: is it even required anymore?
-# case ${TERM} in
-#   xterm*|rxvt*|Eterm*|aterm|kterm|gnome*|interix|konsole*)
-#     PROMPT_COMMAND+='echo -ne "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\007"'
-#     ;;
-#   screen*)
-#     PROMPT_COMMAND+='echo -ne "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/\~}\033\\"'
-#     ;;
-# esac
+
+# Window/tab title: not needed here. Every interactive shell runs inside tmux
+# (see the auto-exec above), and tmux.conf already drives set-titles-string
+# (including the [AWAY] tag) from the same SSH_CONNECTION/SSH_TTY signal.
 
 use_color=true
 
@@ -319,9 +324,14 @@ function __build_prompt_command {
   local username="${USER}"            # Gets the username
   local hostname="${HOSTNAME}"        # Gets the hostname
 
+  local remote_tag=""
+  if [[ "${IS_SSH_SESSION}" == true ]]; then
+    remote_tag="${BGRED}${BOLD}${BLACK} REMOTE ${username}@${hostname%%.*} ${RESET} "
+  fi
+
   # username and hostname already in tmux bar
   # cmd input is on new line in case the screen width is not enough for dirname len
-  printf "${YELLOW}[ ${BOLD}${BLACK}${BGBLUE}${cwd}${RESET} ${BCYAN}${pbranch} ${BRED}${pstatus}${BGREEN}${SHLVL} ${YELLOW}]${RESET}\n$ "
+  printf "${remote_tag}${YELLOW}[ ${BOLD}${BLACK}${BGBLUE}${cwd}${RESET} ${BCYAN}${pbranch} ${BRED}${pstatus}${BGREEN}${SHLVL} ${YELLOW}]${RESET}\n$ "
 }
 
 _git_branch_insert() {
@@ -406,10 +416,6 @@ unset use_color safe_term match_lhs sh
 #sysinfo-retro
 #cpufetch
 #colorscript random
-
-#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
-export SDKMAN_DIR="$HOME/.sdkman"
-[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
 
 export NVM_DIR="$HOME/.config/nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
