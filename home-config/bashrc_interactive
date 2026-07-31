@@ -12,7 +12,14 @@
 if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
   # Name remote sessions after the host so they never look like the local tmux.
   if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
-    exec tmux new-session -A -s "away-$(hostname -s 2>/dev/null || hostname)"
+    # -c only applies when a new session is actually created (-A just attaches
+    # to an existing one, keeping its panes' real cwd), i.e. exactly the case
+    # where the previous session fully died and would otherwise land in $HOME.
+    _dot_last_dir_file="$HOME/.cache/tmux_last_dir.$(hostname -s 2>/dev/null || hostname)"
+    _dot_start_dir="$HOME"
+    [[ -r "$_dot_last_dir_file" ]] && _dot_start_dir="$(cat "$_dot_last_dir_file")"
+    [[ -d "$_dot_start_dir" ]] || _dot_start_dir="$HOME"
+    exec tmux new-session -A -s "away-$(hostname -s 2>/dev/null || hostname)" -c "$_dot_start_dir"
   else
     exec tmux
   fi
@@ -37,6 +44,14 @@ export HISTSIZE=10000
 export HISTFILESIZE=20000
 export HISTFILE="$HOME/.bash_history"
 export PROMPT_COMMAND="history -a; history -c; history -r; ${PROMPT_COMMAND}"
+
+# Track cwd per host so a freshly (re-)created remote tmux session (see the
+# auto-exec above) can resume where the last one left off instead of $HOME.
+if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
+  mkdir -p "$HOME/.cache"
+  _dot_last_dir_file="$HOME/.cache/tmux_last_dir.$(hostname -s 2>/dev/null || hostname)"
+  export PROMPT_COMMAND="${PROMPT_COMMAND} printf '%s\n' \"\$PWD\" > \"${_dot_last_dir_file}\" 2>/dev/null;"
+fi
 
 ##############################################
 #  THIRD PARTY
