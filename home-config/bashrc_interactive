@@ -24,7 +24,7 @@ if command -v tmux &> /dev/null && [ -n "$PS1" ] && [ -z "$TMUX" ]; then
     _dot_start_dir="$HOME"
     [[ -r "$_dot_last_dir_file" ]] && _dot_start_dir="$(cat "$_dot_last_dir_file")"
     [[ -d "$_dot_start_dir" ]] || _dot_start_dir="$HOME"
-    exec tmux new-session -A -s "away-$(hostname -s 2>/dev/null || hostname)" -c "$_dot_start_dir"
+    exec tmux new-session -A -s "remote-$(hostname -s 2>/dev/null || hostname)" -c "$_dot_start_dir"
   else
     exec tmux
   fi
@@ -346,7 +346,7 @@ function __build_prompt_command {
 
   local remote_tag=""
   if [[ "${IS_SSH_SESSION}" == true ]]; then
-    remote_tag=" ${BOLD}${BLACK}${BGRED} (ssh) ${username}@${hostname%%.*} ${RESET} "
+    remote_tag=" ${BOLD}${BLACK}${BGRED} (remote) ${username}@${hostname%%.*} ${RESET} "
   fi
 
   # username and hostname already in tmux bar
