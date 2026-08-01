@@ -522,6 +522,7 @@ verify_references() {
   require_file "$DOTBASE/tmux.conf"
   require_file "$DOTBASE/rgignore"
   require_file "$DOTBASE/gitconfig-shared"
+  require_file "$DOTBASE/ghostty.conf"
 
   if is_macos; then
     require_file "$DOTBASE/bash_profile"
@@ -543,7 +544,7 @@ verify_references() {
 
 remove_old_configs() {
   rm -f "$HOME/.bashrc" "$HOME/.inputrc" "$HOME/.tmux.conf" "$HOME/.rgignore"
-  rm -f "$HOME/.vimrc" "$HOME/.gvimrc"
+  rm -f "$HOME/.vimrc" "$HOME/.gvimrc" "$HOME/.config/ghostty/config"
   rm -rf "$HOME/.vim" "$HOME/.config/nvim"
 
   if is_macos; then
@@ -558,6 +559,9 @@ create_symlinks() {
   ln -sfn "$DOTBASE/inputrc" "$HOME/.inputrc"
   ln -sfn "$DOTBASE/tmux.conf" "$HOME/.tmux.conf"
   ln -sfn "$DOTBASE/rgignore" "$HOME/.rgignore"
+
+  mkdir -p "$HOME/.config/ghostty"
+  ln -sfn "$DOTBASE/ghostty.conf" "$HOME/.config/ghostty/config"
 
   if is_macos; then
     ln -sfn "$DOTBASE/bash_profile" "$HOME/.bash_profile"
