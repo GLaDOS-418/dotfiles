@@ -1,8 +1,6 @@
 # shellcheck shell=bash
 
 # Login shells on macOS start here after dot_setup switches to Homebrew bash.
-# Keep Homebrew and GNU paths here rather than in ~/.bashrc so non-login shells
-# inherit a stable PATH without repeating setup work.
 # brew is a slow Ruby subprocess; resolve the binary without invoking it
 # (`brew --prefix` just to find `brew` itself doubles the cost for nothing),
 # then call shellenv exactly once - it exports HOMEBREW_PREFIX itself.
@@ -14,22 +12,8 @@ elif [[ -x /usr/local/bin/brew ]]; then
   eval "$(/usr/local/bin/brew shellenv)"
 fi
 
-_dot_prepend_path() {
-  [[ -d "$1" ]] || return 0
-  case ":$PATH:" in
-    *:"$1":*) ;;
-    *) PATH="$1:$PATH" ;;
-  esac
-}
-
-if [[ -n "${HOMEBREW_PREFIX:-}" ]]; then
-  # Prefer GNU tools because the shared shell config uses GNU-style flags.
-  _dot_prepend_path "$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin"
-  _dot_prepend_path "$HOMEBREW_PREFIX/opt/findutils/libexec/gnubin"
-  _dot_prepend_path "$HOMEBREW_PREFIX/opt/gnu-sed/libexec/gnubin"
-  _dot_prepend_path "$HOMEBREW_PREFIX/opt/grep/libexec/gnubin"
-  _dot_prepend_path "$HOMEBREW_PREFIX/opt/gnu-tar/libexec/gnubin"
-fi
+# GNU path prepends live in ~/.bashrc, which we always source below - it
+# runs unconditionally there too (for non-login shells like tmux panes).
 export PATH
 
 # This bridge is optional and only runs when a local ~/.configure_tools.sh exists.
@@ -37,5 +21,3 @@ export PATH
   source "$HOME/dotfiles/home-config/configure_tools_bridge.bash"
 
 [[ -f "$HOME/.bashrc" ]] && source "$HOME/.bashrc"
-
-unset -f _dot_prepend_path 2>/dev/null || true

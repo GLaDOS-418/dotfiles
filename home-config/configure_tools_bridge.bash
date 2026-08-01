@@ -9,7 +9,7 @@ _dot_configure_tools_bridge() {
 
   local exports
   exports="$(
-    HOME="$HOME" zsh -f -c '
+    HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH" zsh -f -c '
       source "$HOME/.configure_tools.sh" >/dev/null
       for name in AWS_CA_BUNDLE REQUESTS_CA_BUNDLE SSL_CERT_FILE CURL_CA_BUNDLE NODE_EXTRA_CA_CERTS GIT_SSL_CAPATH; do
         if (( ${+parameters[$name]} )); then
