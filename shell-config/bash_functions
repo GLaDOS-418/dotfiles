@@ -417,18 +417,31 @@ function peek {
 # WSL 'git' wrapper. Named the function git to get bash completion
 # https://github.com/Microsoft/WSL/issues/981#issuecomment-363638656
 function git {
-  REALPATH=$(readlink -f "${PWD}")
-  if grep --color=never -qE "(MINGW64|CYGWIN)" /proc/version &> /dev/null  && [ "${REALPATH:0:6}" == "/cygdrive/" ] || [ "${REALPATH:0:3}" == "/c/" ]; then
-    # /c/ for git bash and /cygdrive/ for cygwin
-    git.exe "$@"
-  elif grep --color=never -qE "(Microsoft|WSL)" /proc/version &> /dev/null  && [ "${REALPATH:0:5}" == "/mnt/" ]; then
-    # /mnt/ for microsoft wsl. WSL doesn't allow windows programs to alter subsystem files. Thus no /home/
-    git.exe "$@"
-  elif grep --color=never -qE "(MSYS_NT)" /proc/version &> /dev/null ;  then
-    /mingw64/bin/git "$@"
-  else
-    /usr/bin/git "$@"
+  if [[ -r /proc/version ]]; then
+    local proc_version realpath
+    proc_version=$(</proc/version)
+    case "$proc_version" in
+      *MINGW64*|*CYGWIN*)
+        realpath=$(readlink -f "$PWD")
+        if [[ "$realpath" == /cygdrive/* || "$realpath" == /c/* ]]; then
+          git.exe "$@"
+          return
+        fi
+        ;;
+      *Microsoft*|*WSL*)
+        realpath=$(readlink -f "$PWD")
+        if [[ "$realpath" == /mnt/* ]]; then
+          git.exe "$@"
+          return
+        fi
+        ;;
+      *MSYS_NT*)
+        /mingw64/bin/git "$@"
+        return
+        ;;
+    esac
   fi
+  /usr/bin/git "$@"
 }
 
 # Interactively fuzzy-find and checkout a local Git branch.
@@ -522,58 +535,55 @@ function nonzero_error_code {
 
 # get current branch in git repo
 function parse_git_branch {
-  BRANCH=$(git rev-parse --abbrev-ref HEAD 2> /dev/null | sed -e 's/\(.*\)/\1/')
-  if [ ! "${BRANCH}" == "" ]
-  then
-    STAT=$(parse_git_dirty)
-    printf '(%s)' "${BRANCH}${STAT}"
-  fi
-
-  printf ""
+  local branch stat
+  branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null) || return 0
+  [[ -n "$branch" ]] || return 0
+  stat=$(parse_git_dirty)
+  printf '(%s%s)' "$branch" "$stat"
 }
 
 # get current status of git repo
 function parse_git_dirty {
-  status=$(git status 2>&1 | tee)
+  local status line xy tracking
+  local ahead=0 behind=0 renamed=0 newfile=0 untracked=0 deleted=0 dirty=0 diverged=0
+  local bits=""
+  status=$(git status --porcelain=v1 --branch 2>/dev/null) || return 0
 
-  dirty=$(echo -n "${status}" 2> /dev/null | grep "modified:" &> /dev/null; echo "$?")
-  untracked=$(echo -n "${status}" 2> /dev/null | grep "Untracked files" &> /dev/null; echo "$?")
-  ahead=$(echo -n "${status}" 2> /dev/null | grep "Your branch is ahead of" &> /dev/null; echo "$?")
-  behind=$(echo -n "${status}" 2> /dev/null | grep "Your branch is behind" &> /dev/null; echo "$?")
-  newfile=$(echo -n "${status}" 2> /dev/null | grep "new file:" &> /dev/null; echo "$?")
-  renamed=$(echo -n "${status}" 2> /dev/null | grep "renamed:" &> /dev/null; echo "$?")
-  deleted=$(echo -n "${status}" 2> /dev/null | grep "deleted:" &> /dev/null; echo "$?")
-  diverged=$(echo -n "${status}" 2> /dev/null | grep "Your branch and.\+\?have diverged" &> /dev/null; echo "$?")
+  while IFS= read -r line; do
+    if [[ "$line" == '## '* ]]; then
+      if [[ "$line" == *'['*']'* ]]; then
+        tracking=${line##*[}
+        tracking=${tracking%%]*}
+        [[ " $tracking " == *' ahead '* ]] && ahead=1
+        [[ " $tracking " == *' behind '* ]] && behind=1
+      fi
+      continue
+    fi
+    xy=${line:0:2}
+    [[ "$xy" == '??' ]] && untracked=1
+    [[ "$xy" == *R* ]] && renamed=1
+    [[ "$xy" == *A* ]] && newfile=1
+    [[ "$xy" == *D* ]] && deleted=1
+    [[ "$xy" == *M* ]] && dirty=1
+  done <<< "$status"
 
-  bits=""
-  if [ "${renamed}" == "0" ]; then
-    bits="*${bits}"
+  if (( ahead && behind )); then
+    diverged=1
+    ahead=0
+    behind=0
   fi
-  if [ "${ahead}" == "0" ]; then
-    bits=">${bits}"
-  fi
-  if [ "${behind}" == "0" ]; then
-    bits="<${bits}"
-  fi
-  if [ "${newfile}" == "0" ]; then
-    bits="+${bits}"
-  fi
-  if [ "${untracked}" == "0" ]; then
-    bits="?${bits}"
-  fi
-  if [ "${deleted}" == "0" ]; then
-    bits="x${bits}"
-  fi
-  if [ "${dirty}" == "0" ]; then
-    bits="!${bits}"
-  fi
-  if [ "${diverged}" == "0" ]; then
-    bits="Y${bits}"
-  fi
-  if [ ! "${bits}" == "" ]; then
-    echo " ${bits}"
+  (( diverged )) && bits+='Y'
+  (( dirty )) && bits+='!'
+  (( deleted )) && bits+='x'
+  (( untracked )) && bits+='?'
+  (( newfile )) && bits+='+'
+  (( behind )) && bits+='<'
+  (( ahead )) && bits+='>'
+  (( renamed )) && bits+='*'
+  if [[ -n "$bits" ]]; then
+    printf ' %s\n' "$bits"
   else
-    echo ""
+    printf '\n'
   fi
 }
 

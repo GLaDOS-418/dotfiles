@@ -25,7 +25,7 @@ alias links='find . -maxdepth 1 -type l -ls' # list all links in current folder
 # alias mv='mv -i'
 alias cp='rsync --partial --progress'
 
-TRASH="${HOME}/.local/share/trash/files/"
+export TRASH="${HOME}/.local/share/trash/files/"
 mkdir -p "${TRASH}"
 
 alias rm='mv -t "${TRASH}" --backup=numbered -- '
