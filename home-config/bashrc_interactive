@@ -60,12 +60,11 @@ export PROMPT_COMMAND
 if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
   mkdir -p "$HOME/.cache"
   _dot_last_dir_file="$HOME/.cache/tmux_last_dir.$(hostname -s 2>/dev/null || hostname)"
-  # Strip/re-add the trailing ';' so this is a separate command even if the
-  # existing PROMPT_COMMAND (e.g. RHEL's /etc/bashrc title-setter) has none -
-  # otherwise the two printfs silently merge into one (format string recycles
-  # over the combined args), and this file ends up with escape-code garbage
-  # instead of a real path.
-  export PROMPT_COMMAND="${PROMPT_COMMAND%;}; printf '%s\n' \"\$PWD\" >| \"${_dot_last_dir_file}\" 2>/dev/null;"
+  _dot_last_dir_cmd="printf '%s\n' \"\$PWD\" >| \"${_dot_last_dir_file}\" 2>/dev/null"
+  PROMPT_COMMAND=${PROMPT_COMMAND//"$_dot_last_dir_cmd"/}
+  PROMPT_COMMAND="${PROMPT_COMMAND%"${PROMPT_COMMAND##*[![:space:];]}"}"
+  export PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND}; }${_dot_last_dir_cmd};"
+  unset _dot_last_dir_cmd
 fi
 
 ##############################################
