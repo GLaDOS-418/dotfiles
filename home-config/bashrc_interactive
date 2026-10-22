@@ -12,7 +12,8 @@
 # $TMUX only catches local nesting (never forwarded by ssh); ssh does forward
 # the client's $TERM, so "tmux*"/"screen*" here means we're already inside a
 # local tmux pane - skip nesting another tmux on the remote in that case.
-if command -v tmux &> /dev/null && [ -n "$PS1" ] && [ -z "$TMUX" ] && [[ "$TERM" != screen* && "$TERM" != tmux* ]]; then
+# SSH tools such as Codex can start interactive shells without a terminal, where tmux would fail.
+if [[ -t 0 && -t 1 ]] && command -v tmux &> /dev/null && [ -n "$PS1" ] && [ -z "$TMUX" ] && [[ "$TERM" != screen* && "$TERM" != tmux* ]]; then
   # Name remote sessions after the host so they never look like the local tmux.
   if [[ -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
     # cd here (instead of passing -c to new-session) because a brand new
